@@ -1,0 +1,14 @@
+.vscode/
+myenv/
+test_scripts/
+db_manager.py
+redis_manager.py
+
+
+
+__pycache__/
+
+*.py[cod]
+*$py.class
+.env
+*.xlsx
