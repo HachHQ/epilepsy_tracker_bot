@@ -76,7 +76,7 @@ async def process_type_of_epilepsy(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Тут вы можете перечислить все лекастра, которые принмает\n"
                                     "тот для кого составляется анкета. Напишите их названия через запятую.\n"
                                     "Например: паглюферал, леветирацетам, пексион")
-    await callback.message.answer("Введите принимаемые препараты:")
+    await callback.message.answer("Введите принимаемые препараты:", reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.drugs)
     await callback.answer()
 
@@ -85,7 +85,7 @@ async def process_drugs(message: Message, state: FSMContext):
     #TODO validator
     str_of_drugs = str(message.text)
     await state.update_data(drugs=str_of_drugs)
-    await message.answer("Введите возраст:")
+    await message.answer("Введите возраст:", reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.age)
 
 @profile_form_router.message(StateFilter(ProfileForm.age))
