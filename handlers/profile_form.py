@@ -11,10 +11,12 @@ import pytz
 from timezonefinder import TimezoneFinder
 
 from database.db_init import SessionLocal
-from database.models import User, Profile
+from database.models import User, Profile, Drug, profile_drugs
 
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
+
+from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
 
 profile_form_router = Router()
 
@@ -66,10 +68,12 @@ async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext)
 
 @profile_form_router.message(StateFilter(ProfileForm.profile_name))
 async def process_profile_name(message: Message, state: FSMContext):
-    await state.update_data(profile_name=message.text)
-
-    await message.answer("Выберите тип эпилепсии", reply_markup=get_types_of_epilepsy_kb())
-    await state.set_state(ProfileForm.type_of_epilepsy)
+    if validate_name_of_profile_form(message.text):
+        await state.update_data(profile_name=message.text)
+        await message.answer("Выберите тип эпилепсии", reply_markup=get_types_of_epilepsy_kb())
+        await state.set_state(ProfileForm.type_of_epilepsy)
+    else:
+        await message.answer("Имя может содержать только загланые и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину")
 
 @profile_form_router.callback_query(F.data.in_({'focal_type', 'generalized_type',
                                     'combied_type','unidentified_type'}),
@@ -97,18 +101,24 @@ async def process_type_of_epilepsy(callback: CallbackQuery, state: FSMContext):
 
 @profile_form_router.message(StateFilter(ProfileForm.drugs))
 async def process_drugs(message: Message, state: FSMContext):
-    #TODO validator
-    str_of_drugs = str(message.text)
-    await state.update_data(drugs=str_of_drugs)
-    await message.answer("Введите возраст:", reply_markup=get_cancel_kb())
-    await state.set_state(ProfileForm.age)
+    if validate_list_of_drugs_of_profile_form(message.text):
+        str_of_drugs = str(message.text)
+        await state.update_data(drugs=str_of_drugs)
+        await message.answer("Введите возраст:", reply_markup=get_cancel_kb())
+        await state.set_state(ProfileForm.age)
+    else:
+        await message.answer("Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел")
+
 
 @profile_form_router.message(StateFilter(ProfileForm.age))
 async def process_age(message: Message, state: FSMContext):
-    #TODO validator
-    await state.update_data(age=message.text)
-    await message.answer("Выберите пол:", reply_markup=get_sex_kb())
-    await state.set_state(ProfileForm.sex)
+    if validate_age_of_profile_form(message.text):
+        await state.update_data(age=message.text)
+        await message.answer("Выберите пол:", reply_markup=get_sex_kb())
+        await state.set_state(ProfileForm.sex)
+    else:
+        await message.answer("Возраст может содержать только число от 1 до 130 включительно")
+
 
 @profile_form_router.callback_query(F.data.in_({'sex_male', 'sex_female'}),
                                     StateFilter(ProfileForm.sex))
@@ -150,7 +160,6 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
                                     StateFilter(ProfileForm.timezone))
 async def process_timezone(callback: CallbackQuery, state: FSMContext):
     await state.update_data(timezone=callback.data.split('_')[1])
-    # data = await state.get_data()
     await callback.message.answer(f"Часовой пояс определен: {callback.data.split('_')[1]}",
                                     reply_markup=ReplyKeyboardRemove())
     await callback.message.answer(f"Анкета профиля заполнена!\nНажмите 'Подтвердить', чтобы проверить и сохранить введенные данные", reply_markup=get_submit_profile_settings_kb())
@@ -178,6 +187,26 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         )
         print(f"Создается профиль: {new_profile}")
         db.add(new_profile)
+        db.flush()
+
+        #user = db.query(User).filter(User.telegram_id == callback.message.chat.id).first()
+        profile = db.query(Profile).filter((Profile.user_id == user.id) & (Profile.profile_name == data["profile_name"])).first()
+        existing_drugs = {drug.name: drug.id for drug in db.query(Drug).all()}
+        new_profile_drugs = []
+        for drug_name in data["drugs"].strip().split(","):
+            if drug_name in existing_drugs:
+                drug_id = existing_drugs[drug_name]
+            else:
+                new_drug = Drug(name=drug_name)
+                db.add(new_drug)
+                db.flush()
+                drug_id = new_drug.id
+                existing_drugs[drug_name] = drug_id
+
+            new_profile_drugs.append({"profile_id": profile.id, "drug_id": drug_id})
+        db.execute(profile_drugs.insert(), new_profile_drugs)
+        print("Препараты успешно добавлены к профилю.")
+
         db.commit()
         print("Профиль успешно создан.")
     except InterruptedError as e:
@@ -187,7 +216,34 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         print(f"Неизвестная ошибка при создании профиля: {e}")
     finally:
         db.close()
-    await state.clear()
+
+    # try:
+    #     user = db.query(User).filter(User.telegram_id == callback.message.chat.id).first()
+    #     profile = db.query(Profile).filter(Profile.user_id == user.id & Profile.profile_name == data["profile_name"]).first()
+    #     existing_drugs = {drug.name: drug.id for drug in db.query(Drug).all()}
+    #     new_profile_drugs = []
+    #     for drug_name in data["drugs"].strip().split(","):
+    #         if drug_name in existing_drugs:
+    #             drug_id = existing_drugs[drug_name]
+    #         else:
+    #             new_drug = Drug(name=drug_name)
+    #             db.add(new_drug)
+    #             db.flush()
+    #             drug_id = new_drug.id
+    #             existing_drugs[drug_name] = drug_id
+
+    #         new_profile_drugs.append({"profile_id": profile.id, "drug_id": drug_id})
+    #     db.execute(profile_drugs.insert(), new_profile_drugs)
+    #     print("Препараты успешно добавлены к профилю.")
+    # except InterruptedError as e:
+    #     print(f"Ошибка внесения лекарств: {e}")
+    #     db.rollback()
+    # except Exception as e:
+    #     print(f"Неизвестная ошибка при внесеии лекарства: {e}")
+    # finally:
+    #     db.close()
+
+
     await callback.message.answer(f'Ваша анкета заполнена \nИмя профиля: {data["profile_name"]} \nТип эпилепсии: {data["type_of_epilepsy"]} \nПринимаемые препараты: {data["drugs"]} \nВозраст: {data["age"]} лет \nПол: {"Мужской" if data["sex"] == "male" else "Женский"} \nЧасовой пояс: {data["timezone"]}')
     await state.clear()
     await callback.answer()
