@@ -16,7 +16,7 @@ def validate_name_of_profile_form(user_name: str) ->  bool:
     return bool(re.fullmatch(check_profile_name_pattern, user_name))
 
 def validate_age_of_profile_form(age: str) -> bool:
-    return bool(re.match(check_age_patternttern, age))
+    return bool(re.match(check_age_pattern, age))
 
 def validate_list_of_drugs_of_profile_form(drugs: str) -> bool:
     return bool(re.match(check_drugs_pattern, drugs))
