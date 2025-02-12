@@ -10,6 +10,9 @@ from datetime import datetime
 import pytz
 from timezonefinder import TimezoneFinder
 
+from database.db_init import SessionLocal
+from database.models import User, Profile
+
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
 
@@ -72,7 +75,19 @@ async def process_profile_name(message: Message, state: FSMContext):
                                     'combied_type','unidentified_type'}),
                                     StateFilter(ProfileForm.type_of_epilepsy))
 async def process_type_of_epilepsy(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(type_of_epilepsy=callback.data)
+    str_epilepsy_type = ""
+
+    if callback.data == "focal_type":
+        str_epilepsy_type = "Фокальная"
+    elif callback.data == "generalized_type":
+        str_epilepsy_type = "Генерализованная"
+    elif callback.data == "combied_type":
+        str_epilepsy_type = "Комбинированная"
+    elif callback.data == "unidentified_type":
+        str_epilepsy_type = "Неопределенного типа"
+
+    await state.update_data(type_of_epilepsy=str_epilepsy_type)
+
     await callback.message.answer("Тут вы можете перечислить все лекастра, которые принмает\n"
                                     "тот для кого составляется анкета. Напишите их названия через запятую.\n"
                                     "Например: паглюферал, леветирацетам, пексион")
@@ -98,7 +113,7 @@ async def process_age(message: Message, state: FSMContext):
 @profile_form_router.callback_query(F.data.in_({'sex_male', 'sex_female'}),
                                     StateFilter(ProfileForm.sex))
 async def process_sex(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(sex=callback.data)
+    await state.update_data(sex=callback.data.split('_')[1])
     await callback.message.answer("Зная ваш часовой пояс бот сможет вовремя присылать вам уведомления о приеме лекарств. \n"
                             "Введите его в UTC формате, например: +7 (для Новосибирска) или +3 (для Москвы)\n"
                             "По этой ссылке можно узнать часовой пояс в UTC формате вашего города:\n"
@@ -145,6 +160,34 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext):
 @profile_form_router.callback_query(F.data == "submit_profile_settings")
 async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    await callback.message.answer(f'Ваша анкета заполнена \nИмя профиля: {data["profile_name"]} \nТип эпилепсии: {data["type_of_epilepsy"]} \nПринимаемые препараты: {data["drugs"]} \nВозраст: {data["age"]} лет \nПол: {"Мужской" if data["sex"] == "sex_male" else "Женский"} \nЧасовой пояс: {data["timezone"]}')
+    print(f"Полученные данные: {data}")
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.message.chat.id).first()
+        if not user:
+            await callback.message.answer("Ошибка, пользователь не найден")
+            return
+        new_profile = Profile(
+            user_id=user.id,
+            profile_name=data["profile_name"],
+            type_of_epilepsy=data["type_of_epilepsy"],
+            age=data["age"],
+            sex=data["sex"],
+            timezone=data["timezone"],
+            created_at=datetime.utcnow()
+        )
+        print(f"Создается профиль: {new_profile}")
+        db.add(new_profile)
+        db.commit()
+        print("Профиль успешно создан.")
+    except InterruptedError as e:
+        print(f"Ошибка создания профиля: {e}")
+        db.rollback()
+    except Exception as e:
+        print(f"Неизвестная ошибка при создании профиля: {e}")
+    finally:
+        db.close()
+    await state.clear()
+    await callback.message.answer(f'Ваша анкета заполнена \nИмя профиля: {data["profile_name"]} \nТип эпилепсии: {data["type_of_epilepsy"]} \nПринимаемые препараты: {data["drugs"]} \nВозраст: {data["age"]} лет \nПол: {"Мужской" if data["sex"] == "male" else "Женский"} \nЧасовой пояс: {data["timezone"]}')
     await state.clear()
     await callback.answer()
