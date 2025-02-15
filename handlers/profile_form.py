@@ -60,8 +60,10 @@ async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Вы можете создать профиль для себя, родственника, "
-                                    "или своего питомца. Заполните анкету его специфичными данными, именем (или кличкой),"
-                                    "видом эпилепсии, принимаемыми препаратами и так далее.")
+                                    "или своего питомца. Заполните анкету его специфичными данными, именем (или кличкой), "
+                                    "видом эпилепсии, принимаемыми препаратами и так далее. "
+                                    "<u>Имя может содержать только заглавные и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.</u>",
+                                    parse_mode="HTML")
     await callback.message.answer("Введите имя профиля", reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.profile_name)
     await callback.answer()
@@ -73,7 +75,7 @@ async def process_profile_name(message: Message, state: FSMContext):
         await message.answer("Выберите тип эпилепсии", reply_markup=get_types_of_epilepsy_kb())
         await state.set_state(ProfileForm.type_of_epilepsy)
     else:
-        await message.answer("Имя может содержать только загланые и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину")
+        await message.answer("Имя может содержать только загланые и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.")
 
 @profile_form_router.callback_query(F.data.in_({'focal_type', 'generalized_type',
                                     'combied_type','unidentified_type'}),
@@ -92,10 +94,13 @@ async def process_type_of_epilepsy(callback: CallbackQuery, state: FSMContext):
 
     await state.update_data(type_of_epilepsy=str_epilepsy_type)
 
-    await callback.message.answer("Тут вы можете перечислить все лекастра, которые принмает\n"
-                                    "тот для кого составляется анкета. Напишите их названия через запятую.\n"
-                                    "Например: паглюферал, леветирацетам, пексион")
-    await callback.message.answer("Введите принимаемые препараты:", reply_markup=get_cancel_kb())
+    await callback.message.answer("Тут вы можете перечислить все лекастра, которые принмает "
+                                    "тот для кого составляется анкета. Напишите их названия через запятую. "
+                                    "<u>Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел. </u>\n"
+                                    "Например: паглюферал, леветирацетам, пексион.",
+                                    parse_mode="HTML")
+    await callback.message.answer("Введите принимаемые препараты:",
+                                reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.drugs)
     await callback.answer()
 
@@ -104,10 +109,13 @@ async def process_drugs(message: Message, state: FSMContext):
     if validate_list_of_drugs_of_profile_form(message.text):
         str_of_drugs = str(message.text)
         await state.update_data(drugs=str_of_drugs)
-        await message.answer("Введите возраст:", reply_markup=get_cancel_kb())
+        await message.answer("<u>Возраст может содержать только число от 1 до 130 включительно.</u>\n"
+                            "Введите возраст:",
+                            parse_mode="HTML",
+                            reply_markup=get_cancel_kb())
         await state.set_state(ProfileForm.age)
     else:
-        await message.answer("Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел")
+        await message.answer("Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел.")
 
 
 @profile_form_router.message(StateFilter(ProfileForm.age))
@@ -124,8 +132,8 @@ async def process_age(message: Message, state: FSMContext):
                                     StateFilter(ProfileForm.sex))
 async def process_sex(callback: CallbackQuery, state: FSMContext):
     await state.update_data(sex=callback.data.split('_')[1])
-    await callback.message.answer("Зная ваш часовой пояс бот сможет вовремя присылать вам уведомления о приеме лекарств. \n"
-                            "Введите его в UTC формате, например: +7 (для Новосибирска) или +3 (для Москвы)\n"
+    await callback.message.answer("Зная ваш часовой пояс бот сможет вовремя присылать вам уведомления о приеме лекарств.\n"
+                            "Введите его в UTC формате, например:\n +7 (для Новосибирска) или +3 (для Москвы)\n"
                             "По этой ссылке можно узнать часовой пояс в UTC формате вашего города:\n"
                             "https://time-in.ru/time/russia \n"
                             "Вы так же можете воспользоваться автоматическим определением часового пояса, нажав на кнопку под строкой ввода, внизу.\n"
@@ -216,34 +224,14 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         print(f"Неизвестная ошибка при создании профиля: {e}")
     finally:
         db.close()
-
-    # try:
-    #     user = db.query(User).filter(User.telegram_id == callback.message.chat.id).first()
-    #     profile = db.query(Profile).filter(Profile.user_id == user.id & Profile.profile_name == data["profile_name"]).first()
-    #     existing_drugs = {drug.name: drug.id for drug in db.query(Drug).all()}
-    #     new_profile_drugs = []
-    #     for drug_name in data["drugs"].strip().split(","):
-    #         if drug_name in existing_drugs:
-    #             drug_id = existing_drugs[drug_name]
-    #         else:
-    #             new_drug = Drug(name=drug_name)
-    #             db.add(new_drug)
-    #             db.flush()
-    #             drug_id = new_drug.id
-    #             existing_drugs[drug_name] = drug_id
-
-    #         new_profile_drugs.append({"profile_id": profile.id, "drug_id": drug_id})
-    #     db.execute(profile_drugs.insert(), new_profile_drugs)
-    #     print("Препараты успешно добавлены к профилю.")
-    # except InterruptedError as e:
-    #     print(f"Ошибка внесения лекарств: {e}")
-    #     db.rollback()
-    # except Exception as e:
-    #     print(f"Неизвестная ошибка при внесеии лекарства: {e}")
-    # finally:
-    #     db.close()
-
-
-    await callback.message.answer(f'Ваша анкета заполнена \nИмя профиля: {data["profile_name"]} \nТип эпилепсии: {data["type_of_epilepsy"]} \nПринимаемые препараты: {data["drugs"]} \nВозраст: {data["age"]} лет \nПол: {"Мужской" if data["sex"] == "male" else "Женский"} \nЧасовой пояс: {data["timezone"]}')
+    await callback.message.answer(  f'Ваша анкета заполнена\n\n'
+                                    f'Имя профиля: <b>{data["profile_name"]}</b>\n'
+                                    f'Тип эпилепсии: <b>{data["type_of_epilepsy"]}</b>\n'
+                                    f'Принимаемые препараты: <b>{data["drugs"]}</b>\n'
+                                    f'Возраст: <b>{data["age"]} лет</b> \n'
+                                    f'Пол: <b>{"Мужской" if data["sex"] == "male" else "Женский"}</b> \n'
+                                    f'Часовой пояс: <b>{data["timezone"]}</b>',
+                                    parse_mode="HTML"
+                                )
     await state.clear()
     await callback.answer()
