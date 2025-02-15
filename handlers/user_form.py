@@ -22,7 +22,6 @@ class UserForm(StatesGroup):
     login = State()
     check_form = State()
 
-# Хэндлер для команды /cancel (отмена анкеты)
 @user_form_router.message(Command(commands="cancel"), ~StateFilter(default_state))
 async def cancel_form(message: Message, state: FSMContext):
     await message.answer(
@@ -30,10 +29,8 @@ async def cancel_form(message: Message, state: FSMContext):
         "Чтобы начать заново, отправьте команду /start."
 
     )
-    # Сбрасываем состояние и очищаем данные FSM
     await state.clear()
 
-# Хэндлер для команды /cancel вне состояний (по умолчанию)
 @user_form_router.message(Command(commands="cancel"), StateFilter(default_state))
 async def cancel_outside_fsm(message: Message):
     await message.answer(
@@ -54,18 +51,13 @@ async def start_form(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserForm.name)
     await callback.answer()
 
-# Хэндлер для ввода имени
 @user_form_router.message(StateFilter(UserForm.name))
 async def process_name(message: Message, state: FSMContext):
-    # Сохраняем имя пользователя
     if validate_name_of_user_form(message.text):
         print("Имя валидно")
         await state.update_data(name=message.text)
-    # Спрашиваем логин
         await message.answer("Введите ваш уникальный логин:", reply_markup=get_cancel_kb())
-    # Переводим в состояние UserForm.login
         await state.set_state(UserForm.login)
-
     else:
         await message.answer("Имя должно иметь длину от 1 до 20 символов, и использовать только буквы русского или английского алфавита", reply_markup=get_cancel_kb())
         return
@@ -75,25 +67,30 @@ async def process_login(message: Message, state: FSMContext):
     if validate_login_of_user_form(message.text):
         print("Логин валиден")
         await state.update_data(login=message.text)
-
         data = await state.get_data()
         print(f"Полученные данные: {data}")
         db = SessionLocal()
         try:
-            # Проверяем, существует ли пользователь с таким логином
             existing_login = db.query(User).filter(User.login == data["login"]).first()
             existing_tgid = db.query(User).filter(User.telegram_id == message.chat.id).first()
 
-            if existing_tgid or existing_login:
-                await message.answer(f"Пользователь с логином '{data['login']}' уже существует, попробуйте ввести другой.", reply_markup=get_cancel_kb())
+            if existing_tgid:
+                await message.answer(f"Вы уже зарегистрированы.\n"
+                                    f"Ваш логин - <b>{data['login']}</b>'.",
+                                    parse_mode="HTML",
+                                    reply_markup=get_cancel_kb())
+                return
+            if existing_login:
+                await message.answer(f"Пользователь с логином '{data['login']}' уже существует, попробуйте ввести другой.",
+                                    reply_markup=get_cancel_kb())
                 return
 
             new_user = User(
                 telegram_id=message.chat.id,
                 telegram_username=message.from_user.username,
                 telegram_fullname=message.from_user.full_name,
-                name=data["name"],  # Убедитесь, что доступ через ключи корректен
-                login=data["login"],  # Убедитесь, что доступ через ключи корректен
+                name=data["name"],
+                login=data["login"],
                 created_at=datetime.utcnow()
             )
 
@@ -119,7 +116,7 @@ async def process_login(message: Message, state: FSMContext):
             )
             await message.answer(
                     "Хотите ли вы создать свой личный профиль?\n"
-                    "Для этого потребуется ввести данные о виде эпилепсии, лечении и еще кое о чём.\n"
+                    "Для этого потребуется ввести данные о виде эпилепсии, лечении и еще кое о чём.\n\n"
                     "Ботом можно пользоваться и без профиля, но тогда вы сможете только следить за состоянием тех людей, котороые добавлены в ваш список доверенных лиц.\n"
                     "А с личным профилем вы сможете заполнять собственный журнал.",
                     reply_markup=next_to_profile_form_kb_bd.as_markup()
@@ -137,4 +134,3 @@ async def process_login(message: Message, state: FSMContext):
         await state.clear()
     else:
         await message.answer("Логин должен иметь длину от 1 до 20 символов, использовать буквы русского или английского алфавита, но допускаются сиволы - '.' '_' '-'", reply_markup=get_cancel_kb())
-
