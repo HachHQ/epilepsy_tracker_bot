@@ -3,7 +3,8 @@ myenv/
 test_scripts/
 db_manager.py
 redis_manager.py
-sending_notification.py
+
+
 
 __pycache__/
 git
