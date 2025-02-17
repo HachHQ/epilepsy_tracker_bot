@@ -6,7 +6,7 @@ redis_manager.py
 sending_notification.py
 
 __pycache__/
-
+git
 *.py[cod]
 *$py.class
 .env
