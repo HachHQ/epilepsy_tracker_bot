@@ -42,6 +42,26 @@ class Drug(Base):
 
     profiles = relationship("Profile", secondary="profile_drugs", back_populates="drugs")
 
+class Seizure(Base):
+    __tablename__ = 'seizures'
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey('profiles.id'), nullable=False)
+    date = Column(String(25))
+    time = Column(String(25))
+    severity = Column(String(50), nullable=True)
+    duration = Column(Integer)
+    comment = Column(String(150))
+    count = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    triggers = Column(String, nullable=True)
+    location = Column(String(30), nullable=True)
+    symptoms = Column(String, nullable=True)
+
+    
+
 profile_drugs = Table(
     'profile_drugs',
     Base.metadata,
