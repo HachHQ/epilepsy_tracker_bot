@@ -26,5 +26,4 @@ async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
 @cancel_router.callback_query(F.data == "cancel_fsm_script", StateFilter(default_state))
 async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(LEXICON_RU['not_in_script'])
-    await state.clear()
     await callback.answer()
