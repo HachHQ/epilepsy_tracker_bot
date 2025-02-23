@@ -13,6 +13,8 @@ from timezonefinder import TimezoneFinder
 from database.db_init import SessionLocal
 from database.models import User, Profile, Drug, profile_drugs
 
+from lexicon.lexicon import LEXICON_RU
+
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
 
@@ -32,38 +34,10 @@ class ProfileForm(StatesGroup):
 #TODO   write validator for each input field
 #TODO   write sql-query to save profile data and associate it with user profile
 
-@profile_form_router.message(Command(commands="cancel"), ~StateFilter(default_state))
-async def cancel_form(message: Message, state: FSMContext):
-    await message.answer(
-        "Вы отменили заполнение анкеты.\n"
-        "Чтобы начать заново, отправьте команду /start.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.clear()
-
-@profile_form_router.message(Command(commands="cancel"), StateFilter(default_state))
-async def cancel_outside_fsm(message: Message):
-    await message.answer(
-        "Вы не находитесь в процессе заполнения анкеты.\n"
-        "Чтобы начать заполнение, используйте команду /start.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-@profile_form_router.callback_query(F.data == "cancel_fsm_script", ~StateFilter(default_state))
-async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("Вы отменили заполнение анкеты, чтобы начать заново, отправьте команду /start",
-                                    reply_markup=ReplyKeyboardRemove())
-    await state.clear()
-    await callback.answer()
-
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("Вы можете создать профиль для себя, родственника, "
-                                    "или своего питомца. Заполните анкету его специфичными данными, именем (или кличкой), "
-                                    "видом эпилепсии, принимаемыми препаратами и так далее.\n\n"
-                                    "<u>Имя может содержать только заглавные и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.</u>",
-                                    parse_mode="HTML")
-    await callback.message.answer("Введите имя профиля:", reply_markup=get_cancel_kb())
+    await callback.message.answer(LEXICON_RU['info_about_profile'], parse_mode="HTML")
+    await callback.message.answer(LEXICON_RU['enter_profile_name'], reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.profile_name)
     await callback.answer()
 
@@ -71,59 +45,51 @@ async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext)
 async def process_profile_name(message: Message, state: FSMContext):
     if validate_name_of_profile_form(message.text):
         await state.update_data(profile_name=message.text)
-        await message.answer("Выберите тип эпилепсии", reply_markup=get_types_of_epilepsy_kb())
+        await message.answer(LEXICON_RU['enter_type_of_epilepsy'], reply_markup=get_types_of_epilepsy_kb())
         await state.set_state(ProfileForm.type_of_epilepsy)
     else:
-        await message.answer("Имя может содержать только загланые и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.")
+        await message.answer(LEXICON_RU['incorrect_profile_name'])
 
 @profile_form_router.callback_query(F.data.in_({'focal_type', 'generalized_type',
                                     'combied_type','unidentified_type'}),
                                     StateFilter(ProfileForm.type_of_epilepsy))
 async def process_type_of_epilepsy(callback: CallbackQuery, state: FSMContext):
     await state.update_data(type_of_epilepsy=callback.data)
-    await callback.message.answer("Тут вы можете перечислить все лекастра, которые принимает "
-                                    "тот для кого составляется анкета. Напишите их названия через запятую. "
-                                    "Например: паглюферал, леветирацетам, пексион.\n\n"
-                                    "<u>Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел. </u>",
+    await callback.message.answer(LEXICON_RU['enter_drugs_info'],
                                     parse_mode="HTML")
-    await callback.message.answer("Введите принимаемые препараты:",
+    await callback.message.answer(LEXICON_RU['enter_drugs'],
                                 reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.drugs)
     await callback.answer()
 
 @profile_form_router.message(StateFilter(ProfileForm.drugs))
 async def process_drugs(message: Message, state: FSMContext):
-    if validate_list_of_drugs_of_profile_form(message.text):
+    if validate_list_of_drugs_of_profile_form(message.text) and len(message.text) <= 120:
         str_of_drugs = str(message.text)
         await state.update_data(drugs=str_of_drugs)
-        await message.answer("<u>Возраст может содержать только число от 1 до 130 включительно.</u>\n\n"
-                            "Введите возраст:",
+        await message.answer(LEXICON_RU['incorrect_age'],
                             parse_mode="HTML",
                             reply_markup=get_cancel_kb())
+        await message.answer(LEXICON_RU['enter_age'])
         await state.set_state(ProfileForm.age)
     else:
-        await message.answer("Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел.")
+        await message.answer(LEXICON_RU['incorrect_drugs'],
+                            parse_mode='HTML')
 
 @profile_form_router.message(StateFilter(ProfileForm.age))
 async def process_age(message: Message, state: FSMContext):
     if validate_age_of_profile_form(message.text):
         await state.update_data(age=message.text)
-        await message.answer("Выберите пол:", reply_markup=get_sex_kb())
+        await message.answer(LEXICON_RU['enter_sex'], reply_markup=get_sex_kb())
         await state.set_state(ProfileForm.sex)
     else:
-        await message.answer("Возраст может содержать только число от 1 до 130 включительно")
+        await message.answer(LEXICON_RU['incorrect_age'])
 
 @profile_form_router.callback_query(F.data.in_({'sex_male', 'sex_female'}),
                                     StateFilter(ProfileForm.sex))
 async def process_sex(callback: CallbackQuery, state: FSMContext):
     await state.update_data(sex=callback.data.split('_')[1])
-    await callback.message.answer("Зная ваш часовой пояс бот сможет вовремя присылать вам уведомления о приеме лекарств.\n\n"
-                            "Введите его в UTC формате, например:\n +7 (для Новосибирска) или +3 (для Москвы)\n\n"
-                            "По этой ссылке можно узнать часовой пояс в UTC формате вашего города:\n"
-                            "https://time-in.ru/time/russia \n\n"
-                            "Вы так же можете воспользоваться автоматическим определением часового пояса, нажав на кнопку под строкой ввода, внизу.\n\n"
-                            "Бот не хранит важе местоположение, только часовой пояс.",
-                            reply_markup=get_geolocation_for_timezone_kb())
+    await callback.message.answer(LEXICON_RU['timezone_info'],reply_markup=get_geolocation_for_timezone_kb())
     await callback.message.answer("Выберите ваш часовой пояс или нажмите на кнопку снизу:", reply_markup=get_timezone_kb())
     await state.set_state(ProfileForm.timezone)
     await callback.answer()
@@ -146,13 +112,36 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
     else:
         await message.answer("Часовой пояс не найден, воспользуйтесь клавиатурой")
 
+
+
 @profile_form_router.callback_query(F.data.contains("timezone_"),
                                     StateFilter(ProfileForm.timezone))
 async def process_timezone(callback: CallbackQuery, state: FSMContext):
     await state.update_data(timezone=callback.data.split('_')[1])
+    data = await state.get_data()
+    str_epilepsy_type = ""
+
+    if data['type_of_epilepsy'] == "focal_type":
+        str_epilepsy_type = "Фокальная"
+    elif data['type_of_epilepsy'] == "generalized_type":
+        str_epilepsy_type = "Генерализованная"
+    elif data['type_of_epilepsy'] == "combied_type":
+        str_epilepsy_type = "Комбинированная"
+    elif data['type_of_epilepsy'] == "unidentified_type":
+        str_epilepsy_type = "Неопределенного типа"
     await callback.message.answer(f"Часовой пояс определен: {callback.data.split('_')[1]}",
                                     reply_markup=ReplyKeyboardRemove())
-    await callback.message.answer(f"Анкета профиля заполнена!\nНажмите 'Подтвердить', чтобы проверить и сохранить введенные данные", reply_markup=get_submit_profile_settings_kb())
+    await callback.message.answer(f"Анкета профиля заполнена!")
+    await callback.message.answer(
+                                f'<u>Имя профиля</u> : <b>{data["profile_name"]}</b>\n'
+                                f'<u>Тип эпилепсии</u> : <b>{str_epilepsy_type}</b>\n'
+                                f'<u>Принимаемые препараты</u> : <b>{data["drugs"]}</b>\n'
+                                f'<u>Возраст</u> : <b>{data["age"]} лет</b> \n'
+                                f'<u>Пол</u> : <b>{"Мужской" if data["sex"] == "male" else "Женский"}</b> \n'
+                                f'<u>Часовой пояс</u> : <b>{data["timezone"]}</b>',
+                                parse_mode="HTML"
+                            )
+    await callback.message.answer("Нажмите 'Подтвердить', чтобы сохранить введенные данные или 'Отменить', чтобы ввести данные снова.",  reply_markup=get_submit_profile_settings_kb())
     await state.set_state(ProfileForm.check_form)
     await callback.answer()
 
@@ -205,26 +194,5 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         print(f"Неизвестная ошибка при создании профиля: {e}")
     finally:
         db.close()
-
-    str_epilepsy_type = ""
-
-    if data['type_of_epilepsy'] == "focal_type":
-        str_epilepsy_type = "Фокальная"
-    elif data['type_of_epilepsy'] == "generalized_type":
-        str_epilepsy_type = "Генерализованная"
-    elif data['type_of_epilepsy'] == "combied_type":
-        str_epilepsy_type = "Комбинированная"
-    elif data['type_of_epilepsy'] == "unidentified_type":
-        str_epilepsy_type = "Неопределенного типа"
-
-    await callback.message.answer(  f'Ваша анкета заполнена\n\n'
-                                    f'<u>Имя профиля</u> : <b>{data["profile_name"]}</b>\n'
-                                    f'<u>Тип эпилепсии</u> : <b>{str_epilepsy_type}</b>\n'
-                                    f'<u>Принимаемые препараты</u> : <b>{data["drugs"]}</b>\n'
-                                    f'<u>Возраст</u> : <b>{data["age"]} лет</b> \n'
-                                    f'<u>Пол</u> : <b>{"Мужской" if data["sex"] == "male" else "Женский"}</b> \n'
-                                    f'<u>Часовой пояс</u> : <b>{data["timezone"]}</b>',
-                                    parse_mode="HTML"
-                                )
     await state.clear()
     await callback.answer()

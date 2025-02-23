@@ -11,6 +11,8 @@ from datetime import datetime
 from database.db_init import SessionLocal
 from database.models import User
 
+from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
+
 from services.validators import validate_login_of_user_form, validate_name_of_user_form
 
 from keyboards.menu_kb import get_cancel_kb
@@ -22,32 +24,9 @@ class UserForm(StatesGroup):
     login = State()
     check_form = State()
 
-@user_form_router.message(Command(commands="cancel"), ~StateFilter(default_state))
-async def cancel_form(message: Message, state: FSMContext):
-    await message.answer(
-        "Вы отменили заполнение анкеты.\n"
-        "Чтобы начать заново, отправьте команду /start."
-
-    )
-    await state.clear()
-
-@user_form_router.message(Command(commands="cancel"), StateFilter(default_state))
-async def cancel_outside_fsm(message: Message):
-    await message.answer(
-        "Вы не находитесь в процессе заполнения анкеты.\n"
-        "Чтобы начать заполнение, используйте команду /start.",
-
-    )
-
-@user_form_router.callback_query(F.data == "cancel_fsm_script", ~StateFilter(default_state))
-async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("Вы отменили заполнение анкеты, чтобы начать заново, отправьте команду /start")
-    await state.clear()
-    await callback.answer()
-
 @user_form_router.callback_query(F.data == "submit_welcome_msg")
 async def start_form(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("Введите свое имя:", reply_markup=get_cancel_kb())
+    await callback.message.answer(LEXICON_RU['enter_username'], reply_markup=get_cancel_kb())
     await state.set_state(UserForm.name)
     await callback.answer()
 
@@ -56,7 +35,7 @@ async def process_name(message: Message, state: FSMContext):
     if validate_name_of_user_form(message.text):
         print("Имя валидно")
         await state.update_data(name=message.text)
-        await message.answer("Введите ваш уникальный логин:", reply_markup=get_cancel_kb())
+        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
         await state.set_state(UserForm.login)
     else:
         await message.answer("Имя должно иметь длину от 1 до 20 символов, и использовать только буквы русского или английского алфавита", reply_markup=get_cancel_kb())
@@ -75,13 +54,11 @@ async def process_login(message: Message, state: FSMContext):
             existing_tgid = db.query(User).filter(User.telegram_id == message.chat.id).first()
 
             if existing_tgid:
-                await message.answer(f"Вы уже зарегистрированы.\n"
-                                    f"Ваш логин - <b>{data['login']}</b>'.",
-                                    parse_mode="HTML",
+                await message.answer(LEXICON_RU['user_exist'],
                                     reply_markup=get_cancel_kb())
                 return
             if existing_login:
-                await message.answer(f"Пользователь с логином '{data['login']}' уже существует, попробуйте ввести другой.",
+                await message.answer(LEXICON_RU['login_exist'],
                                     reply_markup=get_cancel_kb())
                 return
 
@@ -101,27 +78,22 @@ async def process_login(message: Message, state: FSMContext):
 
             next_to_profile_form_kb_bd = InlineKeyboardBuilder()
             next_to_profile_form_kb_bd.button(
-                text="Да",
+                LEXICON_RU['yes'],
                 callback_data="to_filling_profile_form"
             )
             next_to_profile_form_kb_bd.button(
-                text="Нет",
+                LEXICON_RU['no'],
                 callback_data="to_menu"
             )
 
-            await message.answer(
-            f"Анкета заполнена!\nИмя: <b>{data['name']}</b>\nЛогин: <b>{data['login']}</b>\n\n"
-            f"Если хотите изменить данные, отправьте команду /start, чтобы заполнить анкету заново.",
-            parse_mode='HTML'
+            await message.answer("Анкета заполнена!\nИмя:"
+                                f"<b>{data['name']}</b>\nЛогин: <b>{data['login']}</b>\n\n"
+                                "Если хотите изменить данные, отправьте команду /start, чтобы заполнить анкету заново.",
+                                parse_mode='HTML'
             )
-            await message.answer(
-                    "Хотите ли вы создать свой личный профиль?\n"
-                    "Для этого потребуется ввести данные о виде эпилепсии, лечении и еще кое о чём.\n\n"
-                    "Ботом можно пользоваться и без профиля, но тогда вы сможете только следить за состоянием тех людей, котороые добавлены в ваш список доверенных лиц.\n"
-                    "А с личным профилем вы сможете заполнять собственный журнал.",
+            await message.answer(LEXICON_RU['offer_to_create_profile'],
                     reply_markup=next_to_profile_form_kb_bd.as_markup()
             )
-
             print("Пользователь успешно создан.")
         except InterruptedError as e:
             print(f"Ошибка создания пользователя: {e}")
@@ -133,4 +105,4 @@ async def process_login(message: Message, state: FSMContext):
 
         await state.clear()
     else:
-        await message.answer("Логин должен иметь длину от 1 до 20 символов, использовать буквы русского или английского алфавита, но допускаются сиволы - '.' '_' '-'", reply_markup=get_cancel_kb())
+        await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
