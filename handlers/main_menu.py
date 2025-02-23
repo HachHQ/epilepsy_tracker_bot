@@ -13,11 +13,9 @@ from services.notification_queue import get_notification_queue
 
 main_menu_router = Router()
 
-class MenuCallbackFactory(CallbackData, prefix=":"):
-    action: str
-    value: str
-
-
+# class MenuCallbackFactory(CallbackData, prefix=":"):
+#     action: str
+#     value: str
 
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message):
