@@ -72,17 +72,16 @@ async def process_login(message: Message, state: FSMContext):
             )
 
             print(f"Создается пользователь: {new_user}")
-
             db.add(new_user)
             db.commit()
 
             next_to_profile_form_kb_bd = InlineKeyboardBuilder()
             next_to_profile_form_kb_bd.button(
-                LEXICON_RU['yes'],
+                text=LEXICON_RU['yes'],
                 callback_data="to_filling_profile_form"
             )
             next_to_profile_form_kb_bd.button(
-                LEXICON_RU['no'],
+                text=LEXICON_RU['no'],
                 callback_data="to_menu"
             )
 
