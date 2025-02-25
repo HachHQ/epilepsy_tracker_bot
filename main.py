@@ -5,11 +5,11 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.filters import Command
-from redis.asyncio import Redis
 
 import requests
 
 from database.db_init import init_db
+from database.redis_client import redis
 
 from config_data.config import load_config
 
@@ -27,7 +27,7 @@ from services.notification_queue import NotificationQueue, set_notification_queu
 
 config = load_config(".env")
 
-redis = Redis(host='localhost', port=6380)
+
 storage = RedisStorage(redis=redis)
 # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
 bot = Bot(config.tg_bot.token)

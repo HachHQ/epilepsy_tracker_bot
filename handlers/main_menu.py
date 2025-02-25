@@ -5,6 +5,7 @@ from aiogram.filters import Command
 
 from database.db_init import SessionLocal
 from database.models import User
+from database.redis_client import redis
 
 from keyboards.menu_kb import get_main_menu_keyboard
 
@@ -16,20 +17,28 @@ main_menu_router = Router()
 #     action: str
 #     value: str
 
-def get_user_login(message) -> str:
-    login = ""
-    db = SessionLocal()
-    try:
-        user_login = db.query(User).filter(User.telegram_id == message.chat.id).first()
-        login = user_login.login
-    finally:
+async def get_user_login(message) -> str:
+    user_id = message.chat.id
+
+    # Пытаемся получить логин из Redis
+    login = await redis.get(f"user:login:{user_id}")
+
+    if not login:
+        # Если нет в кэше, достаем из БД
+        db = SessionLocal()
+        user = db.query(User).filter(User.telegram_id == user_id).first()
         db.close()
+
+        if user:
+            login = user.login
+            await redis.setex(f"user:login:{user_id}", 300, login)  # Сохраняем в кэше
+
     return login
 
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message):
     await message.answer(
-        f"Логин: {get_user_login(message)}\n"
+        f"Логин: {await get_user_login(message)}\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard()
