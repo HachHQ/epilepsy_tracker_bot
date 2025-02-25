@@ -47,7 +47,7 @@ async def send_main_menu(message: Message):
 @main_menu_router.callback_query(F.data == "to_menu")
 async def send_main_menu_callback(callback: CallbackQuery):
     await callback.message.answer(
-        f"Логин: {get_user_login(callback.message)}\n"
+        f"Логин: {await get_user_login(callback.message)}\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard()
