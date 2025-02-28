@@ -9,7 +9,7 @@ from database.redis_client import redis
 
 from keyboards.menu_kb import get_main_menu_keyboard
 
-from services.notification_queue import get_notification_queue
+# from services.notification_queue import get_notification_queue
 
 main_menu_router = Router()
 
@@ -19,10 +19,13 @@ main_menu_router = Router()
 
 async def get_user_login(message) -> str:
     user_id = message.chat.id
-
+    login = None
     # Пытаемся получить логин из Redis
-    login = await redis.get(f"user:login:{user_id}")
-
+    login_bytes = await redis.get(f"user:login:{user_id}")
+    print(login_bytes)
+    if login_bytes:
+        login = login_bytes.decode('utf-8')
+    print(login)
     if not login:
         # Если нет в кэше, достаем из БД
         db = SessionLocal()
@@ -33,7 +36,7 @@ async def get_user_login(message) -> str:
             login = user.login
             await redis.setex(f"user:login:{user_id}", 300, login)  # Сохраняем в кэше
 
-    return login
+    return login or "Логин не найден"
 
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message):
@@ -53,3 +56,23 @@ async def send_main_menu_callback(callback: CallbackQuery):
         reply_markup=get_main_menu_keyboard()
     )
     await callback.answer()
+
+@main_menu_router.message(F.text.startswith('send_'))
+async def send_notification_someone(message: Message, notification_queue):
+    db = SessionLocal()
+    try:
+        login = message.text.split("_", 1)[1]  # Разделяем 'send_логин' → получаем логин
+        print(f"Поиск пользователя с логином: {login}")
+
+        user = db.query(User).filter(User.login == login).first()
+        if not user:
+            print("Пользователь не найден")
+            await message.answer("Пользователь не найден.")
+            return
+
+        print(f"Найден пользователь: {user.telegram_id}")
+        await notification_queue.send_notification(user.telegram_id, "Уведомление")
+    except Exception as e:
+        print(f"Неизвестная ошибка: {e}")
+    finally:
+        db.close()

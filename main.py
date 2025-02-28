@@ -23,7 +23,9 @@ from handlers.main_menu import main_menu_router
 
 from keyboards.set_menu import set_main_menu
 
-from services.notification_queue import NotificationQueue, set_notification_queue
+from middleware.inner import NotificationMiddleware
+
+from services.notification_queue import NotificationQueue
 
 config = load_config(".env")
 
@@ -33,21 +35,23 @@ storage = RedisStorage(redis=redis)
 bot = Bot(config.tg_bot.token)
 dp = Dispatcher(storage=storage)
 
+notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 
-notification_queue_instance = NotificationQueue(bot, rate_limit=0.05)
-set_notification_queue(notification_queue_instance)
 async def main():
     init_db()
+
+    dp.update.middleware(NotificationMiddleware(notification_queue))
+
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
-    await notification_queue_instance.start()
+    await notification_queue.start()
     await set_main_menu(bot)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
-    await notification_queue_instance.stop()
+    await notification_queue.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

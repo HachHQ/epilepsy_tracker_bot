@@ -194,5 +194,6 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         print(f"Неизвестная ошибка при создании профиля: {e}")
     finally:
         db.close()
+    await callback.message.answer(f"Профиль - {data['profile_name']} создан!")
     await state.clear()
     await callback.answer()

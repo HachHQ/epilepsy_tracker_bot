@@ -1,7 +1,16 @@
-from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Table, DateTime
+from sqlalchemy import Column, Integer, BigInteger, Index, TIMESTAMP, String, Enum, ForeignKey, Table, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database.db_init import Base
 from datetime import datetime
+import enum
+import uuid
+
+class RequestStatus(enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
 
 class User(Base):
     __tablename__ = 'users'
@@ -9,10 +18,10 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False)
-    telegram_username = Column(String)
-    telegram_fullname = Column(String)
-    name = Column(String)
-    login = Column(String, nullable=False, unique=True)
+    telegram_username = Column(String(64))
+    telegram_fullname = Column(String(64))
+    name = Column(String(25))
+    login = Column(String(25), nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     profiles = relationship("Profile", back_populates="user")
@@ -23,11 +32,11 @@ class Profile(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    profile_name = Column(String, nullable=False)
-    type_of_epilepsy = Column(String)
+    profile_name = Column(String(40), nullable=False)
+    type_of_epilepsy = Column(String(20))
     age = Column(Integer)
-    sex = Column(String)
-    timezone = Column(String)
+    sex = Column(String(20))
+    timezone = Column(String(3))
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="profiles")
@@ -38,7 +47,7 @@ class Drug(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String(30), nullable=False)
 
     profiles = relationship("Profile", secondary="profile_drugs", back_populates="drugs")
 
@@ -60,7 +69,20 @@ class Seizure(Base):
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
 
-    
+class TrustedPersonRequest(Base):
+    __tablename__ = "trusted_person_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    user_id = Column(BigInteger, nullable=False)
+    recipient_id = Column(BigInteger, nullable=False)
+    status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    expires_at = Column(TIMESTAMP, nullable=False)
+
+    __table_args__ = (
+        Index("idx_recipient", "recipient_id"),
+    )
 
 profile_drugs = Table(
     'profile_drugs',
