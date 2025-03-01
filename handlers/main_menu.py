@@ -3,9 +3,14 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters.callback_data import CallbackData
 from aiogram.filters import Command
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
 from database.db_init import SessionLocal
 from database.models import User
 from database.redis_client import redis
+
+from services.notification_queue import NotificationQueue
 
 from keyboards.menu_kb import get_main_menu_keyboard
 
@@ -28,13 +33,13 @@ async def get_user_login(message) -> str:
     print(login)
     if not login:
         # Если нет в кэше, достаем из БД
-        db = SessionLocal()
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        db.close()
+        async with SessionLocal() as db:
+            user = db.query(User).filter(User.telegram_id == user_id).first()
+            db.close()
 
-        if user:
-            login = user.login
-            await redis.setex(f"user:login:{user_id}", 300, login)  # Сохраняем в кэше
+            if user:
+                login = user.login
+                await redis.setex(f"user:login:{user_id}", 300, login)  # Сохраняем в кэше
 
     return login or "Логин не найден"
 
@@ -58,13 +63,13 @@ async def send_main_menu_callback(callback: CallbackQuery):
     await callback.answer()
 
 @main_menu_router.message(F.text.startswith('send_'))
-async def send_notification_someone(message: Message, notification_queue):
-    db = SessionLocal()
+async def send_notification_someone(message: Message, notification_queue: NotificationQueue, db: AsyncSession):
     try:
         login = message.text.split("_", 1)[1]  # Разделяем 'send_логин' → получаем логин
         print(f"Поиск пользователя с логином: {login}")
 
-        user = db.query(User).filter(User.login == login).first()
+        result = await db.execute(select(User).filter(User.login == login))
+        user = result.scalars().first()
         if not user:
             print("Пользователь не найден")
             await message.answer("Пользователь не найден.")
@@ -74,5 +79,28 @@ async def send_notification_someone(message: Message, notification_queue):
         await notification_queue.send_notification(user.telegram_id, "Уведомление")
     except Exception as e:
         print(f"Неизвестная ошибка: {e}")
-    finally:
-        db.close()
+
+# @main_menu_router.message(F.text.startswith('send_'))
+# async def send_trusted_request(message: Message, db: Session, notification_queue: NotificationQueue):
+#     sender = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+#     if not sender:
+#         await message.answer("Ваш аккаунт не найден в системе.")
+#         return
+
+#     receiver_login = message.text.split("_", 1)[1]
+#     receiver = db.query(User).filter(User.login == receiver_login).first()
+#     if not receiver:
+#         await message.answer("Пользователь не найден.")
+#         return
+
+#     request = TrustedRequest(sender_id=sender.id, receiver_id=receiver.id)
+#     db.add(request)
+#     db.commit()
+
+#     await notification_queue.send_notification(
+#         receiver.telegram_id,
+#         f"{sender.name} хочет добавить вас в доверенные лица. Принять запрос?",
+#         request_id=request.id
+#     )
+
+#     await message.answer("Запрос отправлен!")

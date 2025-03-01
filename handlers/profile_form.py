@@ -5,6 +5,8 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import Command, StateFilter
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import datetime
 import pytz
@@ -30,9 +32,6 @@ class ProfileForm(StatesGroup):
     sex = State()
     timezone = State()
     check_form = State()
-
-#TODO   write validator for each input field
-#TODO   write sql-query to save profile data and associate it with user profile
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
@@ -145,55 +144,72 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileForm.check_form)
     await callback.answer()
 
+
 @profile_form_router.callback_query(F.data == "submit_profile_settings")
-async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext):
+async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     data = await state.get_data()
     print(f"Полученные данные: {data}")
-    db = SessionLocal()
+    if not data:
+        await callback.message.answer("Начните регистрацию заново")
+        await callback.answer()
+        return
     try:
-        user = db.query(User).filter(User.telegram_id == callback.message.chat.id).first()
+        # Поиск пользователя
+        result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
+        user = result.scalars().first()
+
         if not user:
             await callback.message.answer("Ошибка, пользователь не найден")
             return
+
+        # Создание профиля
         new_profile = Profile(
             user_id=user.id,
             profile_name=data["profile_name"],
             type_of_epilepsy=data["type_of_epilepsy"],
-            age=data["age"],
+            age=int(data["age"]),
             sex=data["sex"],
             timezone=data["timezone"],
             created_at=datetime.utcnow()
         )
+
         print(f"Создается профиль: {new_profile}")
         db.add(new_profile)
-        db.flush()
+        await db.flush()
 
-        profile = db.query(Profile).filter((Profile.user_id == user.id) & (Profile.profile_name == data["profile_name"])).first()
-        existing_drugs = {drug.name: drug.id for drug in db.query(Drug).all()}
+        # Поиск созданного профиля
+        result = await db.execute(
+            select(Profile).filter(
+                (Profile.user_id == user.id) & (Profile.profile_name == data["profile_name"])
+            )
+        )
+        profile = result.scalars().first()
+
+        # Обработка списка препаратов
+        existing_drugs = {drug.name: drug.id for drug in (await db.execute(select(Drug))).scalars()}
         new_profile_drugs = []
+
         for drug_name in data["drugs"].strip().split(","):
             if drug_name in existing_drugs:
                 drug_id = existing_drugs[drug_name]
             else:
                 new_drug = Drug(name=drug_name)
                 db.add(new_drug)
-                db.flush()
+                await db.flush()
                 drug_id = new_drug.id
                 existing_drugs[drug_name] = drug_id
 
             new_profile_drugs.append({"profile_id": profile.id, "drug_id": drug_id})
-        db.execute(profile_drugs.insert(), new_profile_drugs)
+
+        await db.execute(profile_drugs.insert().values(new_profile_drugs))
         print("Препараты успешно добавлены к профилю.")
 
-        db.commit()
+        await db.commit()
         print("Профиль успешно создан.")
-    except InterruptedError as e:
-        print(f"Ошибка создания профиля: {e}")
-        db.rollback()
     except Exception as e:
         print(f"Неизвестная ошибка при создании профиля: {e}")
-    finally:
-        db.close()
+        await db.rollback()
+
     await callback.message.answer(f"Профиль - {data['profile_name']} создан!")
     await state.clear()
     await callback.answer()

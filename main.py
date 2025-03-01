@@ -10,6 +10,7 @@ import requests
 
 from database.db_init import init_db
 from database.redis_client import redis
+from database.db_init import SessionLocal
 
 from config_data.config import load_config
 
@@ -23,7 +24,7 @@ from handlers.main_menu import main_menu_router
 
 from keyboards.set_menu import set_main_menu
 
-from middleware.inner import NotificationMiddleware
+from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 
 from services.notification_queue import NotificationQueue
 
@@ -38,9 +39,10 @@ dp = Dispatcher(storage=storage)
 notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 
 async def main():
-    init_db()
+    await init_db()
 
     dp.update.middleware(NotificationMiddleware(notification_queue))
+    dp.update.middleware(DatabaseSessionMiddleware(SessionLocal))
 
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
