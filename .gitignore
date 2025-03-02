@@ -3,7 +3,8 @@ myenv/
 test_scripts/
 db_manager.py
 redis_manager.py
-
+alembic.ini
+alembic/
 
 
 __pycache__/

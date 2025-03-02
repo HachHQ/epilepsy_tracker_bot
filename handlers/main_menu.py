@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from database.models import User
+from database.models import User, TrustedPersonRequest
 from database.redis_client import redis
 from services.notification_queue import NotificationQueue
 from services.update_login_cache import get_cached_login, set_cached_login
@@ -66,18 +66,19 @@ async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
 @main_menu_router.message(F.text.startswith('send_'))
 async def send_notification_someone(message: Message, notification_queue: NotificationQueue, db: AsyncSession):
     try:
-        login = message.text.split("_", 1)[1]
-        print(f"Поиск пользователя с логином: {login}")
-
-        result = await db.execute(select(User).filter(User.login == login))
-        user = result.scalars().first()
+        recipient_login = message.text.split("_", 1)[1]
+        print(f"Поиск пользователя с логином: {recipient_login}")
+        search_user_result = await db.execute(select(User).filter(User.login == recipient_login))
+        user = search_user_result.scalars().first()
         if not user:
             print("Пользователь не найден")
             await message.answer("Пользователь не найден.")
             return
-
+        new_request = TrustedPersonRequest(
+            
+        )
         print(f"Найден пользователь: {user.telegram_id}")
-        await notification_queue.send_notification(user.telegram_id, "Уведомление")
+        await notification_queue.send_trusted_contact_request(user.telegram_id, "Уведомление")
     except Exception as e:
         print(f"Неизвестная ошибка: {e}")
 

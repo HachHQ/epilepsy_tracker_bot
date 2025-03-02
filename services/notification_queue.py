@@ -51,11 +51,11 @@ class NotificationQueue:
         """Добавляет сообщение в очередь"""
         await self.queue.put((chat_id, text, kwargs))
 
-    async def send_trusted_contact_request(self, chat_id: int, uuid: str):
+    async def send_trusted_contact_request(self, chat_id: int, request_uuid: str, sender_login: str):
         """Отправляет запрос на подтверждение доверенного лица"""
-        text = f"Подтвердите запрос доверенного лица. Код запроса: {uuid}"
+
+        text = f"Подтвердите запрос доверенного лица {sender_login}"
         await self.queue.put((chat_id, text, {}))
-        await self.redis.setex(f"trusted_request:{uuid}", 600, "pending")
 
     """async def check_and_send_reminders(self):
         Фоновая задача для рассылки напоминаний о приеме лекарств

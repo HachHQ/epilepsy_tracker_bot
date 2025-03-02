@@ -63,6 +63,7 @@ class Seizure(Base):
     comment = Column(String(150))
     count = Column(Integer, nullable=True)
 
+    video_tg_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     triggers = Column(String, nullable=True)
