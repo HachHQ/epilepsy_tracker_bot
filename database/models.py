@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, BigInteger, Index, TIMESTAMP, String, En
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db_init import Base
-from datetime import datetime
+from datetime import datetime, timedelta
 import enum
 import uuid
 
@@ -73,13 +73,12 @@ class Seizure(Base):
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
     request_uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     user_id = Column(BigInteger, nullable=False)
     recipient_id = Column(BigInteger, nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    expires_at = Column(TIMESTAMP, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow(), nullable=False)
+    expires_at = Column(DateTime, default=datetime.utcnow() + timedelta(), nullable=False)
 
     __table_args__ = (
         Index("idx_recipient", "recipient_id"),
