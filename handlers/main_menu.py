@@ -37,9 +37,6 @@ main_menu_router = Router()
 
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message, db: AsyncSession):
-    result = await db.execute(select(User).filter(User.telegram_id == message.chat.id))
-    user_login = result.scalars().first()
-    await set_cached_login(message.chat.id, user_login.login)
     lg = await get_cached_login(message.chat.id)
     print(lg)
     await message.answer(
@@ -67,42 +64,29 @@ async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
 async def send_notification_someone(message: Message, notification_queue: NotificationQueue, db: AsyncSession):
     try:
         recipient_login = message.text.split("_", 1)[1]
+        sender_login = await get_cached_login(message.chat.id)
+
         print(f"Поиск пользователя с логином: {recipient_login}")
-        search_user_result = await db.execute(select(User).filter(User.login == recipient_login))
+        search_user_result = await db.execute(select(User).filter(User.telegram_id == message.chat.id))
         user = search_user_result.scalars().first()
-        if not user:
+        search_recipient_result = await db.execute(select(User).filter(User.login == recipient_login))
+        recipient = search_recipient_result.scalars().first()
+
+        if not recipient:
             print("Пользователь не найден")
             await message.answer("Пользователь не найден.")
             return
+        print(f"Найден пользователь: {recipient.login} - {recipient.telegram_id}")
+
+        
+
         new_request = TrustedPersonRequest(
-            
+            user_id = user.id,
+            recipient_id = recipient.id
         )
-        print(f"Найден пользователь: {user.telegram_id}")
-        await notification_queue.send_trusted_contact_request(user.telegram_id, "Уведомление")
+
+        print(f"Новый запрос добавлен: {new_request}")
+        await notification_queue.send_trusted_contact_request(recipient.telegram_id,  request_uuid=new_request.request_uuid ,sender_login=sender_login)
+        db.add(new_request)
     except Exception as e:
         print(f"Неизвестная ошибка: {e}")
-
-# @main_menu_router.message(F.text.startswith('send_'))
-# async def send_trusted_request(message: Message, db: Session, notification_queue: NotificationQueue):
-#     sender = db.query(User).filter(User.telegram_id == message.from_user.id).first()
-#     if not sender:
-#         await message.answer("Ваш аккаунт не найден в системе.")
-#         return
-
-#     receiver_login = message.text.split("_", 1)[1]
-#     receiver = db.query(User).filter(User.login == receiver_login).first()
-#     if not receiver:
-#         await message.answer("Пользователь не найден.")
-#         return
-
-#     request = TrustedRequest(sender_id=sender.id, receiver_id=receiver.id)
-#     db.add(request)
-#     db.commit()
-
-#     await notification_queue.send_notification(
-#         receiver.telegram_id,
-#         f"{sender.name} хочет добавить вас в доверенные лица. Принять запрос?",
-#         request_id=request.id
-#     )
-
-#     await message.answer("Запрос отправлен!")
