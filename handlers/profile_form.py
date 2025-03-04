@@ -67,9 +67,9 @@ async def process_drugs(message: Message, state: FSMContext):
         str_of_drugs = str(message.text)
         await state.update_data(drugs=str_of_drugs)
         await message.answer(LEXICON_RU['incorrect_age'],
-                            parse_mode="HTML",
+                            parse_mode="HTML")
+        await message.answer(LEXICON_RU['enter_age'],
                             reply_markup=get_cancel_kb())
-        await message.answer(LEXICON_RU['enter_age'])
         await state.set_state(ProfileForm.age)
     else:
         await message.answer(LEXICON_RU['incorrect_drugs'],
@@ -104,9 +104,13 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
         now = datetime.now(timezone)
         utc_offset_seconds = now.utcoffset().total_seconds()
         utc_offset_hours = utc_offset_seconds / 3600
-        await message.answer(f"Часовой пояс определен: {int(utc_offset_hours):+}", reply_markup=ReplyKeyboardRemove())
-        await message.answer(f"Анкета профиля заполнена!\nНажмите 'Подтвердить', чтобы проверить и сохранить введенные данные", reply_markup=get_submit_profile_settings_kb())
         await state.update_data(timezone=f"{int(utc_offset_hours):+}")
+        data = await state.get_data()
+        profile_info = get_profile_info(data)
+        await message.answer(f"Часовой пояс определен: {int(utc_offset_hours):+}", reply_markup=ReplyKeyboardRemove())
+        await message.answer(f"Анкета профиля заполнена!")
+        await message.answer(f"{profile_info}", parse_mode='HTML')
+        await message.answer("Нажмите 'Подтвердить', чтобы сохранить введенные данные или 'Отменить', чтобы ввести данные снова.",  reply_markup=get_submit_profile_settings_kb())
         await state.set_state(ProfileForm.check_form)
     else:
         await message.answer("Часовой пояс не найден, воспользуйтесь клавиатурой")
@@ -118,28 +122,11 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
 async def process_timezone(callback: CallbackQuery, state: FSMContext):
     await state.update_data(timezone=callback.data.split('_')[1])
     data = await state.get_data()
-    str_epilepsy_type = ""
-
-    if data['type_of_epilepsy'] == "focal_type":
-        str_epilepsy_type = "Фокальная"
-    elif data['type_of_epilepsy'] == "generalized_type":
-        str_epilepsy_type = "Генерализованная"
-    elif data['type_of_epilepsy'] == "combied_type":
-        str_epilepsy_type = "Комбинированная"
-    elif data['type_of_epilepsy'] == "unidentified_type":
-        str_epilepsy_type = "Неопределенного типа"
+    profile_info = get_profile_info(data)
     await callback.message.answer(f"Часовой пояс определен: {callback.data.split('_')[1]}",
                                     reply_markup=ReplyKeyboardRemove())
     await callback.message.answer(f"Анкета профиля заполнена!")
-    await callback.message.answer(
-                                f'<u>Имя профиля</u> : <b>{data["profile_name"]}</b>\n'
-                                f'<u>Тип эпилепсии</u> : <b>{str_epilepsy_type}</b>\n'
-                                f'<u>Принимаемые препараты</u> : <b>{data["drugs"]}</b>\n'
-                                f'<u>Возраст</u> : <b>{data["age"]} лет</b> \n'
-                                f'<u>Пол</u> : <b>{"Мужской" if data["sex"] == "male" else "Женский"}</b> \n'
-                                f'<u>Часовой пояс</u> : <b>{data["timezone"]}</b>',
-                                parse_mode="HTML"
-                            )
+    await callback.message.answer(f"{profile_info}", parse_mode="HTML")
     await callback.message.answer("Нажмите 'Подтвердить', чтобы сохранить введенные данные или 'Отменить', чтобы ввести данные снова.",  reply_markup=get_submit_profile_settings_kb())
     await state.set_state(ProfileForm.check_form)
     await callback.answer()
@@ -189,7 +176,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         existing_drugs = {drug.name: drug.id for drug in (await db.execute(select(Drug))).scalars()}
         new_profile_drugs = []
 
-        for drug_name in data["drugs"].strip().split(","):
+        for drug_name in data["drugs"].lower().strip().split(","):
             if drug_name in existing_drugs:
                 drug_id = existing_drugs[drug_name]
             else:
@@ -213,3 +200,18 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
     await callback.message.answer(f"Профиль - {data['profile_name']} создан!")
     await state.clear()
     await callback.answer()
+
+def get_profile_info(data: dict[str, str]) -> str:
+    str_epilepsy_type = ""
+
+    if data['type_of_epilepsy'] == "focal_type":
+        str_epilepsy_type = "Фокальная"
+    elif data['type_of_epilepsy'] == "generalized_type":
+        str_epilepsy_type = "Генерализованная"
+    elif data['type_of_epilepsy'] == "combied_type":
+        str_epilepsy_type = "Комбинированная"
+    elif data['type_of_epilepsy'] == "unidentified_type":
+        str_epilepsy_type = "Неопределенного типа"
+    profile_info = f'<u>Имя профиля</u> : <b>{data["profile_name"]}</b>\n<u>Тип эпилепсии</u> : <b>{str_epilepsy_type}</b>\n<u>Принимаемые препараты</u> : <b>{data["drugs"]}</b>\n<u>Возраст</u> : <b>{data["age"]} лет</b> \n<u>Пол</u> : <b>{"Мужской" if data["sex"] == "male" else "Женский"}</b> \n<u>Часовой пояс</u> : <b>{data["timezone"]}</b>'
+
+    return profile_info
