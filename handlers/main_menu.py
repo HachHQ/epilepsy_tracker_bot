@@ -1,3 +1,4 @@
+import uuid
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters.callback_data import CallbackData
@@ -5,7 +6,7 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from database.models import User, TrustedPersonRequest
+from database.models import User, TrustedPersonRequest, RequestStatus
 from database.redis_client import redis
 from services.notification_queue import NotificationQueue
 from services.update_login_cache import get_cached_login, set_cached_login
@@ -78,15 +79,52 @@ async def send_notification_someone(message: Message, notification_queue: Notifi
             return
         print(f"Найден пользователь: {recipient.login} - {recipient.telegram_id}")
 
-        
+        uuid_for_request = uuid.uuid4()
 
         new_request = TrustedPersonRequest(
-            user_id = user.id,
-            recipient_id = recipient.id
+            id = str(uuid_for_request),
+            sender_id = user.id,
+            recepient_id = recipient.id,
+            status = RequestStatus.PENDING,
         )
 
         print(f"Новый запрос добавлен: {new_request}")
-        await notification_queue.send_trusted_contact_request(recipient.telegram_id,  request_uuid=new_request.request_uuid ,sender_login=sender_login)
+        await notification_queue.send_trusted_contact_request(recipient.telegram_id,  request_uuid=uuid_for_request ,sender_login=sender_login)
         db.add(new_request)
     except Exception as e:
         print(f"Неизвестная ошибка: {e}")
+
+@main_menu_router.callback_query(F.data.startswith("p_conf") or F.data.startswith("n_conf"))
+async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession):
+    action, uuid_request = callback.data.split("|", 1)
+
+    sender_login = callback.message.text.split('-', 1)
+    print(sender_login)
+    search_sender_result = db.execute(select(User).filter(User.login == sender_login))
+    sender = search_sender_result.scalars().first()
+
+    search_recepient_id_result = db.execute(select(User).filter(User.login == callback.message.chat.id))
+    recepient = search_recepient_id_result.scalars().first()
+
+    search_request_result = db.execute(select(TrustedPersonRequest).filter((TrustedPersonRequest.id == uuid_request) | (TrustedPersonRequest.sender_id == sender.id) | (TrustedPersonRequest.recepient_id == recepient_id.id)))
+    request = search_request_result.scalars().first()
+    print(request.created_at - request.expires_at)
+    if not recepient:
+        await callback.message.answer("Запрос не найден. Отправьте новый.")
+        return
+
+
+    if action == "p_conf":
+        diff = request.created_at - request.expires_at
+        res = diff.total_seconds()
+        if res < 0:
+            request.status = RequestStatus.ACCEPTED
+            await db.commit()
+            await callback.message.answer("Запрос подтвержден")
+            return
+        await callback.message.answer("Время запроса истекло")
+
+    if action == "n_conf":
+        request.status = RequestStatus.REJECTED
+        await db.commit()
+    await callback.answer()

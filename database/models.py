@@ -73,16 +73,12 @@ class Seizure(Base):
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
 
-    request_uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
-    user_id = Column(BigInteger, nullable=False)
-    recipient_id = Column(BigInteger, nullable=False)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow(), nullable=False)
-    expires_at = Column(DateTime, default=datetime.utcnow() + timedelta(), nullable=False)
-
-    __table_args__ = (
-        Index("idx_recipient", "recipient_id"),
-    )
+    expires_at = Column(DateTime, default=datetime.utcnow() + timedelta(minutes=10), nullable=False)
 
 profile_drugs = Table(
     'profile_drugs',

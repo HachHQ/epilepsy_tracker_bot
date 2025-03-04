@@ -33,9 +33,13 @@ class NotificationQueue:
         """Обрабатывает очередь уведомлений"""
         while self.running:
             try:
-                chat_id, text, kwargs = await self.queue.get()
+                chat_id, request_uuid, text, kwargs = await self.queue.get()
+                print("чат айди", chat_id)
+                print("uuid", request_uuid)
+                print("текст", text)
+                print("Кварги", kwargs)
                 keyboard = InlineKeyboardBuilder()
-                keyboard.button(text="Да", callback_data="p_conf")
+                keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}")
                 keyboard.button(text="Нет", callback_data="n_conf")
 
                 try:
@@ -51,11 +55,11 @@ class NotificationQueue:
         """Добавляет сообщение в очередь"""
         await self.queue.put((chat_id, text, kwargs))
 
-    async def send_trusted_contact_request(self, chat_id: int, request_uuid: str, sender_login: str):
+    async def send_trusted_contact_request(self, chat_id: int, request_uuid: str, sender_login: str, **kwargs):
         """Отправляет запрос на подтверждение доверенного лица"""
 
-        text = f"Подтвердите запрос доверенного лица {sender_login}"
-        await self.queue.put((chat_id, text, {}))
+        text = f"Подтвердите запрос доверенного лица -{sender_login}"
+        await self.queue.put((chat_id, request_uuid, text, {}))
 
     """async def check_and_send_reminders(self):
         Фоновая задача для рассылки напоминаний о приеме лекарств
