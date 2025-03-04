@@ -40,7 +40,7 @@ class NotificationQueue:
                 print("Кварги", kwargs)
                 keyboard = InlineKeyboardBuilder()
                 keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}")
-                keyboard.button(text="Нет", callback_data="n_conf")
+                keyboard.button(text="Нет", callback_data=f"n_conf|{request_uuid}")
 
                 try:
                     await self.bot.send_message(chat_id, text, reply_markup=keyboard.as_markup(), **kwargs)
@@ -58,7 +58,7 @@ class NotificationQueue:
     async def send_trusted_contact_request(self, chat_id: int, request_uuid: str, sender_login: str, **kwargs):
         """Отправляет запрос на подтверждение доверенного лица"""
 
-        text = f"Подтвердите запрос доверенного лица -{sender_login}"
+        text = f"Подтвердите запрос доверенного лица - {sender_login}"
         await self.queue.put((chat_id, request_uuid, text, {}))
 
     """async def check_and_send_reminders(self):
