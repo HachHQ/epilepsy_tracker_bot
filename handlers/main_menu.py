@@ -10,7 +10,7 @@ from datetime import datetime
 from database.models import User, TrustedPersonRequest, RequestStatus
 from database.redis_client import redis
 from services.notification_queue import NotificationQueue
-from services.update_login_cache import get_cached_login, set_cached_login
+from services.update_login_cache import get_cached_login
 from keyboards.menu_kb import get_main_menu_keyboard
 
 main_menu_router = Router()
@@ -50,12 +50,9 @@ async def send_main_menu(message: Message, db: AsyncSession):
 
 @main_menu_router.callback_query(F.data == "to_menu")
 async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
-    result = await db.execute(select(User).filter(User.login == callback.message.chat.id))
-    user_login = result.scalars().first()
-    print(user_login)
-    set_cached_login(callback.message.chat.id, user_login)
+    lg = await get_cached_login(callback.message.chat.id)
     await callback.message.answer(
-        f"Логин: {get_cached_login()}\n"
+        f"Логин: {lg}\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard()
@@ -123,6 +120,7 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         return
 
     if action == "p_conf":
+        print(datetime.utcnow(), request.expires_at)
         if datetime.utcnow() > request.expires_at:
             request.status = RequestStatus.EXPIRED
             await db.commit()

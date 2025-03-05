@@ -17,13 +17,13 @@ from keyboards.menu_kb import get_main_menu_keyboard
 
 seizures_router = Router()
 
-# class SeizureForm(StatesGroup):
-#     date =
-#     time =
-#     triggers =
-#     severity =
-#     duration =
-#     comment =
+class SeizureForm(StatesGroup):
+    date = State()
+    time = State()
+    triggers = State()
+    severity = State()
+    duration = State()
+    comment = State()
 #     count =
 #     symptoms =
 
@@ -31,6 +31,20 @@ seizures_router = Router()
 #     created_at =
 #     updated_at =
 #     location =
+
+@seizures_router.callback_query(F.data.startswith("back"))
+async def back_to(callback: CallbackQuery):
+    _, back_to_target = callback.data.split(":", 1)
+
+    if back_to_target == "to_menu":
+        redis_login = await get_cached_login(callback.message.chat.id)
+        await callback.message.edit_text(
+            f"Логин: {redis_login}\n"
+            f"Вы находитесь в основном меню бота.\n"
+            "Используйте кнопки для навигации.\n",
+            reply_markup=get_main_menu_keyboard()
+        )
+    await callback.answer()
 
 @seizures_router.callback_query(F.data == "menu:fix_attack")
 async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
@@ -47,7 +61,7 @@ async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
         back_btn = InlineKeyboardButton(text="⬅️ Назад", callback_data="back:to_menu")
         profiles_kb_bd = InlineKeyboardBuilder()
         for profile in profiles:
-            profiles_kb_bd.button(text=f"{profile.profile_name}", callback_data=f"seizue_profile:{profile.id}")
+            profiles_kb_bd.button(text=f"{profile.profile_name}", callback_data=f"fix_seizure_profile:{profile.id}")
         profiles_kb_bd.adjust(1)
         profiles_kb_bd.row(back_btn, width=1)
 
@@ -57,16 +71,8 @@ async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
         profiles = []
         await callback.answer()
 
-@seizures_router.callback_query(F.data.startswith("back"))
-async def back_to(callback: CallbackQuery):
-    _, back_to_target = callback.data.split(":", 1)
-
-    if back_to_target == "to_menu":
-        redis_login = await get_cached_login(callback.message.chat.id)
-        await callback.message.edit_text(
-            f"Логин: {redis_login}\n"
-            f"Вы находитесь в основном меню бота.\n"
-            "Используйте кнопки для навигации.\n",
-            reply_markup=get_main_menu_keyboard()
-        )
-    await callback.answer()
+#TODO set a kb to this handler with years
+@seizures_router.callback_query(F.data.startswith("fix_seizure_profile"), StateFilter(SeizureForm.date))
+async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
+    _, profile = callback.data.split(":", 1)
+    await callback.message.answer("", )

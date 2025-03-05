@@ -21,6 +21,7 @@ from handlers.start_message import start_message_router
 from handlers.user_form import user_form_router
 from handlers.profile_form import profile_form_router
 from handlers.main_menu import main_menu_router
+from handlers.seizures_handlers import seizures_router
 
 from keyboards.set_menu import set_main_menu
 
@@ -47,6 +48,7 @@ async def main():
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
+    dp.include_router(seizures_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
     await notification_queue.start()
