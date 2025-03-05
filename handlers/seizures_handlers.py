@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from services.update_login_cache import get_cached_login
 from database.models import User, Profile
 from keyboards.menu_kb import get_main_menu_keyboard
-
+from keyboards.seizure_kb import get_year_date_kb
 
 
 seizures_router = Router()
@@ -46,7 +46,7 @@ async def back_to(callback: CallbackQuery):
         )
     await callback.answer()
 
-@seizures_router.callback_query(F.data == "menu:fix_attack")
+@seizures_router.callback_query(F.data == "menu:choose_profile")
 async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
     redis_login = await get_cached_login(callback.message.chat.id)
     try:
@@ -60,8 +60,10 @@ async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
 
         back_btn = InlineKeyboardButton(text="⬅️ Назад", callback_data="back:to_menu")
         profiles_kb_bd = InlineKeyboardBuilder()
+        i=0
         for profile in profiles:
-            profiles_kb_bd.button(text=f"{profile.profile_name}", callback_data=f"fix_seizure_profile:{profile.id}")
+            i += 1
+            profiles_kb_bd.button(text=f"{i} - {profile.profile_name}", callback_data=f"fix_seizure:{profile.id}")
         profiles_kb_bd.adjust(1)
         profiles_kb_bd.row(back_btn, width=1)
 
@@ -72,7 +74,10 @@ async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
         await callback.answer()
 
 #TODO set a kb to this handler with years
-@seizures_router.callback_query(F.data.startswith("fix_seizure_profile"), StateFilter(SeizureForm.date))
+@seizures_router.callback_query(F.data.startswith("fix_seizure"))
 async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
-    _, profile = callback.data.split(":", 1)
-    await callback.message.answer("", )
+    _, profile_id = callback.data.split(":", 1)
+    await state.update_data(profile_id=profile_id)
+
+    await callback.message.edit_text(f"Выбран профиль - {profile_id}\nВыберите год или день из преложенных",
+                                    reply_markup=get_year_date_kb(3,1))
