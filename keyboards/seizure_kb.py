@@ -1,5 +1,5 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
 
@@ -22,6 +22,20 @@ def get_year_date_kb(backward_offset: int = 4, forward_offset: int = 1):
 
     back_btn = InlineKeyboardButton(text="⬅️ Назад", callback_data="menu:choose_profile")
     years_date_kb_bd.row(back_btn)
-
-
     return years_date_kb_bd.as_markup()
+
+def get_profiles_for_seizure_fix(list: list[str]) -> InlineKeyboardMarkup:
+    profiles_kb_bd = InlineKeyboardBuilder()
+    back_btn = InlineKeyboardButton(text="⬅️ Назад", callback_data="back:to_menu")
+    if not list:
+        offer_to_create_profile_btn = InlineKeyboardButton(text="Создать профиль", callback_data="to_filling_profile_form")
+        profiles_kb_bd.row(offer_to_create_profile_btn)
+        profiles_kb_bd.row(back_btn)
+        return profiles_kb_bd.as_markup()
+    i=0
+    for profile in list:
+        i += 1
+        profiles_kb_bd.button(text=f"{i} - {profile.profile_name}", callback_data=f"fix_seizure:{profile.id}")
+    profiles_kb_bd.adjust(1)
+    profiles_kb_bd.row(back_btn, width=1)
+    return profiles_kb_bd.as_markup()
