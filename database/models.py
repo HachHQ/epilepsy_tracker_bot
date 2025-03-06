@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, Index, TIMESTAMP, String, Enum, ForeignKey, Table, DateTime
+from sqlalchemy import Column, Integer, BigInteger, Index, String, Enum, ForeignKey, Table, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.db_init import Base
@@ -37,7 +37,7 @@ class Profile(Base):
     age = Column(Integer)
     sex = Column(String(20))
     timezone = Column(String(3))
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="profiles")
     drugs = relationship("Drug", secondary="profile_drugs", back_populates="profiles")
@@ -64,8 +64,8 @@ class Seizure(Base):
     count = Column(Integer, nullable=True)
 
     video_tg_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
@@ -77,12 +77,12 @@ class TrustedPersonRequest(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    expires_at = Column(DateTime, default=datetime.now(timezone.utc) + timedelta(minutes=10), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = Column(DateTime, default=lambda: datetime.now(timezone.utc) + timedelta(minutes=10), nullable=False)
 
 profile_drugs = Table(
     'profile_drugs',
     Base.metadata,
-    Column('profile_id', Integer, ForeignKey('profiles.id'), primary_key=True),
-    Column('drug_id', Integer, ForeignKey('drugs.id'), primary_key=True)
+    Column('profile_id', Integer, ForeignKey('profiles.id', ondelete="CASCADE"), primary_key=True),
+    Column('drug_id', Integer, ForeignKey('drugs.id', ondelete="CASCADE"), primary_key=True)
 )
