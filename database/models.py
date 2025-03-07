@@ -1,10 +1,13 @@
-from sqlalchemy import Column, Integer, BigInteger, Index, String, Enum, ForeignKey, Table, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from database.db_init import Base
-from datetime import datetime, timedelta, timezone
 import enum
 import uuid
+from sqlalchemy import ( Column, Integer, BigInteger, Index,
+                        String, Enum, ForeignKey, Table,
+                        DateTime, Boolean)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from database.db_init import Base
+from datetime import datetime, timedelta, timezone
 
 class RequestStatus(enum.Enum):
     PENDING = "pending"
@@ -64,11 +67,21 @@ class Seizure(Base):
     count = Column(Integer, nullable=True)
 
     video_tg_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
+
+class TrustedPersonProfiles(Base):
+    __tablename__ = "trusted_person_profiles"
+
+    id = Column(Integer, primary_key=True)
+    trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    profile_owner_id = Column(Integer, ForeignKey("users.id"))
+    profile_id = Column(Integer, ForeignKey("profiles.id"))
+    can_edit = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
@@ -76,8 +89,9 @@ class TrustedPersonRequest(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    transmitted_profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     expires_at = Column(DateTime, default=lambda: datetime.now(timezone.utc) + timedelta(minutes=10), nullable=False)
 
 profile_drugs = Table(
