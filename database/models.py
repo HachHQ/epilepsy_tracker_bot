@@ -90,7 +90,7 @@ class TrustedPersonRequest(Base):
     transmitted_profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    expires_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc) + timedelta(minutes=10), nullable=False)
+    expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
 
 profile_drugs = Table(
     'profile_drugs',
