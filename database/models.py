@@ -5,6 +5,7 @@ from sqlalchemy import ( Column, Integer, BigInteger, Index,
                         DateTime, Boolean)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.sql import text
 
 from database.db_init import Base
 from datetime import datetime, timedelta, timezone
