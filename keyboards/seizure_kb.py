@@ -3,9 +3,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
+cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить заполнение", callback_data="cancel_fix_seizure_menu")
 
-
-#TODO finish this function
 def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
     current_datetime = datetime.now(timezone.utc)
     one_day_ago = current_datetime - timedelta(days=1)
@@ -21,6 +20,7 @@ def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
     one_day_ago_btn = InlineKeyboardButton(text="Вчера", callback_data=f"year:one_d_ago")
     today_btn = InlineKeyboardButton(text="Сегодня", callback_data=f"year:today")
     years_date_kb_bd.row(two_day_btn, one_day_ago_btn, today_btn)
+    years_date_kb_bd.row(cancel_seizure_menu_btn)
     return years_date_kb_bd.as_markup()
 
 def get_profiles_for_seizure_fix(list: list[str]) -> InlineKeyboardMarkup:
@@ -34,7 +34,8 @@ def get_profiles_for_seizure_fix(list: list[str]) -> InlineKeyboardMarkup:
     for profile in list:
         profiles_kb_bd.button(text=f"{profile.profile_name}", callback_data=f"fix_seizure:{profile.id}:{profile.profile_name}")
     profiles_kb_bd.adjust(1)
-    profiles_kb_bd.row(back_btn, width=1)
+    profiles_kb_bd.row(back_btn)
+
     return profiles_kb_bd.as_markup()
 
 def get_month_date_kb() -> InlineKeyboardMarkup:

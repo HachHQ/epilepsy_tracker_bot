@@ -17,22 +17,27 @@ from keyboards.seizure_kb import get_year_date_kb, get_profiles_for_seizure_fix,
 
 seizures_router = Router()
 
-class SeizureForm(StatesGroup):
-    date = State()
-    year = State()
-    month = State()
-    hour = State()
-    minutes_range = State()
-    count = State()
-    triggers = State()
-    severity = State()
-    duration = State()
-    comment = State()
-    symptoms = State()
-    video_tg_id = State()
+# class SeizureForm(StatesGroup):
+#     date = State()
+#     year = State()
+#     month = State()
+#     hour = State()
+#     minutes_range = State()
+#     count = State()
+#     triggers = State()
+#     severity = State()
+#     duration = State()
+#     comment = State()
+#     symptoms = State()
+#     video_tg_id = State()
 #     created_at =
 #     updated_at =
 #     location =
+
+@seizures_router.callback_query(F.data == "cancel_fix_seizure_menu")
+async def process_cancel_fix_seizure_menu(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("Заполнение приступа отменено")
 
 @seizures_router.callback_query(F.data.startswith("back"))
 async def back_to(callback: CallbackQuery, state: FSMContext):
@@ -46,11 +51,11 @@ async def back_to(callback: CallbackQuery, state: FSMContext):
             "Используйте кнопки для навигации.\n",
             reply_markup=get_main_menu_keyboard()
         )
-    elif back_to_target == "year":
-        data = await state.get_data()
-        await callback.message.edit_text(f"Выбран профиль - {data['profile_name']}\nВыберите год или сразу день из преложенных",
-                                            reply_markup=get_year_date_kb(3,1))
-        return
+    # elif back_to_target == "year":
+    #     data = await state.get_data()
+    #     await callback.message.edit_text(f"Выбран профиль - {data['profile_name']}\nВыберите год или сразу день из преложенных",
+    #                                         reply_markup=get_year_date_kb(3,1))
+    #     return
     await state.clear()
     await callback.answer()
 
@@ -72,7 +77,6 @@ async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
 
 @seizures_router.callback_query(F.data.startswith("fix_seizure"))
 async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
-    print("не кнопка назад")
     _, profile_id, profile_name = callback.data.split(":", 2)
     await state.update_data(profile_id=profile_id)
     await state.update_data(profile_name=profile_name)

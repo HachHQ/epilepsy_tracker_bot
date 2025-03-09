@@ -83,7 +83,7 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             )
 
             await message.answer(
-                "Анкета заполнена!\nИмя:"
+                "Анкета заполнена!\nИмя: "
                 f"<b>{data['name']}</b>\nЛогин: <b>{data['login']}</b>\n\n"
                 "Если хотите изменить данные, отправьте команду /start, чтобы заполнить анкету заново.",
                 parse_mode='HTML'
@@ -98,5 +98,6 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             await db.rollback()
     else:
         await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
+        return
 
     await state.clear()

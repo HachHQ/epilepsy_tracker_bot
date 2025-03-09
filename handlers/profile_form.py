@@ -21,6 +21,7 @@ from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
 
 from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
+from services.update_login_cache import get_cached_login
 
 profile_form_router = Router()
 
@@ -35,6 +36,11 @@ class ProfileForm(StatesGroup):
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
+    if await get_cached_login(callback.message.chat.id) == "Не зарегистрирован":
+        await state.clear()
+        await callback.message.answer("Необходимо зарегистрироваться, чтобы создать профиль.\nВыберите в меню слева от строки ввода меню и нажмите /start")
+        await callback.answer()
+        return
     await callback.message.answer(LEXICON_RU['info_about_profile'], parse_mode="HTML")
     await callback.message.answer(LEXICON_RU['enter_profile_name'], reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.profile_name)
@@ -82,7 +88,7 @@ async def process_age(message: Message, state: FSMContext):
         await message.answer(LEXICON_RU['enter_sex'], reply_markup=get_sex_kb())
         await state.set_state(ProfileForm.sex)
     else:
-        await message.answer(LEXICON_RU['incorrect_age'])
+        await message.answer(LEXICON_RU['incorrect_age'], parse_mode='HTML')
 
 @profile_form_router.callback_query(F.data.in_({'sex_male', 'sex_female'}),
                                     StateFilter(ProfileForm.sex))
@@ -138,6 +144,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
     print(f"Полученные данные: {data}")
     if not data:
         await callback.message.answer("Начните регистрацию заново")
+        await state.clear()
         await callback.answer()
         return
     try:
@@ -147,6 +154,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 
         if not user:
             await callback.message.answer("Ошибка, пользователь не найден")
+            await state.clear()
             return
 
         # Создание профиля

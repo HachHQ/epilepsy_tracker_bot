@@ -19,7 +19,7 @@ async def get_cached_login(user_id: int) -> str:
                 if not user:
                     print("Пользователь не зарегестрирован")
                     login = "Не зарегистрирован"
-                    return
+                    return login
                 login = user.login
             await set_cached_login(user_id, login)
             print("from db")
@@ -29,3 +29,16 @@ async def get_cached_login(user_id: int) -> str:
 
 async def set_cached_login(user_id: int, login: str):
     await redis.setex(f"user:login:{user_id}", 3600, login)
+
+async def delete_cached_login(user_id: int):
+    """
+    Удаляет логин пользователя из временного хранилища Redis.
+
+    :param user_id: ID пользователя в Telegram
+    """
+    key = f"user:login:{user_id}"
+    deleted = await redis.delete(key)
+    if deleted:
+        print(f"Логин пользователя с ID {user_id} успешно удален из Redis.")
+    else:
+        print(f"Логин пользователя с ID {user_id} не найден в Redis.")

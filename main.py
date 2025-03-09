@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 # from aiogram.client.default import DefaultBotProperties
 # from aiogram.enums import ParseMode
-from aiogram.types import Message
+from aiogram.types import Message, ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.filters import Command
 
@@ -36,6 +36,11 @@ storage = RedisStorage(redis=redis)
 # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
 bot = Bot(config.tg_bot.token)
 dp = Dispatcher(storage=storage)
+
+@dp.error()
+async def handle_errors(event: ErrorEvent):
+    print(f"Произошла ошибка: {event.exception}")
+    await event.update.message.answer("Что-то пошло не так. Попробуйте позже.")
 
 notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 

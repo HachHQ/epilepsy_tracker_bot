@@ -42,20 +42,22 @@ async def send_main_menu(message: Message, db: AsyncSession):
     lg = await get_cached_login(message.chat.id)
     print(lg)
     await message.answer(
-        f"Логин: {lg}\n"
+        f"Логин: <u>{lg}</u>\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
-        reply_markup=get_main_menu_keyboard()
+        reply_markup=get_main_menu_keyboard(),
+        parse_mode='HTML'
     )
 
 @main_menu_router.callback_query(F.data == "to_menu")
 async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
     lg = await get_cached_login(callback.message.chat.id)
     await callback.message.answer(
-        f"Логин: {lg}\n"
+        f"Логин: <u>{lg}</u>\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
-        reply_markup=get_main_menu_keyboard()
+        reply_markup=get_main_menu_keyboard(),
+        parse_mode='HTML'
     )
     await callback.answer()
 
