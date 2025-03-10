@@ -60,7 +60,7 @@ async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
     print(curr_prof)
     await callback.message.answer(
         f"Логин: <u>{lg}</u>\n"
-        f"Текущий профиль: <u>{curr_prof}</u>\n"
+        f"Текущий профиль: <u>{curr_prof.split('|', 1)[1]}</u>\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard(),
