@@ -26,6 +26,8 @@ class User(Base):
     name = Column(String(25))
     login = Column(String(25), nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    current_profile = Column(Integer, default=None, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     profiles = relationship("Profile", back_populates="user")
 
@@ -40,6 +42,7 @@ class Profile(Base):
     sex = Column(String(20))
     timezone = Column(String(3))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="profiles")
     drugs = relationship("Drug", secondary="profile_drugs", back_populates="profiles")
