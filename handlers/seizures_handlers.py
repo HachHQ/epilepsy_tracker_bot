@@ -17,22 +17,22 @@ from keyboards.seizure_kb import get_year_date_kb, get_profiles_for_seizure_fix,
 
 seizures_router = Router()
 
-# class SeizureForm(StatesGroup):
-#     date = State()
-#     year = State()
-#     month = State()
-#     hour = State()
-#     minutes_range = State()
-#     count = State()
-#     triggers = State()
-#     severity = State()
-#     duration = State()
-#     comment = State()
-#     symptoms = State()
-#     video_tg_id = State()
-#     created_at =
-#     updated_at =
-#     location =
+class SeizureForm(StatesGroup):
+    date = State()
+    year = State()
+    month = State()
+    hour = State()
+    minutes_range = State()
+    count = State()
+    triggers = State()
+    severity = State()
+    duration = State()
+    comment = State()
+    symptoms = State()
+    video_tg_id = State()
+    created_at = State()
+    updated_at = State()
+    location = State()
 
 @seizures_router.callback_query(F.data == "cancel_fix_seizure_menu")
 async def process_cancel_fix_seizure_menu(callback: CallbackQuery, state: FSMContext):
