@@ -10,7 +10,7 @@ from datetime import datetime
 from database.models import User, TrustedPersonRequest, RequestStatus
 from database.redis_client import redis
 from services.notification_queue import NotificationQueue
-from services.update_login_cache import get_cached_login
+from services.update_login_cache import get_cached_login, get_cached_current_profile
 from keyboards.menu_kb import get_main_menu_keyboard
 
 main_menu_router = Router()
@@ -40,9 +40,12 @@ main_menu_router = Router()
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message, db: AsyncSession):
     lg = await get_cached_login(message.chat.id)
+    curr_prof = await get_cached_current_profile(message.chat.id)
     print(lg)
+    print(curr_prof)
     await message.answer(
         f"Логин: <u>{lg}</u>\n"
+        f"Текущий профиль: <u>{curr_prof}</u>\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard(),
@@ -52,8 +55,12 @@ async def send_main_menu(message: Message, db: AsyncSession):
 @main_menu_router.callback_query(F.data == "to_menu")
 async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
     lg = await get_cached_login(callback.message.chat.id)
+    curr_prof = await get_cached_current_profile(callback.message.chat.id)
+    print(lg)
+    print(curr_prof)
     await callback.message.answer(
         f"Логин: <u>{lg}</u>\n"
+        f"Текущий профиль: <u>{curr_prof}</u>\n"
         f"Вы находитесь в основном меню бота.\n"
         "Используйте кнопки для навигации.\n",
         reply_markup=get_main_menu_keyboard(),
