@@ -22,7 +22,7 @@ def get_paginated_profiles_kb(
     for profile in profiles[start_index:end_index]:
         builder.button(
             text=profile["profile_name"],
-            callback_data=f"select_profile:{profile['id']}"
+            callback_data=f"select_profile:{profile['id']}:{profile['profile_name']}"
         )
     builder.adjust(1)
 
