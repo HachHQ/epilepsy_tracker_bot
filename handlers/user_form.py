@@ -53,7 +53,8 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             existing_tgid = result.scalars().first()
 
             if existing_tgid:
-                await message.answer(LEXICON_RU['user_exist'], reply_markup=get_cancel_kb())
+                await message.answer(LEXICON_RU['user_exist'])
+                await state.clear()
                 return
             if existing_login:
                 await message.answer(LEXICON_RU['login_exist'], reply_markup=get_cancel_kb())
