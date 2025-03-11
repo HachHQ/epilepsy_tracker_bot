@@ -9,7 +9,7 @@ from datetime import datetime
 
 from database.redis_client import redis
 from database.models import User, Profile, TrustedPersonProfiles
-from services.update_login_cache import get_cached_login
+from services.update_login_cache import get_cached_login, set_cached_current_profile
 from keyboards.profiles_list_kb import get_choosing_type_of_profiles_kb, get_paginated_profiles_kb
 
 choose_profile_router = Router()
@@ -88,4 +88,11 @@ async def handle_pagination(callback: CallbackQuery):
             profile_type=profile_type
         )
     )
+    await callback.answer()
+
+@choose_profile_router.callback_query(F.data.startswith('select_profile'))
+async def process_choosing_of_profile(callback: CallbackQuery, db: AsyncSession):
+    _, profile_id, profile_name = callback.data.split(':', 2)
+    await set_cached_current_profile(callback.message.chat.id, profile_id=profile_id, profile_name=profile_name)
+    await callback.message.answer(f"Профиль {profile_name} выбран.")
     await callback.answer()
