@@ -1,5 +1,5 @@
+import json
 from sqlalchemy.future import select
-
 from database.redis_client import redis
 from database.db_init import SessionLocal
 from database.models import User, Profile
@@ -84,3 +84,19 @@ async def clear_cached_current_profile(user_id: int):
         print(f"Текущий профиль пользователя с ID {user_id} удален из Redis")
     else:
         print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
+
+# async def get_cached_profiles_list(user_id: int, profile_type: str):
+#     cached_profiles = await redis.get(f"profiles:{user_id}:{profile_type}")
+#     if cached_profiles:
+#         profiles = json.loads(cached_profiles.decode('utf-8'))
+
+# async def set_cached_profiles_list(user_id: int, profile_type: str, profiles):
+#     redis.setex(f"profiles:{user_id}:{profile_type}", 3600, json.dumps(profiles))
+
+# async def clear_cached_profiles_list(user_id: int):
+#     profile_key = f"user:current_profile:{user_id}"
+#     deleted = await redis.delete(profile_key)
+#     if deleted:
+#         print(f"Текущий профиль пользователя с ID {user_id} удален из Redis")
+#     else:
+#         print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
