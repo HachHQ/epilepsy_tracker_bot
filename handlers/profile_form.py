@@ -186,13 +186,13 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 
         for drug_name in data["drugs"].lower().strip().split(","):
             if drug_name in existing_drugs:
-                drug_id = existing_drugs[drug_name]
+                drug_id = existing_drugs[drug_name.strip()]
             else:
-                new_drug = Drug(name=drug_name)
+                new_drug = Drug(name=drug_name.strip())
                 db.add(new_drug)
                 await db.flush()
                 drug_id = new_drug.id
-                existing_drugs[drug_name] = drug_id
+                existing_drugs[drug_name.strip()] = drug_id
 
             new_profile_drugs.append({"profile_id": profile.id, "drug_id": drug_id})
 
