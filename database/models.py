@@ -47,6 +47,18 @@ class Profile(Base):
     user = relationship("User", back_populates="profiles")
     drugs = relationship("Drug", secondary="profile_drugs", back_populates="profiles")
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "profile_name": self.profile_name,
+            "type_of_epilepsy": self.type_of_epilepsy,
+            "age": self.age,
+            "sex": self.sex,
+            "timezone": self.timezone,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 class Drug(Base):
     __tablename__ = 'drugs'
 
