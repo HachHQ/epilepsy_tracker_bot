@@ -16,6 +16,7 @@ from config_data.config import load_config
 
 from test_scripts.test1 import test_create_user
 
+from handlers.choose_profile_handlers import choose_profile_router
 from handlers.cancel_handlers import cancel_router
 from handlers.start_message import start_message_router
 from handlers.user_form import user_form_router
@@ -53,6 +54,7 @@ async def main():
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
+    dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
