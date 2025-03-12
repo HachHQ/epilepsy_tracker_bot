@@ -12,7 +12,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     kb_builder.button(
         text="✏️ Зафиксировать приступ",
-        callback_data="menu:choose_profile"
+        callback_data="fix_seizure"
     )
     kb_builder.button(
         text="📖 Журнал личный",
