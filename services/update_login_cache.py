@@ -2,7 +2,7 @@ import json
 from sqlalchemy.future import select
 from database.redis_client import redis
 from database.db_init import SessionLocal
-from database.models import User, Profile
+from database.models import User, Profile, TrustedPersonProfiles
 
 
 
@@ -85,18 +85,47 @@ async def clear_cached_current_profile(user_id: int):
     else:
         print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
 
-# async def get_cached_profiles_list(user_id: int, profile_type: str):
-#     cached_profiles = await redis.get(f"profiles:{user_id}:{profile_type}")
-#     if cached_profiles:
-#         profiles = json.loads(cached_profiles.decode('utf-8'))
+async def get_cached_profiles_list(user_id: int, profile_type: str) -> list[str]:
+    cache_key = f"profiles:{user_id}:{profile_type}"
+    cached_profiles = await redis.get(cache_key)
+    if cached_profiles:
+        profiles = json.loads(cached_profiles.decode('utf-8'))
+        return profiles
+    if not cached_profiles:
+        try:
+            async with SessionLocal() as db:
+                if profile_type == "trusted":
+                    query = (
+                        select(Profile)
+                        .join(TrustedPersonProfiles, Profile.id == TrustedPersonProfiles.profile_id)
+                        .join(User, TrustedPersonProfiles.trusted_person_user_id == User.id)
+                        .where(User.telegram_id == user_id)
+                    )
+                elif profile_type == "user_own":
+                    redis_login = await get_cached_login(user_id)
+                    query = (
+                        select(Profile)
+                        .join(User)
+                        .where(User.login == redis_login)
+                    )
+            profiles_result = await db.execute(query)
+            profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
+            if not profiles:
+                print("У этого пользователя нет профилей")
+                return None
+            await redis.setex(cache_key, 3600, json.dumps(profiles))
+            return profiles
+        except Exception as e:
+            print(f"Ошибка при получении текущего профиля: {e}")
+            return None
 
-# async def set_cached_profiles_list(user_id: int, profile_type: str, profiles):
-#     redis.setex(f"profiles:{user_id}:{profile_type}", 3600, json.dumps(profiles))
+async def set_cached_profiles_list(user_id: int, profile_type: str, profiles):
+    redis.setex(f"profiles:{user_id}:{profile_type}", 3600, json.dumps(profiles))
 
-# async def clear_cached_profiles_list(user_id: int):
-#     profile_key = f"user:current_profile:{user_id}"
-#     deleted = await redis.delete(profile_key)
-#     if deleted:
-#         print(f"Текущий профиль пользователя с ID {user_id} удален из Redis")
-#     else:
-#         print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
+async def clear_cached_profiles_list(user_id: int):
+    profile_key = f"user:current_profile:{user_id}"
+    deleted = await redis.delete(profile_key)
+    if deleted:
+        print(f"Текущий профиль пользователя с ID {user_id} удален из Redis")
+    else:
+        print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
