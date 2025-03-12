@@ -5,7 +5,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from database.models import User, TrustedPersonRequest, RequestStatus
 from database.redis_client import redis
@@ -38,7 +38,7 @@ main_menu_router = Router()
 #     return login or "Логин не найден"
 
 @main_menu_router.message(Command(commands="menu"))
-async def send_main_menu(message: Message, db: AsyncSession):
+async def send_main_menu(message: Message):
     lg = await get_cached_login(message.chat.id)
     curr_prof = await get_cached_current_profile(message.chat.id)
     print(lg)
@@ -53,7 +53,7 @@ async def send_main_menu(message: Message, db: AsyncSession):
     )
 
 @main_menu_router.callback_query(F.data == "to_menu")
-async def send_main_menu_callback(callback: CallbackQuery, db: AsyncSession):
+async def send_main_menu_callback(callback: CallbackQuery):
     lg = await get_cached_login(callback.message.chat.id)
     curr_prof = await get_cached_current_profile(callback.message.chat.id)
     print(lg)
@@ -129,8 +129,8 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         return
 
     if action == "p_conf":
-        print(datetime.utcnow(), request.expires_at)
-        if datetime.utcnow() > request.expires_at:
+        print(datetime.now(timezone.utc), request.expires_at)
+        if datetime.now(timezone.utc) > request.expires_at:
             request.status = RequestStatus.EXPIRED
             await db.commit()
             await callback.message.answer("Время запроса истекло")
