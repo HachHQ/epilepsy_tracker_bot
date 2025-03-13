@@ -8,11 +8,10 @@ from aiogram.filters import Command, StateFilter
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from datetime import datetime
+from datetime import datetime, timezone
 import pytz
 from timezonefinder import TimezoneFinder
 
-from database.db_init import SessionLocal
 from database.models import User, Profile, Drug, profile_drugs
 
 from lexicon.lexicon import LEXICON_RU
@@ -165,7 +164,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
             age=int(data["age"]),
             sex=data["sex"],
             timezone=data["timezone"],
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
 
         print(f"Создается профиль: {new_profile}")
