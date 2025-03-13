@@ -3,10 +3,11 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import StateFilter
+from sqlalchemy.ext.asyncio import AsyncSession
 
-
+from database.models import Seizure
 from keyboards.seizure_kb import get_year_date_kb, get_month_date_kb, get_day_kb, get_times_of_day_kb
-
+from services.update_login_cache import get_cached_current_profile
 
 seizures_router = Router()
 
@@ -28,10 +29,9 @@ class SeizureForm(StatesGroup):
 
 
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
-async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext):
-    # Получаем данные из контекста состояний
+async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     seizure_data = await state.get_data()
-
+    current_profile = await get_cached_current_profile(callback.message.chat.id)
     if 'date_short' in seizure_data:
         date = seizure_data['date_short']
     else:
@@ -46,7 +46,6 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     video_tg_id = seizure_data.get('video_tg_id', 'Не заполнено')
     location = seizure_data.get('location', 'Не заполнено')
 
-    # Формируем сообщение с данными
     message_text = (
         "Введенные данные о приступе:\n"
         f"Дата: {date}\n"
@@ -60,11 +59,22 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         f"Видео: {video_tg_id}\n"
         f"Место: {location}"
     )
-
-    # Отправляем сообщение с данными
+    new_seizure = Seizure(
+        profile_id = int(current_profile.split("|")[0]),
+        date = date,
+        time = time_of_day,
+        severity = severity,
+        duration = 0 if duration else duration,
+        comment = comment,
+        count = None if count else count,
+        video_tg_id =  None if video_tg_id else video_tg_id,
+        triggers = triggers,
+        location = location,
+        symptoms = symptoms
+    )
+    db.add(new_seizure)
     await callback.message.answer(message_text)
     await callback.answer()
-    # Очищаем состояние
     await state.clear()
 
 
