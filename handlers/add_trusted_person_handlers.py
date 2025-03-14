@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from lexicon.lexicon import LEXICON_RU
-from services.redis_cache_data import get_cached_profiles_list, get_cached_login
+from services.redis_cache_data import get_cached_profiles_list, get_cached_login, set_cached_profiles_list
 from services.notification_queue import NotificationQueue
 from services.validators import validate_login_of_user_form
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
@@ -182,6 +182,15 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         )
         db.add(new_trusted_person_profile)
         await db.commit()
+        query = (
+            select(Profile)
+            .join(TrustedPersonProfiles, Profile.id == TrustedPersonProfiles.profile_id)
+            .join(User, TrustedPersonProfiles.trusted_person_user_id == User.id)
+            .where(User.telegram_id == callback.message.chat.id)
+        )
+        profiles_result = await db.execute(query)
+        profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
+        await set_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
         await callback.message.answer("Запрос подтвержден")
         await callback.answer()
 
