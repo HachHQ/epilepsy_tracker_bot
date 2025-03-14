@@ -10,9 +10,12 @@ pagination_router = Router()
 async def handle_pagination(callback: CallbackQuery):
     direction, page, profile_type = callback.data.split(':', 2)
     share = False
-    if profile_type.split('|', 1)[1] == 'share':
+    # profile_type, share_flag = profile_type_raw.split("|", 1)
+    if callback.data.endswith('share'):
         share = True
         profile_type = profile_type.split('|', 1)[0]
+    else:
+        pass
     page = int(page)
     profiles_redis = await get_cached_profiles_list(callback.message.chat.id, profile_type)
     if not profiles_redis:
