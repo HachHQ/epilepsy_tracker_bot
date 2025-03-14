@@ -20,7 +20,7 @@ from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
 
 from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
-from services.update_login_cache import get_cached_login
+from services.update_login_cache import get_cached_login, set_cached_profiles_list
 
 profile_form_router = Router()
 
@@ -147,7 +147,6 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         await callback.answer()
         return
     try:
-        # Поиск пользователя
         result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
         user = result.scalars().first()
 
@@ -155,8 +154,6 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
             await callback.message.answer("Ошибка, пользователь не найден")
             await state.clear()
             return
-
-        # Создание профиля
         new_profile = Profile(
             user_id=user.id,
             profile_name=data["profile_name"],
@@ -170,16 +167,10 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         print(f"Создается профиль: {new_profile}")
         db.add(new_profile)
         await db.flush()
-
-        # Поиск созданного профиля
-        result = await db.execute(
-            select(Profile).filter(
-                (Profile.user_id == user.id) & (Profile.profile_name == data["profile_name"])
-            )
-        )
+        profile_id = new_profile.id
+        result = await db.execute(select(Profile).filter(Profile.id == profile_id))
         profile = result.scalars().first()
 
-        # Обработка списка препаратов
         existing_drugs = {drug.name: drug.id for drug in (await db.execute(select(Drug))).scalars()}
         new_profile_drugs = []
 
@@ -197,6 +188,16 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 
         await db.execute(profile_drugs.insert().values(new_profile_drugs))
         print("Препараты успешно добавлены к профилю.")
+        query = (
+                select(Profile)
+                .join(User)
+                .where(User.telegram_id == callback.message.chat.id)
+            )
+        profiles_result = await db.execute(query)
+        profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
+        print([profile['profile_name'] for profile in profiles])
+        
+        await set_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
 
         await db.commit()
         print("Профиль успешно создан.")
