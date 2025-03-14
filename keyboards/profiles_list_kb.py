@@ -7,7 +7,8 @@ def get_paginated_profiles_kb(
     profiles: list,
     page: int = 0,
     page_size: int = 5,
-    profile_type: str = "user_own"
+    profile_type: str = "user_own",
+    to_share: bool = False
 ) -> InlineKeyboardMarkup:
     total_profiles = len(profiles)
     total_pages = (total_profiles + page_size - 1) // page_size
@@ -22,7 +23,7 @@ def get_paginated_profiles_kb(
     for profile in profiles[start_index:end_index]:
         builder.button(
             text=profile["profile_name"],
-            callback_data=f"select_profile:{profile['id']}:{profile['profile_name']}"
+            callback_data=f"select_profile:{profile['id']}:{profile['profile_name']}{"|share" if to_share else ""}"
         )
     builder.adjust(1)
 
@@ -32,14 +33,14 @@ def get_paginated_profiles_kb(
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="⬅️ Назад",
-                    callback_data=f"prev:{page}:{profile_type}"
+                    callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"
                 )
             )
         if page < total_pages - 1:
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="Вперед ➡️",
-                    callback_data=f"next:{page}:{profile_type}"
+                    callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"
                 )
             )
         if nav_buttons:
