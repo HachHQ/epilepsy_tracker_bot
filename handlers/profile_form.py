@@ -20,7 +20,7 @@ from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
 
 from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
-from services.update_login_cache import get_cached_login, set_cached_profiles_list
+from services.redis_cache_data import get_cached_login, set_cached_profiles_list
 
 profile_form_router = Router()
 
@@ -195,7 +195,6 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
             )
         profiles_result = await db.execute(query)
         profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
-        print([profile['profile_name'] for profile in profiles])
         
         await set_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
 
