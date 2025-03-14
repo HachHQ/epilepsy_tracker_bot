@@ -6,6 +6,7 @@ from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from datetime import datetime, timezone, timedelta
 
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from lexicon.lexicon import LEXICON_RU
@@ -34,6 +35,7 @@ async def process_input_trusted_person_login(callback: CallbackQuery, state: FSM
 @add_trusted_person_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
 async def process_search_trusted_person_by_login(message: Message, state: FSMContext, db: AsyncSession):
     if validate_login_of_user_form(message.text):
+        login_redis = await get_cached_login(message.chat.id)
         await state.update_data(trusted_person_login=message.text)
         try:
             query = (
@@ -42,6 +44,11 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
             )
             result = await db.execute(query)
             user = result.scalars().first()
+
+            # if user.login == login_redis:
+            #     await message.answer("Нельзя стать доверенным лицом самого себя)")
+            #     return
+
             if not user:
                 await message.answer("Пользователь не найден")
                 return
@@ -89,13 +96,27 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
             return
         print(f"Найден пользователь: {recipient.login} - {recipient.telegram_id}")
 
+        search_exist_request = await db.execute(select(TrustedPersonRequest).filter(
+            (TrustedPersonRequest.sender_id == user.id),
+            (TrustedPersonRequest.recepient_id == recipient.id),
+            (TrustedPersonRequest.transmitted_profile_id == int(data['transmitted_profile_id'])),
+            (TrustedPersonRequest.status == RequestStatus.ACCEPTED)
+        ))
+        exist_request = search_exist_request.scalars().first()
+        if exist_request:
+            await callback.message.answer("Этот пользователь уже является вашим доверенным лицом и имеет доступ к этому профилю.")
+            await callback.message.answer("Начните заполнение сценарий добавления доверенного лица заново.")
+            await state.clear()
+            await callback.message.answer()
+            return
+
         uuid_for_request = uuid.uuid4()
 
         new_request = TrustedPersonRequest(
             id = str(uuid_for_request),
             sender_id = user.id,
             recepient_id = recipient.id,
-            transmitted_profile_id = data['transmitted_profile_id'],
+            transmitted_profile_id = int(data['transmitted_profile_id']),
             status = RequestStatus.PENDING
         )
 
@@ -108,6 +129,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         db.add(new_request)
         await callback.message.answer("Запрос отправлен и будет активен в течение десяти минут.")
         await callback.answer()
+        await state.clear()
     except Exception as e:
         print(f"Неизвестная ошибка: {e}")
 
@@ -115,4 +137,58 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
 async def process_rejection(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.answer("Заполнение сценария заполнения передачи профиля доверенному лицу отменено.")
+    await callback.answer()
+
+
+@add_trusted_person_router.callback_query(F.data.startswith("p_conf") | F.data.startswith("n_conf"))
+async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession):
+    action, uuid_request, transmitted_profile_id, sender_id = callback.data.split("|", 3)
+
+    search_sender_result = await db.execute(select(User).filter(User.id == int(sender_id)))
+    sender = search_sender_result.scalars().first()
+
+    search_recepient_id_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
+    recepient = search_recepient_id_result.scalars().first()
+
+    search_request_result = await db.execute(select(TrustedPersonRequest).filter((TrustedPersonRequest.id == uuid_request) & (TrustedPersonRequest.sender_id == sender.id) & (TrustedPersonRequest.recepient_id == recepient.id)))
+    request = search_request_result.scalars().first()
+
+    print(request.created_at - request.expires_at)
+
+    if not recepient:
+        await callback.message.answer("Запрос не найден. Попросите пользователя отправить новый.")
+        await callback.answer()
+        return
+
+    if request.status != RequestStatus.PENDING:
+        await callback.message.answer("Запрос уже был обработан ранее.")
+        await callback.answer()
+        return
+
+    if action == "p_conf":
+        print(datetime.now(timezone.utc), request.expires_at)
+        if datetime.now(timezone.utc) > request.expires_at:
+            request.status = RequestStatus.EXPIRED
+            await db.commit()
+            await callback.message.answer("Время запроса истекло")
+            await callback.answer()
+            return
+        request.status = RequestStatus.ACCEPTED
+        await db.commit()
+        new_trusted_person_profile = TrustedPersonProfiles(
+            trusted_person_user_id = recepient.id,
+            profile_owner_id = sender.id,
+            profile_id = int(transmitted_profile_id),
+        )
+        db.add(new_trusted_person_profile)
+        await db.commit()
+        await callback.message.answer("Запрос подтвержден")
+        await callback.answer()
+
+
+    if action == "n_conf":
+        request.status = RequestStatus.REJECTED
+        await db.commit()
+        await callback.message.answer("Запрос отклонен")
+        await callback.answer()
     await callback.answer()
