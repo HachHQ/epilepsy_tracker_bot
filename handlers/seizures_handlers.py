@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure
 from keyboards.seizure_kb import get_year_date_kb, get_month_date_kb, get_day_kb, get_times_of_day_kb
-from services.update_login_cache import get_cached_current_profile
+from services.redis_cache_data import get_cached_current_profile
 
 seizures_router = Router()
 
@@ -31,6 +31,10 @@ class SeizureForm(StatesGroup):
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
 async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     seizure_data = await state.get_data()
+    if not seizure_data:
+        await callback.message.answer("Начните заполнение данных о приступе заново.")
+        await callback.answer()
+        return
     current_profile = await get_cached_current_profile(callback.message.chat.id)
     if 'date_short' in seizure_data:
         date = seizure_data['date_short']
@@ -76,43 +80,6 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     await callback.message.answer(message_text)
     await callback.answer()
     await state.clear()
-
-
-# @seizures_router.callback_query(F.data.startswith("back"))
-# async def back_to(callback: CallbackQuery):
-#     _, back_to_target = callback.data.split(":", 1)
-
-#     if back_to_target == "to_menu":
-#         redis_login = await get_cached_login(callback.message.chat.id)
-#         await callback.message.edit_text(
-#             f"Логин: {redis_login}\n"
-#             f"Вы находитесь в основном меню бота.\n"
-#             "Используйте кнопки для навигации.\n",
-#             reply_markup=get_main_menu_keyboard()
-#         )
-#     # elif back_to_target == "year":
-#     #     data = await state.get_data()
-#     #     await callback.message.edit_text(f"Выбран профиль - {data['profile_name']}\nВыберите год или сразу день из преложенных",
-#     #                                         reply_markup=get_year_date_kb(3,1))
-#     #     return
-#     await state.clear()
-#     await callback.answer()
-
-# @seizures_router.callback_query(F.data == "menu:choose_profile")
-# async def offer_to_choose_profile(callback: CallbackQuery, db: AsyncSession):
-#     redis_login = await get_cached_login(callback.message.chat.id)
-#     try:
-#         query = (
-#             select(Profile)
-#             .join(User)
-#             .where(User.login == redis_login)
-#         )
-#         profiles_result = await db.execute(query)
-#         profiles = profiles_result.scalars().all()
-#         await callback.message.edit_text("Выберите профиль для которого хотите зафиксировать приступ: ", reply_markup=get_profiles_for_seizure_fix(profiles))
-#     except SQLAlchemyError as e:
-#         print(f"Ошибка при выполнении запроса: {e}")
-#         await callback.answer()
 
 @seizures_router.callback_query(F.data.startswith("fix_seizure"))
 async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
@@ -162,7 +129,7 @@ async def process_day_of_date(callback: CallbackQuery, state: FSMContext):
     _, day_index = callback.data.split(':', 1)
     await state.update_data(day=day_index)
     await state.set_state(SeizureForm.hour)
-    await callback.message.edit_text(f"Выбран день {day_index}", reply_markup=get_times_of_day_kb())
+    await callback.message.edit_text(f"Выбрано число: {day_index}", reply_markup=get_times_of_day_kb())
 
 @seizures_router.callback_query(F.data.startswith('time_of_day'),
                                 StateFilter(SeizureForm.hour))
