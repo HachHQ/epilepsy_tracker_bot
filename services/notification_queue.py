@@ -29,14 +29,14 @@ class NotificationQueue:
     async def worker(self):
         while self.running:
             try:
-                chat_id, request_uuid, text, kwargs = await self.queue.get()
+                chat_id, sender_id, request_uuid, text, transmitted_profile_id, kwargs = await self.queue.get()
                 print("чат айди", chat_id)
                 print("uuid", request_uuid)
                 print("текст", text)
                 print("Кварги", kwargs)
                 keyboard = InlineKeyboardBuilder()
-                keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}")
-                keyboard.button(text="Нет", callback_data=f"n_conf|{request_uuid}")
+                keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
+                keyboard.button(text="Нет", callback_data=f"n_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
                 try:
                     await self.bot.send_message(chat_id, text, reply_markup=keyboard.as_markup(), **kwargs)
                     print("Уведомление успешно отправлено")
@@ -53,9 +53,15 @@ class NotificationQueue:
     #TODO write a funcion for regular notification about medication time
     #TODO prohibit entering your own login
 
-    async def send_trusted_contact_request(self, chat_id: int, request_uuid: str, sender_login: str, **kwargs):
+    async def send_trusted_contact_request(self,
+                                           chat_id: int,
+                                           request_uuid: str,
+                                           sender_login: str,
+                                           sender_id: int,
+                                           transmitted_profile_id: int,
+                                           **kwargs):
         text = f"Подтвердите запрос доверенного лица - {sender_login}"
-        await self.queue.put((chat_id, request_uuid, text, {}))
+        await self.queue.put((chat_id, sender_id, request_uuid, text, transmitted_profile_id, {}))
 
 
     """async def check_and_send_reminders(self):
