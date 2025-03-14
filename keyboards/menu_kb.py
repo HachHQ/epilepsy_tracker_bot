@@ -24,7 +24,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     )
     kb_builder.button(
         text="👤 Профили",
-        callback_data="menu:choose_profile"
+        callback_data="choose_profile"
     )
     kb_builder.button(
         text="🔔 Уведомления",
@@ -32,7 +32,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     )
     kb_builder.button(
         text="🙍 Добавить ДЛ",
-        callback_data="menu:add_trusted"
+        callback_data="add_trusted"
     )
     kb_builder.button(
         text="⬇️ Импортировать данные",
