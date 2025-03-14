@@ -82,6 +82,8 @@ class Seizure(Base):
     video_tg_id = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    #creator_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
