@@ -96,18 +96,17 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
             return
         print(f"Найден пользователь: {recipient.login} - {recipient.telegram_id}")
 
-        search_exist_request = await db.execute(select(TrustedPersonRequest).filter(
-            (TrustedPersonRequest.sender_id == user.id),
-            (TrustedPersonRequest.recepient_id == recipient.id),
-            (TrustedPersonRequest.transmitted_profile_id == int(data['transmitted_profile_id'])),
-            (TrustedPersonRequest.status == RequestStatus.ACCEPTED)
+        search_existing_connection = await db.execute(select(TrustedPersonProfiles).filter(
+            (TrustedPersonProfiles.trusted_person_user_id == user.id),
+            (TrustedPersonProfiles.profile_owner_id == recipient.id),
+            (TrustedPersonProfiles.profile_id == int(data['transmitted_profile_id']))
         ))
-        exist_request = search_exist_request.scalars().first()
+        exist_request = search_existing_connection.scalars().first()
         if exist_request:
             await callback.message.answer("Этот пользователь уже является вашим доверенным лицом и имеет доступ к этому профилю.")
             await callback.message.answer("Начните заполнение сценарий добавления доверенного лица заново.")
             await state.clear()
-            await callback.message.answer()
+            await callback.answer()
             return
 
         uuid_for_request = uuid.uuid4()
