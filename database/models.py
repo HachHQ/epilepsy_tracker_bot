@@ -79,7 +79,7 @@ class Seizure(Base):
     comment = Column(String(150))
     count = Column(Integer, nullable=True)
 
-    video_tg_id = Column(Integer, nullable=True)
+    video_tg_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
     #creator_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
