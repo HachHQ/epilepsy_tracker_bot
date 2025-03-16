@@ -45,9 +45,9 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
             result = await db.execute(query)
             user = result.scalars().first()
 
-            # if user.login == login_redis:
-            #     await message.answer("Нельзя стать доверенным лицом самого себя)")
-            #     return
+            if user.login == login_redis:
+                await message.answer("Нельзя стать доверенным лицом самого себя)")
+                return
 
             if not user:
                 await message.answer("Пользователь не найден")
