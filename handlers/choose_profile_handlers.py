@@ -35,5 +35,5 @@ async def select_own_profile(callback: CallbackQuery):
 async def process_choosing_of_profile(callback: CallbackQuery):
     _, profile_id, profile_name = callback.data.split(':', 2)
     await set_cached_current_profile(callback.message.chat.id, profile_id=profile_id, profile_name=profile_name)
-    await callback.message.answer(f"Профиль {profile_name} выбран.")
+    await callback.message.edit_text(f"Профиль {profile_name} выбран.")
     await callback.answer()
