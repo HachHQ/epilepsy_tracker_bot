@@ -66,3 +66,10 @@ def get_times_of_day_kb() -> InlineKeyboardMarkup:
     times_of_day_kb_bd.row(cancel_seizure_menu_btn)
     times_of_day_kb_bd.row(confirm_seizure_data_btn)
     return times_of_day_kb_bd.as_markup()
+
+def get_video_tg_id_kb() -> InlineKeyboardMarkup:
+    buider = InlineKeyboardBuilder()
+    buider.adjust(2)
+    buider.row(cancel_seizure_menu_btn)
+    buider.row(confirm_seizure_data_btn)
+    return buider.as_markup()
