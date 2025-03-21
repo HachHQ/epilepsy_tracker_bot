@@ -20,6 +20,7 @@ async def handle_pagination(callback: CallbackQuery):
     profiles_redis = await get_cached_profiles_list(callback.message.chat.id, profile_type)
     if not profiles_redis:
         await callback.message.answer("Ошибка: Список профилей не найден.")
+        await callback.answer()
         return
     new_page = max(0, page - 1) if direction == "prev" else min(len(profiles_redis) // 5, page + 1)
     await callback.message.edit_text(
