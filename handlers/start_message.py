@@ -16,4 +16,4 @@ start_message_router = Router()
 async def cmd_start(message: Message, state: FSMContext):
     welcome_kb_bd = InlineKeyboardBuilder()
     welcome_kb_bd.button(text=LEXICON_RU['to_register'], callback_data='submit_welcome_msg')
-    await message.answer(LEXICON_RU['welcome'], reply_markup=welcome_kb_bd.as_markup())
+    await message.answer(LEXICON_RU['welcome'], reply_markup=welcome_kb_bd.as_markup(), parse_mode='HTML')

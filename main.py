@@ -2,7 +2,8 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 # from aiogram.client.default import DefaultBotProperties
 # from aiogram.enums import ParseMode
-from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.filters import Command
 
@@ -16,6 +17,9 @@ from config_data.config import load_config
 
 from test_scripts.test1 import test_create_user
 
+from handlers.choose_profile_handlers import choose_profile_router
+from handlers.add_trusted_person_handlers import add_trusted_person_router
+from handlers.profiles_pagination_handlers import pagination_router
 from handlers.cancel_handlers import cancel_router
 from handlers.start_message import start_message_router
 from handlers.user_form import user_form_router
@@ -37,6 +41,12 @@ storage = RedisStorage(redis=redis)
 bot = Bot(config.tg_bot.token)
 dp = Dispatcher(storage=storage)
 
+@dp.error()
+async def handle_errors(event: ErrorEvent, state: FSMContext):
+    print(f"Произошла ошибка: {event.exception}")
+    await state.clear()
+    await event.update.message.answer("Что-то пошло не так. Попробуйте позже. Все сценарии отменены")
+
 notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 
 async def main():
@@ -48,6 +58,9 @@ async def main():
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
+    dp.include_router(add_trusted_person_router)
+    dp.include_router(pagination_router)
+    dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)

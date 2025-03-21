@@ -1,10 +1,14 @@
-from sqlalchemy import Column, Integer, BigInteger, Index, TIMESTAMP, String, Enum, ForeignKey, Table, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from database.db_init import Base
-from datetime import datetime, timedelta
 import enum
 import uuid
+from sqlalchemy import ( Column, Integer, BigInteger, Index,
+                        String, Enum, ForeignKey, Table,
+                        DateTime, Boolean)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from sqlalchemy.sql import text
+
+from database.db_init import Base
+from datetime import datetime, timedelta, timezone
 
 class RequestStatus(enum.Enum):
     PENDING = "pending"
@@ -14,7 +18,6 @@ class RequestStatus(enum.Enum):
 
 class User(Base):
     __tablename__ = 'users'
-    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, nullable=False)
@@ -22,13 +25,14 @@ class User(Base):
     telegram_fullname = Column(String(64))
     name = Column(String(25))
     login = Column(String(25), nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    current_profile = Column(Integer, default=None, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     profiles = relationship("Profile", back_populates="user")
 
 class Profile(Base):
     __tablename__ = 'profiles'
-    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
@@ -37,14 +41,26 @@ class Profile(Base):
     age = Column(Integer)
     sex = Column(String(20))
     timezone = Column(String(3))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="profiles")
     drugs = relationship("Drug", secondary="profile_drugs", back_populates="profiles")
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "profile_name": self.profile_name,
+            "type_of_epilepsy": self.type_of_epilepsy,
+            "age": self.age,
+            "sex": self.sex,
+            "timezone": self.timezone,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 class Drug(Base):
     __tablename__ = 'drugs'
-    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True)
     name = Column(String(30), nullable=False)
@@ -63,26 +79,40 @@ class Seizure(Base):
     comment = Column(String(150))
     count = Column(Integer, nullable=True)
 
-    video_tg_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    video_tg_id = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    #creator_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
 
+class TrustedPersonProfiles(Base):
+    __tablename__ = "trusted_person_profiles"
+
+    id = Column(Integer, primary_key=True)
+    trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    profile_owner_id = Column(Integer, ForeignKey("users.id"))
+    profile_id = Column(Integer, ForeignKey("profiles.id"))
+    can_read = Column(Boolean, nullable=False, default=True)
+    can_edit = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, server_default=func.now())
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    transmitted_profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow(), nullable=False)
-    expires_at = Column(DateTime, default=datetime.utcnow() + timedelta(minutes=10), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
 
 profile_drugs = Table(
     'profile_drugs',
     Base.metadata,
-    Column('profile_id', Integer, ForeignKey('profiles.id'), primary_key=True),
-    Column('drug_id', Integer, ForeignKey('drugs.id'), primary_key=True)
+    Column('profile_id', Integer, ForeignKey('profiles.id', ondelete="CASCADE"), primary_key=True),
+    Column('drug_id', Integer, ForeignKey('drugs.id', ondelete="CASCADE"), primary_key=True)
 )

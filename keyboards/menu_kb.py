@@ -11,31 +11,31 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     kb_builder.button(
-        text="Зафиксировать приступ",
-        callback_data="menu:choose_profile"
+        text="✏️ Зафиксировать приступ",
+        callback_data="fix_seizure"
     )
     kb_builder.button(
-        text="Журнал приступов",
+        text="📖 Журнал личный",
         callback_data="menu:seizure_log"
     )
     kb_builder.button(
-        text="Журнал доверенных лиц",
+        text="📒 Журнал ДЛ",
         callback_data="menu:trusted_log"
     )
     kb_builder.button(
-        text="Редактировать профиль",
-        callback_data="menu:edit_profile"
+        text="👤 Профили",
+        callback_data="choose_profile"
     )
     kb_builder.button(
-        text="Настроить уведомления",
+        text="🔔 Уведомления",
         callback_data="menu:set_notifications"
     )
     kb_builder.button(
-        text="Добавить доверенное лицо",
-        callback_data="menu:add_trusted"
+        text="🙍 Добавить ДЛ",
+        callback_data="add_trusted"
     )
     kb_builder.button(
-        text="Импортировать журнал приступов",
+        text="⬇️ Импортировать данные",
         callback_data="menu:import_log"
     )
     kb_builder.adjust(2)

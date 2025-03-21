@@ -4,13 +4,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import Command, StateFilter
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from database.models import User
 from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
 from services.validators import validate_login_of_user_form, validate_name_of_user_form
+from services.redis_cache_data import set_cached_login
 from keyboards.menu_kb import get_cancel_kb
 
 user_form_router = Router()
@@ -45,7 +46,6 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
         data = await state.get_data()
         print(f"Полученные данные: {data}")
         try:
-            # Проверка существования логина и Telegram ID
             result = await db.execute(select(User).filter(User.login == data["login"]))
             existing_login = result.scalars().first()
 
@@ -53,27 +53,29 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             existing_tgid = result.scalars().first()
 
             if existing_tgid:
-                await message.answer(LEXICON_RU['user_exist'], reply_markup=get_cancel_kb())
+                await message.answer(LEXICON_RU['user_exist'])
+                await state.clear()
                 return
             if existing_login:
                 await message.answer(LEXICON_RU['login_exist'], reply_markup=get_cancel_kb())
                 return
 
-            # Создание нового пользователя
             new_user = User(
                 telegram_id=message.chat.id,
                 telegram_username=message.from_user.username,
                 telegram_fullname=message.from_user.full_name,
                 name=data["name"],
                 login=data["login"],
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
 
             print(f"Создается пользователь: {new_user}")
             db.add(new_user)
+
+            await set_cached_login(user_id=message.chat.id, login=data["login"])
+
             await db.commit()
 
-            # Клавиатура для перехода к заполнению профиля
             next_to_profile_form_kb_bd = InlineKeyboardBuilder()
             next_to_profile_form_kb_bd.button(
                 text=LEXICON_RU['yes'], callback_data="to_filling_profile_form"
@@ -83,7 +85,7 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             )
 
             await message.answer(
-                "Анкета заполнена!\nИмя:"
+                "Анкета заполнена!\nИмя: "
                 f"<b>{data['name']}</b>\nЛогин: <b>{data['login']}</b>\n\n"
                 "Если хотите изменить данные, отправьте команду /start, чтобы заполнить анкету заново.",
                 parse_mode='HTML'
@@ -98,5 +100,6 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             await db.rollback()
     else:
         await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
+        return
 
     await state.clear()
