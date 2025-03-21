@@ -13,10 +13,13 @@ def get_paginated_profiles_kb(
     total_profiles = len(profiles)
     total_pages = (total_profiles + page_size - 1) // page_size
 
+
     if page < 0 or page >= total_pages:
         page = 0
 
     builder = InlineKeyboardBuilder()
+
+    builder.button(text="✏️ Создать профиль", callback_data="to_filling_profile_form")
 
     start_index = page * page_size
     end_index = start_index + page_size
