@@ -64,7 +64,13 @@ async def get_cached_user_id_from_db(user_id: int) -> int:
 async def set_cached_user_id_from_db(user_id: int, user_db_id: int):
         await redis.setex(f"user:user_db_id:{user_id}", 3600, user_db_id)
 
-
+async def clear_cached_user_id_from_db(user_id: int):
+    profile_key = f"user:user_db_id:{user_id}"
+    deleted = await redis.delete(profile_key)
+    if deleted:
+        print(f"Текущий профиль пользователя с ID {user_id} удален из Redis")
+    else:
+        print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
 
 async def get_cached_current_profile(user_id: int) -> str:
     profile_key = f"user:current_profile:{user_id}"
@@ -79,7 +85,7 @@ async def get_cached_current_profile(user_id: int) -> str:
             user = result.scalars().first()
             search_profile_name = await db.execute(select(Profile).filter(Profile.id == user.current_profile))
             profile = search_profile_name.scalars().first()
-            if not user.current_profile:
+            if user.current_profile == None:
                 print("Профиль null")
                 profile = "Не выбран"
                 return profile
