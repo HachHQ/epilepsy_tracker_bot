@@ -35,6 +35,7 @@ class ProfileForm(StatesGroup):
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     if await get_cached_login(callback.message.chat.id) == "Не зарегистрирован":
         await state.clear()
         await callback.message.answer("Необходимо зарегистрироваться, чтобы создать профиль.\nВыберите в меню слева от строки ввода меню и нажмите /start")
@@ -195,7 +196,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
             )
         profiles_result = await db.execute(query)
         profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
-        
+
         await set_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
 
         await db.commit()
