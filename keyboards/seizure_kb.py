@@ -6,6 +6,12 @@ from datetime import datetime, timezone, timedelta
 cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить заполнение", callback_data="cancel_fsm_script")
 confirm_seizure_data_btn = InlineKeyboardButton(text="✅ Подтвердить", callback_data="check_input_seizure_data")
 
+def get_temporary_cancel_submit_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(cancel_seizure_menu_btn)
+    builder.row(confirm_seizure_data_btn)
+    return builder.as_markup()
+
 def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
     current_datetime = datetime.now(timezone.utc)
     current_year = current_datetime.date().year
@@ -22,21 +28,6 @@ def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
     years_date_kb_bd.row(two_day_btn, one_day_ago_btn, today_btn)
     years_date_kb_bd.row(cancel_seizure_menu_btn)
     return years_date_kb_bd.as_markup()
-
-# def get_profiles_for_seizure_fix(list: list[str]) -> InlineKeyboardMarkup:
-#     profiles_kb_bd = InlineKeyboardBuilder()
-#     back_btn = InlineKeyboardButton(text="⬅️ Назад", callback_data="back:to_menu")
-#     if not list:
-#         offer_to_create_profile_btn = InlineKeyboardButton(text="Создать профиль", callback_data="to_filling_profile_form")
-#         profiles_kb_bd.row(offer_to_create_profile_btn)
-#         profiles_kb_bd.row(back_btn)
-#         return profiles_kb_bd.as_markup()
-#     for profile in list:
-#         profiles_kb_bd.button(text=f"{profile.profile_name}", callback_data=f"fix_seizure:{profile.id}:{profile.profile_name}")
-#     profiles_kb_bd.adjust(1)
-#     profiles_kb_bd.row(back_btn)
-
-#     return profiles_kb_bd.as_markup()
 
 def get_month_date_kb() -> InlineKeyboardMarkup:
     month_kb_bd = InlineKeyboardBuilder()
@@ -67,9 +58,11 @@ def get_times_of_day_kb() -> InlineKeyboardMarkup:
     times_of_day_kb_bd.row(confirm_seizure_data_btn)
     return times_of_day_kb_bd.as_markup()
 
-def get_video_tg_id_kb() -> InlineKeyboardMarkup:
-    buider = InlineKeyboardBuilder()
-    buider.adjust(2)
-    buider.row(cancel_seizure_menu_btn)
-    buider.row(confirm_seizure_data_btn)
-    return buider.as_markup()
+def get_severity_kb() -> InlineKeyboardMarkup:
+    severity_kb_db = InlineKeyboardBuilder()
+    list_of_severity = {'Легкий':'light', 'Средний':'medium', 'Тяжелый':'heavy'}
+    for text, cd_value in list_of_severity.items():
+        severity_kb_db.button(text=f"{text}", callback_data=f"saverity:{cd_value}")
+    severity_kb_db.row(cancel_seizure_menu_btn)
+    severity_kb_db.row(confirm_seizure_data_btn)
+    return severity_kb_db.as_markup()
