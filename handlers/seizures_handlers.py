@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure
 from keyboards.seizure_kb import (get_year_date_kb, get_month_date_kb, get_day_kb, get_times_of_day_kb,
-                                 get_severity_kb, get_temporary_cancel_submit_kb)
+                                 get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard)
 from services.redis_cache_data import get_cached_current_profile
 from services.validators import validate_date, validate_time, validate_count_of_seizures, validate_triggers_list
 from keyboards.menu_kb import get_cancel_kb
@@ -193,7 +193,8 @@ async def process_count_message(message: Message, state: FSMContext):
     if validate_count_of_seizures(message.text):
         await state.update_data(count=message.text)
         await state.set_state(SeizureForm.triggers)
-        await message.answer("Введите возможные триггеры через запятую: ", reply_markup=get_temporary_cancel_submit_kb())
+        await state.update_data(selected_triggers=[], current_page=0)
+        await message.answer("Введите возможные триггеры через запятую: ", reply_markup=generate_features_keyboard([], 0, 5))
     else:
         await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 0 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
@@ -207,7 +208,48 @@ async def process_triggers_message(message: Message, state: FSMContext):
     else:
         await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
+@seizures_router.callback_query(F.data.startswith('toggle'), StateFilter(SeizureForm.triggers))
+async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext):
+    _, feature, current_page = callback.data.split(':', 2)
 
+    data = await state.get_data()
+    selected_features = data.get("selected_features", [])
+    if feature in selected_features:
+        selected_features.remove(feature)
+    else:
+        selected_features.append(feature)
+    await state.update_data(selected_features=selected_features)
+    await callback.message.edit_reply_markup(
+        reply_markup=generate_features_keyboard(selected_features, current_page, 5)
+    )
+    await callback.answer()
+
+@seizures_router.callback_query(F.data.startswith('page'))
+async def process_triggers_page(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    selected_features = data.get("selected_features", [])
+    new_page = callback.data.split(':', 1)[1]
+    await state.update_data(current_page=new_page)
+    await callback.message.edit_reply_markup(
+        reply_markup=generate_features_keyboard(selected_features, new_page, 5)
+    )
+    await callback.answer()
+
+@seizures_router.callback_query(F.data.startswith('done'))
+async def process_save_toggled_triggers(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    selected_features = data.get("selected_features", [])
+    if selected_features:
+        #features_list = "\n".join([f"▫️ {feature}" for feature in selected_features])
+        await state.set_state(SeizureForm.severity)
+        await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+    else:
+        await state.update_data(selected_features=[])
+        await state.set_state(SeizureForm.severity)
+        await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+    await state.clear()
+
+    await callback.answer()
 
 @seizures_router.callback_query(F.data.startswith('saverity'), StateFilter(SeizureForm.severity))
 async def process_severity_message(callback: CallbackQuery, state: FSMContext):
