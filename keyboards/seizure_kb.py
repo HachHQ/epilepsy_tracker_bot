@@ -66,3 +66,29 @@ def get_severity_kb() -> InlineKeyboardMarkup:
     severity_kb_db.row(cancel_seizure_menu_btn)
     severity_kb_db.row(confirm_seizure_data_btn)
     return severity_kb_db.as_markup()
+
+FEATURES = ['Гипертермия', 'Гормональные колебания', 'Смена лекарства', 'Пропущенный прием лекарства', 'Стресс']
+
+def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5):
+    current_page = int(current_page)
+    page_size = int(page_size)
+    total_pages = (len(FEATURES) + page_size - 1) // page_size
+    start_index = current_page * page_size
+    end_index = int(start_index) + page_size
+    features_on_page = FEATURES[start_index:end_index]
+
+    keyboard = []
+    for feature in features_on_page:
+        emoji = "▫️" if feature in selected_features else "▪️"
+        keyboard.append([InlineKeyboardButton(text=f"{emoji} {feature}", callback_data=f"toggle:{feature}:{current_page}")])
+
+    pagination_buttons = []
+    if current_page > 0:
+        pagination_buttons.append([InlineKeyboardButton(text="« Назад", callback_data=f"page:{current_page}")])
+    if current_page < total_pages - 1:
+        pagination_buttons.append([InlineKeyboardButton(text="Вперед »", callback_data=f"page{current_page}")])
+    if pagination_buttons:
+        keyboard.append(pagination_buttons)
+    keyboard.append([InlineKeyboardButton(text="✅ Готово", callback_data=f"done:{current_page}")])
+    keyboard.append([cancel_seizure_menu_btn])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
