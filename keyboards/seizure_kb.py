@@ -92,3 +92,12 @@ def generate_features_keyboard(selected_features: list, current_page: int, page_
     keyboard.append([InlineKeyboardButton(text="✅ Готово", callback_data=f"done:{current_page}")])
     keyboard.append([cancel_seizure_menu_btn])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_count_of_seizures_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for i in range(1, 11):
+        builder.button(text=f"{i}", callback_data=f"count_of_seizures:{i}")
+    builder.adjust(5)
+    builder.row(cancel_seizure_menu_btn)
+    builder.row(confirm_seizure_data_btn)
+    return builder.as_markup()
