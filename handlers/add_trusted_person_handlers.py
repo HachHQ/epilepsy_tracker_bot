@@ -1,5 +1,5 @@
 import uuid
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State, default_state
@@ -9,8 +9,11 @@ from sqlalchemy.future import select
 from datetime import datetime, timezone, timedelta
 
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
+from database.redis_query import set_redis_cached_profiles_list
+from database.orm_query import orm_update_list_of_trusted_profiles
 from lexicon.lexicon import LEXICON_RU
-from services.redis_cache_data import get_cached_profiles_list, get_cached_login, set_cached_profiles_list
+from services.redis_cache_data import get_cached_profiles_list, get_cached_login
+
 from services.notification_queue import NotificationQueue
 from services.validators import validate_login_of_user_form
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
@@ -35,7 +38,7 @@ async def process_input_trusted_person_login(callback: CallbackQuery, state: FSM
 @add_trusted_person_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
 async def process_search_trusted_person_by_login(message: Message, state: FSMContext, db: AsyncSession):
     if validate_login_of_user_form(message.text):
-        login_redis = await get_cached_login(message.chat.id)
+        login_redis = await get_cached_login(db, message.chat.id)
         await state.update_data(trusted_person_login=message.text)
         try:
             query = (
@@ -60,8 +63,8 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
         await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
 
 @add_trusted_person_router.callback_query(F.data == "trusted_person_correct", StateFilter(TrustedPersonForm.correct_trusted_person_login))
-async def process_display_profile_for_transmitting(callback: CallbackQuery, state: FSMContext):
-    profiles_redis = await get_cached_profiles_list(callback.message.chat.id)
+async def process_display_profile_for_transmitting(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id)
     await callback.message.answer("Выберите профиль, которым хотите поделиться: ", reply_markup=get_paginated_profiles_kb(profiles_redis, to_share=True))
     await state.set_state(TrustedPersonForm.selected_profile)
     await callback.answer()
@@ -82,7 +85,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
     try:
         data = await state.get_data()
         recipient_login = data['trusted_person_login']
-        sender_login = await get_cached_login(callback.message.chat.id)
+        sender_login = await get_cached_login(db, callback.message.chat.id)
 
         print(f"Поиск пользователя с логином: {recipient_login}")
         search_user_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
@@ -104,7 +107,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         exist_request = search_existing_connection.scalars().first()
         if exist_request:
             await callback.message.answer("Этот пользователь уже является вашим доверенным лицом и имеет доступ к этому профилю.")
-            await callback.message.answer("Начните заполнение сценарий добавления доверенного лица заново.")
+            await callback.message.answer("Начните заполнение сценария добавления доверенного лица заново.")
             await state.clear()
             await callback.answer()
             return
@@ -130,6 +133,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         await callback.answer()
         await state.clear()
     except Exception as e:
+        await state.clear()
         print(f"Неизвестная ошибка: {e}")
 
 @add_trusted_person_router.callback_query(F.data == 'reject_transfer')
@@ -140,7 +144,7 @@ async def process_rejection(callback: CallbackQuery, state: FSMContext):
 
 
 @add_trusted_person_router.callback_query(F.data.startswith("p_conf") | F.data.startswith("n_conf"))
-async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession):
+async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession, bot: Bot):
     action, uuid_request, transmitted_profile_id, sender_id = callback.data.split("|", 3)
 
     search_sender_result = await db.execute(select(User).filter(User.id == int(sender_id)))
@@ -149,10 +153,18 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
     search_recepient_id_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
     recepient = search_recepient_id_result.scalars().first()
 
-    search_request_result = await db.execute(select(TrustedPersonRequest).filter((TrustedPersonRequest.id == uuid_request) & (TrustedPersonRequest.sender_id == sender.id) & (TrustedPersonRequest.recepient_id == recepient.id)))
+    search_request_result = await db.execute(
+        select(TrustedPersonRequest).filter(
+            (TrustedPersonRequest.id == uuid_request) &
+            (TrustedPersonRequest.sender_id == sender.id) &
+            (TrustedPersonRequest.recepient_id == recepient.id)
+        )
+    )
     request = search_request_result.scalars().first()
 
-    print(request.created_at - request.expires_at)
+    if not request:
+        await callback.message.answer("Запрос не найден.")
+        return
 
     if not recepient:
         await callback.message.answer("Запрос не найден. Попросите пользователя отправить новый.")
@@ -164,39 +176,45 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         await callback.answer()
         return
 
-    if action == "p_conf":
-        print(datetime.now(timezone.utc), request.expires_at)
-        if datetime.now(timezone.utc) > request.expires_at:
+    if datetime.now(timezone.utc) > request.expires_at:
             request.status = RequestStatus.EXPIRED
             await db.commit()
             await callback.message.answer("Время запроса истекло")
+            await bot.send_message(chat_id=sender.telegram_id, text=f"Пользователь {recepient.login} не успел принять запрос.")
             await callback.answer()
             return
+
+    if action == "p_conf":
         request.status = RequestStatus.ACCEPTED
-        await db.commit()
+
         new_trusted_person_profile = TrustedPersonProfiles(
             trusted_person_user_id = recepient.id,
             profile_owner_id = sender.id,
             profile_id = int(transmitted_profile_id),
         )
         db.add(new_trusted_person_profile)
-        await db.commit()
-        query = (
-            select(Profile)
-            .join(TrustedPersonProfiles, Profile.id == TrustedPersonProfiles.profile_id)
-            .join(User, TrustedPersonProfiles.trusted_person_user_id == User.id)
-            .where(User.telegram_id == callback.message.chat.id)
-        )
-        profiles_result = await db.execute(query)
-        profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
-        await set_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
+
+        await bot.send_message(chat_id=sender.telegram_id, text=f"Пользователь {recepient.login} подтвердил запрос.")
+
+        profiles = await orm_update_list_of_trusted_profiles(db, callback.message.chat.id)
+
+        await set_redis_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
+
         await callback.message.answer("Запрос подтвержден")
+
         await callback.answer()
+
+        await db.commit()
 
 
     if action == "n_conf":
         request.status = RequestStatus.REJECTED
-        await db.commit()
+
+        await bot.send_message(chat_id=sender.telegram_id, text=f"Пользователь {recepient.login} отклонил запрос.")
+
         await callback.message.answer("Запрос отклонен")
         await callback.answer()
+
+        await db.commit()
+
     await callback.answer()
