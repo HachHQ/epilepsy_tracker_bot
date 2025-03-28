@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from database.models import User, Profile
-from services.redis_cache_data import set_cached_current_profile, get_cached_profiles_list
+from database.redis_query import set_redis_cached_current_profile
+from services.redis_cache_data import get_cached_profiles_list
 from keyboards.profiles_list_kb import get_choosing_type_of_profiles_kb, get_paginated_profiles_kb
 
 choose_profile_router = Router()
@@ -18,10 +19,10 @@ async def process_choosing_profile(callback: CallbackQuery):
     await callback.answer()
 
 @choose_profile_router.callback_query(F.data.startswith('profile_type'))
-async def select_own_profile(callback: CallbackQuery):
+async def select_own_profile(callback: CallbackQuery, db: AsyncSession):
     _, profile_type = callback.data.split(':', 1)
 
-    profiles_redis = await get_cached_profiles_list(callback.message.chat.id, profile_type)
+    profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id, profile_type)
 
     await callback.message.edit_text(
         "Выберите профиль:",
@@ -44,6 +45,6 @@ async def process_choosing_of_profile(callback: CallbackQuery, db: AsyncSession)
     if not profile:
         await callback.message.answer("Такой профиль не существует.")
     user.current_profile = profile.id
-    await set_cached_current_profile(callback.message.chat.id, profile_id=profile_id, profile_name=profile_name)
+    await set_redis_cached_current_profile(callback.message.chat.id, profile_id=profile_id, profile_name=profile_name)
     await callback.message.edit_text(f"Профиль {profile_name} выбран.")
     await callback.answer()
