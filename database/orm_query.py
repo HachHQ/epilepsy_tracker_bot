@@ -54,3 +54,25 @@ async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: in
     profiles_result = await session.execute(query)
     profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
     return profiles
+
+# Create profile
+async def orm_create_profile(
+        session: AsyncSession,
+        user_id,
+        profile_name,
+        type_of_epilepsy,
+        age,
+        sex,
+        timezone,
+        created_at
+    ):
+    new_profile = Profile(
+            user_id=user_id,
+            profile_name=profile_name,
+            type_of_epilepsy=type_of_epilepsy,
+            age=age,
+            sex=sex,
+            timezone=timezone,
+            created_at=created_at
+        )
+    session.add(new_profile)

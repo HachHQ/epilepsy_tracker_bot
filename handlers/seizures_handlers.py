@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure
 from keyboards.seizure_kb import (get_year_date_kb, get_month_date_kb, get_day_kb, get_times_of_day_kb,
-                                 get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard)
+                                 get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard,
+                                 get_count_of_seizures_kb)
 from services.redis_cache_data import get_cached_current_profile
 from services.validators import validate_date, validate_time, validate_count_of_seizures, validate_triggers_list
 from keyboards.menu_kb import get_cancel_kb
@@ -49,12 +50,14 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         await callback.message.answer("Начните заполнение данных о приступе заново.")
         await callback.answer()
         return
-    current_profile = await get_cached_current_profile(callback.message.chat.id)
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
     if 'date_short' in seizure_data:
         date = seizure_data['date_short']
     else:
         date = f"{seizure_data.get('year', 'Не заполнено')}-{seizure_data.get('month', 'Не заполнено')}-{seizure_data.get('day', 'Не заполнено')}"
+    
     time_of_day = seizure_data.get('time_of_day', 'Не заполнено')
+    list_of_triggers = seizure_data.get('selected_features', [])
     count = seizure_data.get('count', 'Не заполнено')
     triggers = seizure_data.get('triggers', 'Не заполнено')
     severity = seizure_data.get('severity', 'Не заполнено')
@@ -64,9 +67,10 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     video_tg_id = seizure_data.get('video_tg_id', 'Не заполнено')
     location = seizure_data.get('location', 'Не заполнено')
 
-    current_profile = await get_cached_current_profile(callback.message.chat.id)
-    if current_profile == "Не выбран":
+    if current_profile == None:
         await callback.message.answer("Выберите профиль в основном меню.")
+    if list_of_triggers and triggers == "Не заполнено":
+        triggers = ", ".join(list_of_triggers)
     message_text = (
         f"Введенные данные о приступе для профиля <u>{current_profile.split('|')[1]}</u>:\n"
         f"Дата: {date}\n"
@@ -98,7 +102,7 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     db.add(new_seizure)
     await callback.message.answer(message_text, parse_mode='HTML')
     if video_tg_id != "Не заполнено":
-        await bot.send_video(chat_id=callback.message.chat.id, video=seizure_data['video_tg_id'])
+        await bot.send_video(chat_id=callback.message.chat.id, document=seizure_data['video_tg_id'])
 
     await callback.answer()
     await state.clear()
@@ -184,29 +188,30 @@ async def process_time_of_date_message(message: Message, state: FSMContext):
         await state.update_data(time_of_day=message.text)
         print(message.text)
         await state.set_state(SeizureForm.count)
-        await message.answer("Введите количество приступов: ", reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer("Введите количество приступов: ", reply_markup=get_count_of_seizures_kb())
     else:
         await message.answer("<u>Время приступа должно быть в формате ЧАСЫ:МИНУТЫ\nНапример: 23:29</u>", reply_markup=get_temporary_cancel_submit_kb(), parse_mode='HTML')
+
+@seizures_router.callback_query(F.data.startswith('count_of_seizures'), StateFilter(SeizureForm.count))
+async def process_count_of_seizures(callback: CallbackQuery, state: FSMContext):
+    _, count_of_seizures = callback.data.split(':', 1)
+    await state.update_data(count=count_of_seizures)
+    await state.set_state(SeizureForm.triggers)
+    await state.update_data(selected_features=[], current_page=0)
+    await callback.message.answer("Введите возможные триггеры через запятую: ", reply_markup=generate_features_keyboard([], 0, 5))
+    await callback.answer()
+
 
 @seizures_router.message(StateFilter(SeizureForm.count))
 async def process_count_message(message: Message, state: FSMContext):
     if validate_count_of_seizures(message.text):
         await state.update_data(count=message.text)
         await state.set_state(SeizureForm.triggers)
-        await state.update_data(selected_triggers=[], current_page=0)
+        await state.update_data(selected_features=[], current_page=0)
         await message.answer("Введите возможные триггеры через запятую: ", reply_markup=generate_features_keyboard([], 0, 5))
     else:
         await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 0 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
-@seizures_router.message(StateFilter(SeizureForm.triggers))
-async def process_triggers_message(message: Message, state: FSMContext):
-    if validate_triggers_list(message.text):
-        print('триггер')
-        await state.update_data(triggers=message.text)
-        await state.set_state(SeizureForm.severity)
-        await message.answer("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
-    else:
-        await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
 @seizures_router.callback_query(F.data.startswith('toggle'), StateFilter(SeizureForm.triggers))
 async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext):
@@ -224,7 +229,7 @@ async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@seizures_router.callback_query(F.data.startswith('page'))
+@seizures_router.callback_query(F.data.startswith('page'), StateFilter(SeizureForm.triggers))
 async def process_triggers_page(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     selected_features = data.get("selected_features", [])
@@ -235,25 +240,36 @@ async def process_triggers_page(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@seizures_router.callback_query(F.data.startswith('done'))
+@seizures_router.callback_query(F.data.startswith('done'), StateFilter(SeizureForm.triggers))
 async def process_save_toggled_triggers(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     selected_features = data.get("selected_features", [])
     if selected_features:
         #features_list = "\n".join([f"▫️ {feature}" for feature in selected_features])
         await state.set_state(SeizureForm.severity)
+        print(selected_features)
         await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
     else:
         await state.update_data(selected_features=[])
         await state.set_state(SeizureForm.severity)
+        print(selected_features)
         await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
-    await state.clear()
-
     await callback.answer()
+
+@seizures_router.message(StateFilter(SeizureForm.triggers))
+async def process_triggers_message(message: Message, state: FSMContext):
+    if validate_triggers_list(message.text):
+        print('триггер')
+        await state.update_data(triggers=message.text)
+        await state.set_state(SeizureForm.severity)
+        await message.answer("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+    else:
+        await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
 @seizures_router.callback_query(F.data.startswith('saverity'), StateFilter(SeizureForm.severity))
 async def process_severity_message(callback: CallbackQuery, state: FSMContext):
     _, saverity = callback.data.split(':', 1)
+    print(saverity)
     await state.update_data(severity=saverity)
     await state.set_state(SeizureForm.duration)
     await callback.message.answer("Введите примерную продолжительность в минутах: ", reply_markup=get_temporary_cancel_submit_kb())
