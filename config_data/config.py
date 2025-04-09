@@ -12,6 +12,7 @@ class DatabaseConfig:
 @dataclass
 class TgBot:
     token: str
+    admins: str
 
 @dataclass
 class Config:
@@ -26,6 +27,7 @@ def load_config(path: str | None = None) -> Config:
     return Config(
         tg_bot=TgBot(
             token=env('API_TOKEN'),
+            admins=env('ADMINS')
         ),
         db=DatabaseConfig(
             db_name=env('DB_NAME'),
