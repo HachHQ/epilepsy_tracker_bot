@@ -31,7 +31,7 @@ def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
 
 def get_month_date_kb() -> InlineKeyboardMarkup:
     month_kb_bd = InlineKeyboardBuilder()
-    month_in_russian = ['Январь', 'Февраль', 'Март', 'Апрьель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    month_in_russian = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
     for i in range(1, 13):
         month_kb_bd.button(text=month_in_russian[i-1], callback_data=f"month:{i}:{month_in_russian[i-1]}")
     month_kb_bd.adjust(3)
@@ -59,15 +59,17 @@ def get_times_of_day_kb() -> InlineKeyboardMarkup:
     return times_of_day_kb_bd.as_markup()
 
 def get_severity_kb() -> InlineKeyboardMarkup:
-    severity_kb_db = InlineKeyboardBuilder()
-    list_of_severity = {'Легкий':'light', 'Средний':'medium', 'Тяжелый':'heavy'}
-    for text, cd_value in list_of_severity.items():
-        severity_kb_db.button(text=f"{text}", callback_data=f"saverity:{cd_value}")
-    severity_kb_db.row(cancel_seizure_menu_btn)
-    severity_kb_db.row(confirm_seizure_data_btn)
-    return severity_kb_db.as_markup()
+    builder = InlineKeyboardBuilder()
+    for i in range(1, 11):
+        builder.button(text=f"{i}", callback_data=f"saverity:{i}")
+    builder.adjust(5)
+    builder.row(cancel_seizure_menu_btn)
+    builder.row(confirm_seizure_data_btn)
+    return builder.as_markup()
 
-FEATURES = ['Гипертермия', 'Гормональные колебания', 'Смена лекарства', 'Пропущенный прием лекарства', 'Стресс']
+FEATURES = ['Гипертермия', 'Яркие вспышки', 'Гормональные колебания', 'Смена лекарства',
+            'Пропущенный прием лекарства', 'Стресс', 'Лихорадка', 'Недостаток сна',
+            'Употребление наркотиков', 'Менструальный цикл', 'Обезвоживание']
 
 def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5):
     current_page = int(current_page)
@@ -76,22 +78,22 @@ def generate_features_keyboard(selected_features: list, current_page: int, page_
     start_index = current_page * page_size
     end_index = int(start_index) + page_size
     features_on_page = FEATURES[start_index:end_index]
-
-    keyboard = []
+    builder = InlineKeyboardBuilder()
+    builder.adjust(1)
     for feature in features_on_page:
         emoji = "▫️" if feature in selected_features else "▪️"
-        keyboard.append([InlineKeyboardButton(text=f"{emoji} {feature}", callback_data=f"toggle:{feature}:{current_page}")])
-
-    pagination_buttons = []
-    if current_page > 0:
-        pagination_buttons.append([InlineKeyboardButton(text="« Назад", callback_data=f"page:{current_page}")])
-    if current_page < total_pages - 1:
-        pagination_buttons.append([InlineKeyboardButton(text="Вперед »", callback_data=f"page{current_page}")])
-    if pagination_buttons:
-        keyboard.append(pagination_buttons)
-    keyboard.append([InlineKeyboardButton(text="✅ Готово", callback_data=f"done:{current_page}")])
-    keyboard.append([cancel_seizure_menu_btn])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+        builder.row(InlineKeyboardButton(text=f"{emoji} {feature}", callback_data=f"toggle:{feature}:{current_page}"))
+    if len(FEATURES) > page_size:
+        nav_btns = []
+        if current_page > 0:
+            nav_btns.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page:{current_page-1}"))
+        if current_page < total_pages - 1:
+            nav_btns.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"page:{current_page+1}"))
+        if nav_btns:
+            builder.row(*nav_btns)
+    builder.row(InlineKeyboardButton(text="✅ Готово", callback_data=f"done:{current_page}"))
+    builder.row(cancel_seizure_menu_btn)
+    return builder.as_markup()
 
 def get_count_of_seizures_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
