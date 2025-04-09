@@ -10,13 +10,13 @@ from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Seizure
-from keyboards.seizure_kb import (get_year_date_kb, get_month_date_kb, get_day_kb, get_times_of_day_kb,
+from database.orm_query import orm_add_new_seizure
+from keyboards.seizure_kb import (get_year_date_kb, get_month_date_kb, get_day_kb,
                                  get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard,
                                  get_count_of_seizures_kb)
 from services.redis_cache_data import get_cached_current_profile
+from services.note_format import get_formatted_seizure_info
 from services.validators import validate_date, validate_time, validate_count_of_seizures, validate_triggers_list
-from keyboards.menu_kb import get_cancel_kb
 
 seizures_router = Router()
 
@@ -50,52 +50,52 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     else:
         date = f"{seizure_data.get('year', 'Не заполнено')}-{seizure_data.get('month', 'Не заполнено')}-{seizure_data.get('day', 'Не заполнено')}"
 
-    time_of_day = seizure_data.get('time_of_day', 'Не заполнено')
-    list_of_triggers = seizure_data.get('selected_features', [])
-    count = seizure_data.get('count', 'Не заполнено')
-    triggers = seizure_data.get('triggers', 'Не заполнено')
-    severity = seizure_data.get('severity', 'Не заполнено')
-    duration = seizure_data.get('duration', 'Не заполнено')
-    comment = seizure_data.get('comment', 'Не заполнено')
-    symptoms = seizure_data.get('symptoms', 'Не заполнено')
-    video_tg_id = seizure_data.get('video_tg_id', 'Не заполнено')
-    location = seizure_data.get('location', 'Не заполнено')
+    time_of_day = seizure_data.get('time_of_day', None)
+    list_of_triggers = seizure_data.get('selected_features', None)
+    count = seizure_data.get('count', None)
+    triggers = seizure_data.get('triggers', None)
+    severity = seizure_data.get('severity', None)
+    duration = seizure_data.get('duration', None)
+    comment = seizure_data.get('comment', None)
+    symptoms = seizure_data.get('symptoms', None)
+    video_tg_id = seizure_data.get('video_tg_id', None)
+    location = seizure_data.get('location', None)
 
     if current_profile == None:
         await callback.message.answer("Выберите профиль в основном меню.")
-    if list_of_triggers and triggers == "Не заполнено":
+    if list_of_triggers and triggers == None:
         triggers = ", ".join(list_of_triggers)
-    message_text = (
-        f"Введенные данные о приступе для профиля <u>{current_profile.split('|')[1]}</u>:\n"
-        f"Дата: {date}\n"
-        f"Время: {time_of_day}\n"
-        f"Количество: {count}\n"
-        f"Триггеры: {triggers}\n"
-        f"Тяжесть: {severity} баллов\n"
-        f"Продолжительность: {duration} минут\n"
-        f"Комментарий: {comment}\n"
-        f"Симптомы: {symptoms}\n"
-        f"Видео: {"✅" if video_tg_id != "Не заполнено" else video_tg_id}\n"
-        f"Место: {location}"
-    )
 
-
-    new_seizure = Seizure(
-        profile_id = int(current_profile.split("|")[0]),
+    message_text = get_formatted_seizure_info(
+        seizure_id=0,
+        current_profile = current_profile.split('|', 1)[1],
         date = date,
         time = time_of_day,
-        severity = severity,
-        duration = 0 if duration else duration,
-        comment = comment,
-        count = int(count) if count.isnumeric() else None,
-        video_tg_id = video_tg_id if video_tg_id else None,
+        count = int(count),
         triggers = triggers,
+        severity = int(severity),
+        duration = int(duration),
+        comment = comment,
+        symptoms = symptoms,
+        video_tg_id = video_tg_id,
         location = location,
-        symptoms = symptoms
     )
-    db.add(new_seizure)
+    await orm_add_new_seizure(
+        db,
+        int(current_profile.split("|")[0]),
+        date,
+        time_of_day,
+        severity,
+        duration,
+        comment,
+        count,
+        video_tg_id,
+        triggers,
+        location,
+        symptoms
+    )
     await callback.message.answer(message_text, parse_mode='HTML')
-    if video_tg_id != "Не заполнено":
+    if video_tg_id != None:
         await bot.send_video(chat_id=callback.message.chat.id, video=seizure_data['video_tg_id'])
 
     await callback.answer()
@@ -168,15 +168,6 @@ async def process_day_of_date(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SeizureForm.hour)
     await callback.message.edit_text(f"Выбрано число: {day_index}\n\nВведите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
 
-
-# @seizures_router.callback_query(F.data.startswith('time_of_day'),
-#                                 StateFilter(SeizureForm.hour))
-# async def process_times_of_day(callback: CallbackQuery, state: FSMContext):
-#     _, time_of_day = callback.data.split(':', 1)
-#     await state.update_data(time_of_day=time_of_day)
-#     await state.set_state(SeizureForm.count)
-#     await callback.message.edit_text(f"Выбрано время суток {time_of_day}")
-
 @seizures_router.message(StateFilter(SeizureForm.hour))
 async def process_time_of_date_message(message: Message, state: FSMContext):
     if validate_time(message.text):
@@ -230,7 +221,7 @@ async def process_triggers_page(callback: CallbackQuery, state: FSMContext):
     selected_features = data.get("selected_features", [])
     print(callback.data)
     new_page = callback.data.split(':', 1)[1]
-    
+
     await state.update_data(current_page=new_page)
     await callback.message.edit_text('Выберите возможные триггеры:',
         reply_markup=generate_features_keyboard(selected_features, int(new_page), 5)
