@@ -17,6 +17,7 @@ from config_data.config import load_config
 
 from test_scripts.test1 import test_create_user
 
+from handlers.journal_handlers import journal_router
 from handlers.choose_profile_handlers import choose_profile_router
 from handlers.add_trusted_person_handlers import add_trusted_person_router
 from handlers.profiles_pagination_handlers import pagination_router
@@ -62,6 +63,7 @@ async def main():
     dp.include_router(pagination_router)
     dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
+    dp.include_router(journal_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
     await notification_queue.start()
