@@ -73,10 +73,10 @@ class Seizure(Base):
     id = Column(Integer, primary_key=True)
     profile_id = Column(Integer, ForeignKey('profiles.id'), nullable=False)
     date = Column(String(25))
-    time = Column(String(25))
+    time = Column(String(25), nullable=True)
     severity = Column(String(50), nullable=True)
-    duration = Column(Integer)
-    comment = Column(String(150))
+    duration = Column(Integer, nullable=True)
+    comment = Column(String(150), nullable=True)
     count = Column(Integer, nullable=True)
 
     video_tg_id = Column(String(255), nullable=True)
