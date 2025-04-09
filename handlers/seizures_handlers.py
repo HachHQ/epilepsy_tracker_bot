@@ -36,12 +36,6 @@ class SeizureForm(StatesGroup):
     video_tg_id = State()
     location = State()
 
-def process_saverity_from_eng_to_rus(saverity: str):
-    list_of_severity = {'Легкий':'light', 'Средний':'medium', 'Тяжелый':'heavy'}
-    for key, value in list_of_severity.items():
-        if value == saverity:
-            return key
-    return None
 
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
 async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
@@ -55,7 +49,7 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         date = seizure_data['date_short']
     else:
         date = f"{seizure_data.get('year', 'Не заполнено')}-{seizure_data.get('month', 'Не заполнено')}-{seizure_data.get('day', 'Не заполнено')}"
-    
+
     time_of_day = seizure_data.get('time_of_day', 'Не заполнено')
     list_of_triggers = seizure_data.get('selected_features', [])
     count = seizure_data.get('count', 'Не заполнено')
@@ -77,7 +71,7 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         f"Время: {time_of_day}\n"
         f"Количество: {count}\n"
         f"Триггеры: {triggers}\n"
-        f"Тяжесть: {process_saverity_from_eng_to_rus(severity)}\n"
+        f"Тяжесть: {severity} баллов\n"
         f"Продолжительность: {duration} минут\n"
         f"Комментарий: {comment}\n"
         f"Симптомы: {symptoms}\n"
@@ -102,13 +96,14 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     db.add(new_seizure)
     await callback.message.answer(message_text, parse_mode='HTML')
     if video_tg_id != "Не заполнено":
-        await bot.send_video(chat_id=callback.message.chat.id, document=seizure_data['video_tg_id'])
+        await bot.send_video(chat_id=callback.message.chat.id, video=seizure_data['video_tg_id'])
 
     await callback.answer()
     await state.clear()
 
 @seizures_router.callback_query(F.data.startswith("fix_seizure"))
 async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     await callback.message.answer(f"Выберите год или сразу день из преложенных\n\n<u>Либо введите дату вручную в формате ГОД-МЕСЯЦ-ДЕНЬ</u>",
                                     reply_markup=get_year_date_kb(3,1),
                                     parse_mode='HTML')
@@ -224,7 +219,7 @@ async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext):
     else:
         selected_features.append(feature)
     await state.update_data(selected_features=selected_features)
-    await callback.message.edit_reply_markup(
+    await callback.message.edit_text('Выберите возможные триггеры',
         reply_markup=generate_features_keyboard(selected_features, current_page, 5)
     )
     await callback.answer()
@@ -233,10 +228,12 @@ async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext):
 async def process_triggers_page(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     selected_features = data.get("selected_features", [])
+    print(callback.data)
     new_page = callback.data.split(':', 1)[1]
+    
     await state.update_data(current_page=new_page)
-    await callback.message.edit_reply_markup(
-        reply_markup=generate_features_keyboard(selected_features, new_page, 5)
+    await callback.message.edit_text('Выберите возможные триггеры:',
+        reply_markup=generate_features_keyboard(selected_features, int(new_page), 5)
     )
     await callback.answer()
 
@@ -248,12 +245,12 @@ async def process_save_toggled_triggers(callback: CallbackQuery, state: FSMConte
         #features_list = "\n".join([f"▫️ {feature}" for feature in selected_features])
         await state.set_state(SeizureForm.severity)
         print(selected_features)
-        await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+        await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
     else:
         await state.update_data(selected_features=[])
         await state.set_state(SeizureForm.severity)
         print(selected_features)
-        await callback.message.edit_text("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+        await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
     await callback.answer()
 
 @seizures_router.message(StateFilter(SeizureForm.triggers))
@@ -262,7 +259,7 @@ async def process_triggers_message(message: Message, state: FSMContext):
         print('триггер')
         await state.update_data(triggers=message.text)
         await state.set_state(SeizureForm.severity)
-        await message.answer("Выберите степень тяжести приступа: ", reply_markup=get_severity_kb())
+        await message.answer("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
     else:
         await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
