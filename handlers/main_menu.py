@@ -35,7 +35,7 @@ async def send_main_menu_callback(callback: CallbackQuery, state: FSMContext, db
     curr_prof = await get_cached_current_profile(db, callback.message.chat.id)
 
     print(lg, curr_prof)
-    
+
     await callback.message.answer(
         f"Логин: <u>{lg if not lg ==  None else "Не зарегистрирован"}</u>\n"
         f"Текущий профиль: <u>{curr_prof.split('|', 1)[1] if not curr_prof ==  None else "Не выбран"}</u>\n"
