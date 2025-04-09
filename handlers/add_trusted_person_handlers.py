@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from database.redis_query import set_redis_cached_profiles_list
-from database.orm_query import orm_update_list_of_trusted_profiles
+from database.orm_query import orm_update_list_of_trusted_profiles, orm_get_user_by_login
 from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_profiles_list, get_cached_login
 
@@ -32,7 +32,7 @@ class TrustedPersonForm(StatesGroup):
 @add_trusted_person_router.callback_query(F.data == 'add_trusted')
 async def process_input_trusted_person_login(callback: CallbackQuery, state: FSMContext):
     await state.set_state(TrustedPersonForm.trusted_person_login)
-    await callback.message.answer("Введите логин профиля пользователя, которому хотите доверить свой профиль: ", reply_markup=get_cancel_kb())
+    await callback.message.edit_text("Введите логин профиля пользователя, которому хотите доверить свой профиль: ", reply_markup=get_cancel_kb())
     await callback.answer()
 
 @add_trusted_person_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
@@ -41,21 +41,16 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
         login_redis = await get_cached_login(db, message.chat.id)
         await state.update_data(trusted_person_login=message.text)
         try:
-            query = (
-                select(User)
-                .filter(User.login == message.text)
-            )
-            result = await db.execute(query)
-            user = result.scalars().first()
+            user = await orm_get_user_by_login(db, message.text)
+            if not user:
+                await message.answer("Пользователь не найден")
+                return
 
             if user.login == login_redis:
                 await message.answer("Нельзя стать доверенным лицом самого себя)")
                 return
 
-            if not user:
-                await message.answer("Пользователь не найден")
-                return
-            await message.answer(f"Пользователь с логином {user.login} найден.\nЕго юзернейм в телеграме - {user.telegram_username}\nЕсли данные верны - нажмите 'Да', если нет - нажмите 'Нет'", reply_markup=get_y_or_n_buttons_to_continue_process())
+            await message.answer(f"Пользователь с логином {user.login} найден.\nЕго полное имя в телеграме - {user.telegram_fullname}\nЕго юзернейм в телеграме - {user.telegram_username}\n\nЕсли данные верны - нажмите 'Да', если нет - нажмите 'Нет'", reply_markup=get_y_or_n_buttons_to_continue_process())
             await state.set_state(TrustedPersonForm.correct_trusted_person_login)
         except Exception as e:
             print(f"Ошибка {e} при обращении к таблице users")
