@@ -6,6 +6,20 @@ from datetime import datetime
 
 dates = [datetime(2025, 3, 19), datetime(2025, 3, 29), datetime(2025, 3, 15), datetime(2025, 3, 9), datetime(2025, 1, 1), datetime(2025, 2, 1)]
 
+async def get_list_of_seizures(seizures, current_page: int, page_size: int) -> str:
+    current_page = int(current_page)
+    page_size = int(page_size)
+    total_pages = (len(seizures) + page_size - 1) // page_size
+    start_index = current_page * page_size
+    end_index = int(start_index) + page_size
+    seizures_on_page = seizures[start_index:end_index]
+    total_text = ""
+    for i in len(seizures_on_page):
+        line = (f"{seizures_on_page.date}  /show{seizures_on_page.id}\n")
+        total_text += line
+    return total_text
+
+
 def get_journal_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     choose_from_year = InlineKeyboardButton(text="Выбрать год", callback_data="choose_year")
