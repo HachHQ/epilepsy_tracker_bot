@@ -116,17 +116,17 @@ async def process_date_short(callback: CallbackQuery, state: FSMContext):
     if year.split('/', 1)[0] == "two_d_ago":
         await state.update_data(date_short=year.split('/', 1)[1])
         await state.set_state(SeizureForm.hour)
-        await callback.message.edit_text("Введите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
+        await callback.message.edit_text("Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
         return
     elif year.split('/', 1)[0] == "one_d_ago":
         await state.update_data(date_short=year.split('/', 1)[1])
         await state.set_state(SeizureForm.hour)
-        await callback.message.edit_text("Введите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
+        await callback.message.edit_text("Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
         return
     elif year.split('/', 1)[0] == "today":
         await state.update_data(date_short=year.split('/', 1)[1])
         await state.set_state(SeizureForm.hour)
-        await callback.message.edit_text("Введите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
+        await callback.message.edit_text("Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
         return
     else:
         await state.update_data(year=year)
@@ -138,7 +138,7 @@ async def process_year_by_message(message: Message, state: FSMContext):
     if validate_date(message.text):
         await state.update_data(date_short=message.text)
         await state.set_state(SeizureForm.hour)
-        await message.answer("Введите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer("Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
     else:
         await message.answer("<u>Введите дату в формате ГОД-МЕСЯЦ-ДЕНЬ\nНапример: 2020-02-01</u>", parse_mode="HTML", reply_markup=get_temporary_cancel_submit_kb())
 
@@ -166,7 +166,7 @@ async def process_day_of_date(callback: CallbackQuery, state: FSMContext):
     _, day_index = callback.data.split(':', 1)
     await state.update_data(day=format_small_date_numbers(day_index))
     await state.set_state(SeizureForm.hour)
-    await callback.message.edit_text(f"Выбрано число: {day_index}\n\nВведите примерное время приступа в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
+    await callback.message.edit_text(f"Выбрано число: {day_index}\n\nВведите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ", reply_markup=get_temporary_cancel_submit_kb())
 
 @seizures_router.message(StateFilter(SeizureForm.hour))
 async def process_time_of_date_message(message: Message, state: FSMContext):
