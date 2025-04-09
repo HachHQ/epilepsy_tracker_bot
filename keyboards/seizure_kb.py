@@ -3,13 +3,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
-cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить заполнение", callback_data="cancel_fsm_script")
+cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_fsm_script")
 confirm_seizure_data_btn = InlineKeyboardButton(text="✅ Подтвердить", callback_data="check_input_seizure_data")
 
 def get_temporary_cancel_submit_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(cancel_seizure_menu_btn)
     builder.row(confirm_seizure_data_btn)
+    builder.adjust(2)
     return builder.as_markup()
 
 def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
