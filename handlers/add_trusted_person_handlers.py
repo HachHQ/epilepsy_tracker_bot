@@ -32,7 +32,7 @@ class TrustedPersonForm(StatesGroup):
 @add_trusted_person_router.callback_query(F.data == 'add_trusted')
 async def process_input_trusted_person_login(callback: CallbackQuery, state: FSMContext):
     await state.set_state(TrustedPersonForm.trusted_person_login)
-    await callback.message.edit_text("Введите логин профиля пользователя, которому хотите доверить свой профиль: ", reply_markup=get_cancel_kb())
+    await callback.message.answer("Введите логин профиля пользователя, которому хотите доверить свой профиль: ", reply_markup=get_cancel_kb())
     await callback.answer()
 
 @add_trusted_person_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
