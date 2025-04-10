@@ -19,12 +19,12 @@ async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
 
     print(lg, curr_prof)
     await message.answer(
-        f"Логин: <u>{lg if not lg ==  None else "Не зарегистрирован"}</u>\n"
-        f"Текущий профиль: <u>{curr_prof.split('|', 1)[1] if not curr_prof ==  None else "Не выбран"}</u>\n"
-        f"Вы находитесь в основном меню бота.\n"
-        "Используйте кнопки для навигации.\n",
+        f"Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
+        f"Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`\n\n"
+        f"Вы находитесь в основном меню бота\\.\n"
+        f"Используйте кнопки для навигации\\.\n",
         reply_markup=get_main_menu_keyboard(),
-        parse_mode='HTML'
+        parse_mode='MarkDownV2'
     )
 
 @main_menu_router.callback_query(F.data == "to_menu")
@@ -35,13 +35,12 @@ async def send_main_menu_callback(callback: CallbackQuery, state: FSMContext, db
     curr_prof = await get_cached_current_profile(db, callback.message.chat.id)
 
     print(lg, curr_prof)
-
     await callback.message.answer(
-        f"Логин: <u>{lg if not lg ==  None else "Не зарегистрирован"}</u>\n"
-        f"Текущий профиль: <u>{curr_prof.split('|', 1)[1] if not curr_prof ==  None else "Не выбран"}</u>\n"
-        f"Вы находитесь в основном меню бота.\n"
-        "Используйте кнопки для навигации.\n",
+        f"Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
+        f"Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`\n\n"
+        f"Вы находитесь в основном меню бота\\.\n"
+        f"Используйте кнопки для навигации\\.\n",
         reply_markup=get_main_menu_keyboard(),
-        parse_mode='HTML'
+        parse_mode='MarkDownV2'
     )
     await callback.answer()
