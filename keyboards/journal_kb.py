@@ -6,18 +6,34 @@ from datetime import datetime
 
 dates = [datetime(2025, 3, 19), datetime(2025, 3, 29), datetime(2025, 3, 15), datetime(2025, 3, 9), datetime(2025, 1, 1), datetime(2025, 2, 1)]
 
-async def get_list_of_seizures(seizures, current_page: int, page_size: int) -> str:
-    current_page = int(current_page)
-    page_size = int(page_size)
-    total_pages = (len(seizures) + page_size - 1) // page_size
-    start_index = current_page * page_size
-    end_index = int(start_index) + page_size
-    seizures_on_page = seizures[start_index:end_index]
-    total_text = ""
-    for i in len(seizures_on_page):
-        line = (f"{seizures_on_page.date}  /show{seizures_on_page.id}\n")
-        total_text += line
-    return total_text
+
+
+def get_nav_btns_of_list_of_seizures(seizures_count, notes_on_page: int, current_page: int):
+    if notes_on_page <=0:
+        return
+    total_pages = (seizures_count + notes_on_page - 1) // notes_on_page
+    builder = InlineKeyboardBuilder()
+    if seizures_count > notes_on_page:
+        nav_buttons = []
+        if current_page > 0:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="⬅️ Назад",
+                    callback_data=f"journal_page:{current_page - 1}"
+                )
+            )
+        if current_page < total_pages - 1:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="Вперед ➡️",
+                    callback_data=f"journal_page:{current_page + 1}"
+                )
+            )
+        if nav_buttons:
+            builder.row(*nav_buttons)
+            return builder.as_markup()
+
+    return builder.as_markup()
 
 
 def get_journal_kb() -> InlineKeyboardMarkup:
