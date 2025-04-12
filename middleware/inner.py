@@ -17,7 +17,7 @@ class NotificationMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
-        data["notification_queue"] = self.notification_queue  # Добавляем в data
+        data["notification_queue"] = self.notification_queue
         return await handler(event, data)
 
 class DatabaseSessionMiddleware(BaseMiddleware):
@@ -27,7 +27,7 @@ class DatabaseSessionMiddleware(BaseMiddleware):
 
     async def __call__(self, handler, event, data):
         async with self.sessionmaker() as session:
-            data["db"] = session  # Передаём сессию в data
+            data["db"] = session
             response = await handler(event, data)
-            await session.commit()  # Фиксируем изменения
+            await session.commit()
             return response

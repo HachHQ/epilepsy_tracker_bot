@@ -8,18 +8,15 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from handlers_logic.states_factories import UserForm
 from database.models import User
+from database.redis_query import set_redis_cached_login
 from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
 from services.validators import validate_login_of_user_form, validate_name_of_user_form
-from services.redis_cache_data import set_cached_login
 from keyboards.menu_kb import get_cancel_kb
 
 user_form_router = Router()
 
-class UserForm(StatesGroup):
-    name = State()
-    login = State()
-    check_form = State()
 
 @user_form_router.callback_query(F.data == "submit_welcome_msg")
 async def start_form(callback: CallbackQuery, state: FSMContext):
@@ -72,7 +69,7 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             print(f"Создается пользователь: {new_user}")
             db.add(new_user)
 
-            await set_cached_login(user_id=message.chat.id, login=data["login"])
+            await set_redis_cached_login(user_id=message.chat.id, login=data["login"])
 
             await db.commit()
 

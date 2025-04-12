@@ -7,38 +7,34 @@ from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import Command, StateFilter
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from datetime import datetime, timezone
 import pytz
 from timezonefinder import TimezoneFinder
 
+from handlers_logic.states_factories import ProfileForm
+from database.redis_query import set_redis_cached_profiles_list
 from database.models import User, Profile, Drug, profile_drugs
-
+from database.orm_query import orm_get_user_own_profiles_list, orm_get_user, orm_create_profile
 from lexicon.lexicon import LEXICON_RU
-
 from keyboards.menu_kb import get_cancel_kb
-from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
-
-from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
-from services.redis_cache_data import get_cached_login, set_cached_profiles_list
+from keyboards.profile_form_kb import (
+    get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb,
+    get_submit_profile_settings_kb
+)
+from services.validators import (
+    validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
+)
+from services.redis_cache_data import get_cached_login
 
 profile_form_router = Router()
 
-class ProfileForm(StatesGroup):
-    profile_name = State()
-    type_of_epilepsy = State()
-    drugs = State()
-    age = State()
-    sex = State()
-    timezone = State()
-    check_form = State()
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
-async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext):
+async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
-    if await get_cached_login(callback.message.chat.id) == "Не зарегистрирован":
+    if await get_cached_login(db, callback.message.chat.id) == None:
         await state.clear()
-        await callback.message.answer("Необходимо зарегистрироваться, чтобы создать профиль.\nВыберите в меню слева от строки ввода меню и нажмите /start")
+        await callback.message.answer("Необходимо зарегистрироваться, чтобы создать профиль.\nНажмите на кнопку 'Меню' слева от строки ввода и выберите команду - /start")
         await callback.answer()
         return
     await callback.message.answer(LEXICON_RU['info_about_profile'], parse_mode="HTML")
@@ -148,13 +144,14 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
         await callback.answer()
         return
     try:
-        result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
-        user = result.scalars().first()
+        user = await orm_get_user(db, callback.message.chat.id)
 
         if not user:
             await callback.message.answer("Ошибка, пользователь не найден")
             await state.clear()
             return
+
+
         new_profile = Profile(
             user_id=user.id,
             profile_name=data["profile_name"],
@@ -189,15 +186,10 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 
         await db.execute(profile_drugs.insert().values(new_profile_drugs))
         print("Препараты успешно добавлены к профилю.")
-        query = (
-                select(Profile)
-                .join(User)
-                .where(User.telegram_id == callback.message.chat.id)
-            )
-        profiles_result = await db.execute(query)
-        profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
 
-        await set_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
+        profiles = await orm_get_user_own_profiles_list(db, callback.message.chat.id)
+
+        await set_redis_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
 
         await db.commit()
         print("Профиль успешно создан.")

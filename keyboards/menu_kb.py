@@ -1,5 +1,5 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
 
 from lexicon.lexicon import LEXICON_BUTTONS
 
@@ -10,33 +10,16 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
 
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
-    kb_builder.button(
-        text="✏️ Зафиксировать приступ",
-        callback_data="fix_seizure"
-    )
-    kb_builder.button(
-        text="📖 Журнал личный",
-        callback_data="menu:seizure_log"
-    )
-    kb_builder.button(
-        text="📒 Журнал ДЛ",
-        callback_data="menu:trusted_log"
-    )
-    kb_builder.button(
-        text="👤 Профили",
-        callback_data="choose_profile"
-    )
-    kb_builder.button(
-        text="🔔 Уведомления",
-        callback_data="menu:set_notifications"
-    )
-    kb_builder.button(
-        text="🙍 Добавить ДЛ",
-        callback_data="add_trusted"
-    )
-    kb_builder.button(
-        text="⬇️ Импортировать данные",
-        callback_data="menu:import_log"
-    )
-    kb_builder.adjust(2)
+    panic_btn = InlineKeyboardButton(text="⚠️ Аура", callback_data="aura_notification")
+    fix_btn = InlineKeyboardButton(text="✏️ Зафиксировать приступ", callback_data="fix_seizure")
+    journal_btn = InlineKeyboardButton(text="📖 Журнал", callback_data="journal")
+    profiles_btn = InlineKeyboardButton(text="👤 Профили", callback_data="choose_profile")
+    add_trusted_person_btn = InlineKeyboardButton(text="🙍 Добавить ДЛ",callback_data="add_trusted")
+    notification_btn = InlineKeyboardButton(text="🔔 Уведомления", callback_data="set_notifications")
+    import_btn = InlineKeyboardButton(text="⬇️ Импортировать", callback_data="import_log")
+    kb_builder.row(panic_btn)
+    kb_builder.row(fix_btn)
+    kb_builder.row(profiles_btn, notification_btn)
+    kb_builder.row(journal_btn)
+    kb_builder.row(add_trusted_person_btn, import_btn)
     return kb_builder.as_markup()

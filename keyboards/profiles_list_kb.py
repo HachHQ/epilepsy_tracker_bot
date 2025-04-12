@@ -12,43 +12,25 @@ def get_paginated_profiles_kb(
 ) -> InlineKeyboardMarkup:
     total_profiles = len(profiles)
     total_pages = (total_profiles + page_size - 1) // page_size
-
-
     if page < 0 or page >= total_pages:
         page = 0
-
     builder = InlineKeyboardBuilder()
-
     builder.button(text="✏️ Создать профиль", callback_data="to_filling_profile_form")
-
     start_index = page * page_size
     end_index = start_index + page_size
+    iterator = 0
     for profile in profiles[start_index:end_index]:
-        builder.button(
-            text=profile["profile_name"],
-            callback_data=f"select_profile:{profile['id']}:{profile['profile_name']}{"|share" if to_share else ""}"
-        )
+        iterator+=1
+        builder.button(text=f"{iterator} " + profile["profile_name"],callback_data=f"select_profile:{profile['id']}:{profile['profile_name']}{"|share" if to_share else ""}")
     builder.adjust(1)
-
     if total_profiles > page_size:
         nav_buttons = []
         if page > 0:
-            nav_buttons.append(
-                InlineKeyboardButton(
-                    text="⬅️ Назад",
-                    callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"
-                )
-            )
+            nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад",callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"))
         if page < total_pages - 1:
-            nav_buttons.append(
-                InlineKeyboardButton(
-                    text="Вперед ➡️",
-                    callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"
-                )
-            )
+            nav_buttons.append(InlineKeyboardButton(text="Вперед ➡️",callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"))
         if nav_buttons:
             builder.row(*nav_buttons)
-
     return builder.as_markup()
 
 def get_choosing_type_of_profiles_kb() -> InlineKeyboardMarkup:
