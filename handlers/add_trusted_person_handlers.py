@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime, timezone, timedelta
 
+from handlers_logic.states_factories import TrustedPersonForm
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from database.redis_query import set_redis_cached_profiles_list
 from database.orm_query import orm_update_list_of_trusted_profiles, orm_get_user_by_login
 from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_profiles_list, get_cached_login
-
 from services.notification_queue import NotificationQueue
 from services.validators import validate_login_of_user_form
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
@@ -21,12 +21,6 @@ from keyboards.menu_kb import get_cancel_kb
 from keyboards.trusted_user_kb import get_y_or_n_buttons_to_continue_process, get_y_or_n_buttons_to_finish_process
 
 add_trusted_person_router = Router()
-
-class TrustedPersonForm(StatesGroup):
-    trusted_person_login = State()
-    correct_trusted_person_login = State()
-    selected_profile = State()
-    confirm_transfer = State()
 
 
 @add_trusted_person_router.callback_query(F.data == 'add_trusted')
