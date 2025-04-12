@@ -7,33 +7,27 @@ from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import Command, StateFilter
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from datetime import datetime, timezone
 import pytz
 from timezonefinder import TimezoneFinder
 
+from handlers_logic.states_factories import ProfileForm
 from database.redis_query import set_redis_cached_profiles_list
 from database.models import User, Profile, Drug, profile_drugs
 from database.orm_query import orm_get_user_own_profiles_list, orm_get_user, orm_create_profile
-
 from lexicon.lexicon import LEXICON_RU
-
 from keyboards.menu_kb import get_cancel_kb
-from keyboards.profile_form_kb import get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb, get_submit_profile_settings_kb
-
-from services.validators import validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
+from keyboards.profile_form_kb import (
+    get_types_of_epilepsy_kb, get_sex_kb, get_timezone_kb, get_geolocation_for_timezone_kb,
+    get_submit_profile_settings_kb
+)
+from services.validators import (
+    validate_name_of_profile_form, validate_age_of_profile_form, validate_list_of_drugs_of_profile_form
+)
 from services.redis_cache_data import get_cached_login
 
 profile_form_router = Router()
 
-class ProfileForm(StatesGroup):
-    profile_name = State()
-    type_of_epilepsy = State()
-    drugs = State()
-    age = State()
-    sex = State()
-    timezone = State()
-    check_form = State()
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
@@ -157,7 +151,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
             await state.clear()
             return
 
-        
+
         new_profile = Profile(
             user_id=user.id,
             profile_name=data["profile_name"],
