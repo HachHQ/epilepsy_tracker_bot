@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from handlers_logic.states_factories import UserForm
 from database.models import User
 from database.redis_query import set_redis_cached_login
 from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
@@ -16,10 +17,6 @@ from keyboards.menu_kb import get_cancel_kb
 
 user_form_router = Router()
 
-class UserForm(StatesGroup):
-    name = State()
-    login = State()
-    check_form = State()
 
 @user_form_router.callback_query(F.data == "submit_welcome_msg")
 async def start_form(callback: CallbackQuery, state: FSMContext):
