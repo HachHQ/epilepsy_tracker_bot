@@ -3,6 +3,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
+from lexicon.lexicon import LEXICON_EPILEPSY_TRIGGERS
 cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_fsm_script")
 confirm_seizure_data_btn = InlineKeyboardButton(text="✅ Подтвердить", callback_data="check_input_seizure_data")
 
@@ -60,31 +61,42 @@ def get_times_of_day_kb() -> InlineKeyboardMarkup:
     return times_of_day_kb_bd.as_markup()
 
 def get_severity_kb() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
+    severity_bd = InlineKeyboardBuilder()
     for i in range(1, 11):
-        builder.button(text=f"{i}", callback_data=f"saverity:{i}")
-    builder.adjust(5)
-    builder.row(cancel_seizure_menu_btn)
-    builder.row(confirm_seizure_data_btn)
-    return builder.as_markup()
+        severity_bd.button(text=f"{i}", callback_data=f"saverity:{i}")
+    severity_bd.adjust(5)
+    severity_bd.row(cancel_seizure_menu_btn)
+    severity_bd.row(confirm_seizure_data_btn)
+    return severity_bd.as_markup()
 
-FEATURES = ['Гипертермия', 'Яркие вспышки', 'Гормональные колебания', 'Смена лекарства',
-            'Пропущенный прием лекарства', 'Стресс', 'Лихорадка', 'Недостаток сна',
-            'Употребление наркотиков', 'Менструальный цикл', 'Обезвоживание']
+def get_duration_kb() -> InlineKeyboardMarkup:
+    duration_bd = InlineKeyboardBuilder()
+    duration_bd.adjust(3)
+    duration_btns = [
+        InlineKeyboardButton(text="<1", callback_data=f"duration:<{1}"),
+        InlineKeyboardButton(text="<3", callback_data=f"duration:<{3}"),
+        InlineKeyboardButton(text="<5", callback_data=f"duration:<{5}"),
+        InlineKeyboardButton(text="<7", callback_data=f"duration:<{7}"),
+        InlineKeyboardButton(text="<10", callback_data=f"duration:<{10}"),
+        InlineKeyboardButton(text="<15", callback_data=f"duration:<{15}"),
+    ]
+    duration_bd.row(*duration_btns)
+    duration_bd.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
+    return duration_bd.as_markup()
 
 def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5):
     current_page = int(current_page)
     page_size = int(page_size)
-    total_pages = (len(FEATURES) + page_size - 1) // page_size
+    total_pages = (len(LEXICON_EPILEPSY_TRIGGERS) + page_size - 1) // page_size
     start_index = current_page * page_size
     end_index = int(start_index) + page_size
-    features_on_page = FEATURES[start_index:end_index]
+    features_on_page = LEXICON_EPILEPSY_TRIGGERS[start_index:end_index]
     builder = InlineKeyboardBuilder()
     builder.adjust(1)
     for feature in features_on_page:
         emoji = "▫️" if feature in selected_features else "▪️"
         builder.row(InlineKeyboardButton(text=f"{emoji} {feature}", callback_data=f"toggle:{feature}:{current_page}"))
-    if len(FEATURES) > page_size:
+    if len(LEXICON_EPILEPSY_TRIGGERS) > page_size:
         nav_btns = []
         if current_page > 0:
             nav_btns.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page:{current_page-1}"))
@@ -92,8 +104,7 @@ def generate_features_keyboard(selected_features: list, current_page: int, page_
             nav_btns.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"page:{current_page+1}"))
         if nav_btns:
             builder.row(*nav_btns)
-    builder.row(InlineKeyboardButton(text="✅ Готово", callback_data=f"done:{current_page}"))
-    builder.row(cancel_seizure_menu_btn)
+    builder.row(*[cancel_seizure_menu_btn, InlineKeyboardButton(text="🗸 Готово", callback_data=f"done:{current_page}")])
     return builder.as_markup()
 
 def get_count_of_seizures_kb() -> InlineKeyboardMarkup:
