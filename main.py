@@ -17,6 +17,7 @@ from config_data.config import load_config
 
 from test_scripts.test1 import test_create_user
 
+from handlers.analytics_handlers import analytics_router
 from handlers.journal_handlers import journal_router
 from handlers.choose_profile_handlers import choose_profile_router
 from handlers.add_trusted_person_handlers import add_trusted_person_router
@@ -60,6 +61,7 @@ async def main():
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
     dp.include_router(add_trusted_person_router)
+    dp.include_router(analytics_router)
     dp.include_router(pagination_router)
     dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
