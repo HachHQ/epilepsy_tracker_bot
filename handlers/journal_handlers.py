@@ -14,8 +14,10 @@ from database.orm_query import orm_get_seizures_by_profile_ascending, orm_get_se
 from services.redis_cache_data import get_cached_current_profile
 from services.note_format import get_formatted_seizure_info
 from keyboards.journal_kb import get_nav_btns_of_list_of_seizures
-from keyboards.seizure_kb import get_year_date_kb, get_severity_kb
-
+from keyboards.seizure_kb import (
+    get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
+    generate_features_keyboard
+)
 journal_router = Router()
 
 NOTES_PER_PAGE = 8
@@ -83,7 +85,7 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
         location = seizure.location,
         seizure_id = seizure.id
     )
-    await message.answer(text, parse_mode='HTML')
+    await message.answer(f"{text}", parse_mode='HTML')
     if seizure.video_tg_id:
         await bot.send_video(chat_id=message.chat.id, video=seizure.video_tg_id)
     if seizure.location:
@@ -122,16 +124,20 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
     current_profile = await get_cached_current_profile(db, message.chat.id)
     await state.update_data(mode="edit", seizure_id=int(seizure_id), profile_id=int(current_profile.split('|', 1)[0]))
     if action == "date":
-        await ask_for_a_year(message)
+        await ask_for_a_year(message, state)
         await state.set_state(SeizureForm.year)
     elif action == "time":
-        await message.answer("")
+        await message.answer("Выберите или введите время приступа: ", reply_markup=get_time_ranges_kb(action_btns=False))
+        await state.set_state(SeizureForm.hour)
     elif action == "count":
-        await message.answer("")
+        await message.answer("Выберите количество приступов: ", reply_markup=get_count_of_seizures_kb(action_btns=False))
+        await state.set_state(SeizureForm.count)
     elif action == "triggers":
-        await message.answer("")
+        await state.update_data(selected_triggers=[], current_page=0)
+        await message.answer("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=False))
+        await state.set_state(SeizureForm.triggers)
     elif action == "severity":
-        await message.answer("Выберите степень тяжести:", reply_markup=get_severity_kb())
+        await message.answer("Выберите степень тяжести:", reply_markup=get_severity_kb(action_btns=False))
         await state.set_state(SeizureForm.severity)
     elif action == "duration":
         await message.answer("Введите примерную продолжительность: ")
@@ -140,11 +146,14 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
         await message.answer("Введите комментарий к приступу: ")
         await state.set_state(SeizureForm.comment)
     elif action == "video":
-        await message.answer("")
+        await message.answer("Пришлите боту новое видео: ")
+        await state.set_state(SeizureForm.video_tg_id)
     elif action == "symptoms":
-        await message.answer("")
+        await message.answer("Выберите или введите симптомы приступа: ")
+        await state.set_state(SeizureForm.symptoms)
     elif action == "location":
-        await message.answer("")
+        await message.answer("Отправьте геолокацию или опишите место, где произошел приступ: ")
+        await state.set_state(SeizureForm.location)
 
 
 @journal_router.message(F.text.startswith('/delete'))
