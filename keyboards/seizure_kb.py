@@ -7,14 +7,18 @@ from lexicon.lexicon import LEXICON_EPILEPSY_TRIGGERS
 cancel_seizure_menu_btn = InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_fsm_script")
 confirm_seizure_data_btn = InlineKeyboardButton(text="✅ Подтвердить", callback_data="check_input_seizure_data")
 
-def get_temporary_cancel_submit_kb() -> InlineKeyboardMarkup:
+def get_temporary_cancel_submit_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(cancel_seizure_menu_btn)
-    builder.row(confirm_seizure_data_btn)
-    builder.adjust(2)
-    return builder.as_markup()
+    if action_btns:
+        builder.row(cancel_seizure_menu_btn)
+        builder.row(confirm_seizure_data_btn)
+        builder.adjust(2)
+        return builder.as_markup()
+    else:
+        pass
 
-def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
+
+def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1, action_btns: bool = True):
     current_datetime = datetime.now(timezone.utc)
     current_year = current_datetime.date().year
     years_date_kb_bd = InlineKeyboardBuilder()
@@ -28,27 +32,49 @@ def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1):
     one_day_ago_btn = InlineKeyboardButton(text="Вчера", callback_data=f"year:one_d_ago/{o_d_ago_date.date()}")
     today_btn = InlineKeyboardButton(text="Сегодня", callback_data=f"year:today/{current_datetime.date()}")
     years_date_kb_bd.row(two_day_btn, one_day_ago_btn, today_btn)
-    years_date_kb_bd.row(cancel_seizure_menu_btn)
+    if action_btns:
+        years_date_kb_bd.row(cancel_seizure_menu_btn)
     return years_date_kb_bd.as_markup()
 
-def get_month_date_kb() -> InlineKeyboardMarkup:
+def get_month_date_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     month_kb_bd = InlineKeyboardBuilder()
     month_in_russian = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
     for i in range(1, 13):
         month_kb_bd.button(text=month_in_russian[i-1], callback_data=f"month:{i}:{month_in_russian[i-1]}")
     month_kb_bd.adjust(3)
-    month_kb_bd.row(cancel_seizure_menu_btn)
+    if action_btns:
+        month_kb_bd.row(cancel_seizure_menu_btn)
     return month_kb_bd.as_markup()
 
 
-def get_day_kb(year: int, month: int) -> InlineKeyboardMarkup:
+def get_day_kb(year: int, month: int, action_btns: bool = True) -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     days_in_month = calendar.monthrange(year, month)[1]
     for day in range(1, days_in_month + 1):
         kb_builder.button(text=str(day), callback_data=f"day:{day}")
     kb_builder.adjust(7)
-    kb_builder.row(cancel_seizure_menu_btn)
+    print(action_btns)
+    if action_btns:
+        kb_builder.row(cancel_seizure_menu_btn)
     return kb_builder.as_markup()
+
+def get_time_ranges_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
+    time_ranges = {
+        '2 часа назад':'2h_ago',
+        '1.5 часа назад':'1p5h_ago',
+        '1 час назад':'1h_ago',
+        '30 мин назад':'30m_ago',
+        '15 мин назад':'15m_ago',
+        '5 мин назад':'5m_ago',
+        'Сейчас':'now'
+    }
+    builder = InlineKeyboardBuilder()
+    for key, value in time_ranges.items():
+        builder.button(text=f"{key}", callback_data=f"time_range:{value}")
+    builder.adjust(3)
+    if action_btns:
+        builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
+    return builder.as_markup()
 
 def get_times_of_day_kb() -> InlineKeyboardMarkup:
     times_of_day_kb_bd = InlineKeyboardBuilder()
@@ -60,18 +86,17 @@ def get_times_of_day_kb() -> InlineKeyboardMarkup:
     times_of_day_kb_bd.row(confirm_seizure_data_btn)
     return times_of_day_kb_bd.as_markup()
 
-def get_severity_kb() -> InlineKeyboardMarkup:
+def get_severity_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     severity_bd = InlineKeyboardBuilder()
     for i in range(1, 11):
         severity_bd.button(text=f"{i}", callback_data=f"saverity:{i}")
     severity_bd.adjust(5)
-    severity_bd.row(cancel_seizure_menu_btn)
-    severity_bd.row(confirm_seizure_data_btn)
+    if action_btns:
+        severity_bd.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
     return severity_bd.as_markup()
 
-def get_duration_kb() -> InlineKeyboardMarkup:
+def get_duration_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     duration_bd = InlineKeyboardBuilder()
-    duration_bd.adjust(3)
     duration_btns = [
         InlineKeyboardButton(text="<1", callback_data=f"duration:<{1}"),
         InlineKeyboardButton(text="<3", callback_data=f"duration:<{3}"),
@@ -81,10 +106,12 @@ def get_duration_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="<15", callback_data=f"duration:<{15}"),
     ]
     duration_bd.row(*duration_btns)
-    duration_bd.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
+    duration_bd.adjust(3)
+    if action_btns:
+        duration_bd.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
     return duration_bd.as_markup()
 
-def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5):
+def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5, action_btns: bool = True):
     current_page = int(current_page)
     page_size = int(page_size)
     total_pages = (len(LEXICON_EPILEPSY_TRIGGERS) + page_size - 1) // page_size
@@ -104,14 +131,17 @@ def generate_features_keyboard(selected_features: list, current_page: int, page_
             nav_btns.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"page:{current_page+1}"))
         if nav_btns:
             builder.row(*nav_btns)
-    builder.row(*[cancel_seizure_menu_btn, InlineKeyboardButton(text="🗸 Готово", callback_data=f"done:{current_page}")])
+    if action_btns:
+        builder.row(*[cancel_seizure_menu_btn, InlineKeyboardButton(text="🗸 Готово", callback_data=f"done:{current_page}")])
+    else:
+        builder.row(InlineKeyboardButton(text="🗸 Готово", callback_data=f"done:{current_page}"))
     return builder.as_markup()
 
-def get_count_of_seizures_kb() -> InlineKeyboardMarkup:
+def get_count_of_seizures_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for i in range(1, 11):
         builder.button(text=f"{i}", callback_data=f"count_of_seizures:{i}")
     builder.adjust(5)
-    builder.row(cancel_seizure_menu_btn)
-    builder.row(confirm_seizure_data_btn)
+    if action_btns:
+        builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
     return builder.as_markup()
