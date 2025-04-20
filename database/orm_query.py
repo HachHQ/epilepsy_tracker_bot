@@ -1,12 +1,14 @@
 import math
-from sqlalchemy import select, update, delete, asc, desc
+from sqlalchemy import select, update, delete, asc, desc, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from datetime import datetime, timezone, timedelta
+
 
 from database.models import (User, Profile, RequestStatus, TrustedPersonProfiles,
                               TrustedPersonRequest, Drug, Seizure, profile_drugs)
 
-
+#Get user/profile data operations
 async def orm_get_user(session: AsyncSession, chat_id: int):
     result = await session.execute(select(User).filter(User.telegram_id == chat_id))
     user = result.scalars().first()
@@ -53,6 +55,8 @@ async def orm_get_user_own_profiles_list(session: AsyncSession, chat_id: int):
     profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
     return profiles
 
+
+#Get seizures data
 async def orm_get_seizures_by_profile_ascending(session: AsyncSession, current_profile_id: int):
     query = (
             select(Seizure)
@@ -82,6 +86,20 @@ async def orm_get_seizure_info(session: AsyncSession, seizure_id: int, current_p
     seizures_res = await session.execute(query)
     return seizures_res.scalars().first()
 
+async def orm_get_seizures_for_a_specific_period(session: AsyncSession, curr_prof: int, period_in_days: int):
+    one_year_ago = datetime.now() - timedelta(days=period_in_days)
+
+    query = (
+        select(Seizure)
+        .where(
+            (cast(Seizure.date, Date) >= one_year_ago),
+            (Seizure.profile_id == int(curr_prof))
+        )
+    )
+    result = await session.execute(query)
+    records = result.scalars().all()
+    return records
+
 async def orm_delete_seizure(session: AsyncSession, seizure_id: int, current_profile_id: int) -> bool:
     query = (
         delete(Seizure)
@@ -91,7 +109,82 @@ async def orm_delete_seizure(session: AsyncSession, seizure_id: int, current_pro
     deleted_count = del_res.rowcount
     return deleted_count > 0
 
+
 #Trusted person operations
+async def orm_get_can_trusted_person_read(
+        session: AsyncSession,
+        trusted_person_id: int,
+        profile_owner_id: int,
+        profile_id: int
+    ) -> bool:
+    query = (
+        select(TrustedPersonProfiles)
+        .where(
+            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
+            (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
+            (TrustedPersonProfiles.profile_id == int(profile_id))
+        )
+    )
+    result = await session.execute(query)
+    tr_person = result.scalars().first()
+    return tr_person.can_read
+
+async def orm_get_can_trusted_person_edit(
+        session: AsyncSession,
+        trusted_person_id: int,
+        profile_owner_id: int,
+        profile_id: int
+    ) -> bool:
+    query = (
+        select(TrustedPersonProfiles)
+        .where(
+            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
+            (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
+            (TrustedPersonProfiles.profile_id == int(profile_id))
+        )
+    )
+    result = await session.execute(query)
+    tr_person = result.scalars().first()
+    return tr_person.can_edit
+
+async def orm_switch_trusted_profile_read_edit_state(
+        session: AsyncSession,
+        trusted_person_id: int,
+        profile_owner_id: int,
+        profile_id: int,
+        switch_edit: bool = False,
+        switch_read: bool = False
+    ):
+    query = (
+        select(TrustedPersonProfiles)
+        .where(
+            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
+            (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
+            (TrustedPersonProfiles.profile_id == int(profile_id))
+        )
+    )
+    if switch_edit:
+        result = await session.execute(query)
+        tr_person = result.scalars().first()
+        if tr_person is None:
+            return None
+
+        if tr_person.can_edit:
+            tr_person.can_edit = False
+        elif not tr_person.can_edit:
+            tr_person.can_edit = True
+    if switch_read:
+        result = await session.execute(query)
+        tr_person = result.scalars().first()
+        if tr_person is None:
+            return None
+
+        if tr_person.can_read:
+            tr_person.can_read = False
+        elif not tr_person.can_read:
+            tr_person.can_read = True
+    return
+
 async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: int):
     query = (
             select(Profile)
@@ -102,6 +195,8 @@ async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: in
     profiles_result = await session.execute(query)
     profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
     return profiles
+
+
 
 # Create profile
 async def orm_create_profile(
