@@ -1,4 +1,3 @@
-import uuid
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
@@ -10,19 +9,21 @@ from keyboards.menu_kb import get_main_menu_keyboard
 
 main_menu_router = Router()
 
+async def get_main_menu_text(session: AsyncSession, message: Message):
+    lg = await get_cached_login(session, message.chat.id)
+    curr_prof = await get_cached_current_profile(session, message.chat.id)
+    text = (
+        f"🆔 Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
+        f"👤 Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`"
+    )
+    return text
+
 @main_menu_router.message(Command(commands="menu"))
 async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
-
-    lg = await get_cached_login(db, message.chat.id)
-    curr_prof = await get_cached_current_profile(db, message.chat.id)
-
-    print(lg, curr_prof)
+    text = await get_main_menu_text(db, message)
     await message.answer(
-        f"Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
-        f"Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`\n\n"
-        f"Вы находитесь в основном меню бота\\.\n"
-        f"Используйте кнопки для навигации\\.\n",
+        text,
         reply_markup=get_main_menu_keyboard(),
         parse_mode='MarkDownV2'
     )
@@ -30,16 +31,9 @@ async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
 @main_menu_router.callback_query(F.data == "to_menu")
 async def send_main_menu_callback(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
-
-    lg = await get_cached_login(db, callback.message.chat.id)
-    curr_prof = await get_cached_current_profile(db, callback.message.chat.id)
-
-    print(lg, curr_prof)
+    text = await get_main_menu_text(db, callback.message)
     await callback.message.answer(
-        f"Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
-        f"Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`\n\n"
-        f"Вы находитесь в основном меню бота\\.\n"
-        f"Используйте кнопки для навигации\\.\n",
+        text,
         reply_markup=get_main_menu_keyboard(),
         parse_mode='MarkDownV2'
     )
