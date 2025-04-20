@@ -49,8 +49,9 @@ class NotificationQueue:
     async def send_notification(self, chat_id: int, text: str, **kwargs):
         await self.queue.put((chat_id, text, kwargs))
 
-    #TODO add argument - profile_id to send request method
     #TODO write a funcion for regular notification about medication time
+
+
     #TODO prohibit entering your own login
 
     async def send_trusted_contact_request(self,

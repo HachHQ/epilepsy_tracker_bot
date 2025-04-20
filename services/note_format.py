@@ -16,13 +16,14 @@ def get_formatted_seizure_info(
     edit_mode: bool = False
 ):
     action_lines = (
-        f"\n________________________________________"
+        f"\n_______________________________________"
         f"\n\n✍️ Редактировать запись: /edit_{seizure_id}\n\n"
         f"🗑️ Удалить запись: /delete_{seizure_id}"
     )
     #suus = f" {'/update_date_' + {seizure_id} + '\n\n' if edit_mode else ""}"
     note = (
-        f"Данные о приступе для профиля <u>{current_profile}</u>:\n\n"
+        f"Данные о приступе для профиля {current_profile}:\n\n"
+
 
         f"📅 Дата: {date if date else "Не введено"}" +
         f"{' /update_date_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
@@ -63,3 +64,27 @@ def get_formatted_seizure_info(
         f"{action_lines if seizure_id > 0 else ""}"
         )
     return note
+
+def get_formatter_profile_info(
+    profile_id: int,
+    profile_name: str,
+    bio_species,
+    type_of_epilepsy: str,
+    age: int,
+    sex: str,
+    timezone
+):
+    header = (
+        f"Данные по профилю {profile_name}\n\n"
+    )
+    action_lines = (
+        f"\nРедактировать данные профиля: /editp_{profile_id}\n\n"
+        f"Удалить профиль: /deletep_{profile_id}"
+    )
+    text = (
+        f"Вид: {bio_species if bio_species else ""}\n"
+        f"Тип эпилепсии: {type_of_epilepsy if type_of_epilepsy else ""}\n"
+        f"Возраст: {str(age) if age else ""}\n"
+        f"Пол: {sex if sex else ""}\n"
+        f"Часовой пояс: {timezone if timezone else ""}\n"
+    )

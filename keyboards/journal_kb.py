@@ -53,7 +53,7 @@ def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarku
 
     pass
 
-def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -> InlineKeyboardBuilder:
+def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -> InlineKeyboardMarkup:
     date_set = {(date.year, date.month, date.day) for date in dates}
     kb_builder = InlineKeyboardBuilder()
     days_in_month = calendar.monthrange(year, month)[1]

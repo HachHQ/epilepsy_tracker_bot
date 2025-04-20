@@ -41,8 +41,8 @@ def validate_time(time: str) -> bool:
         return True
     return False
 
-def validate_count_of_seizures(count: str) -> bool:
+def validate_non_neg_N_num(count: str) -> bool:
     return count.isnumeric()
 
-def validate_triggers_list(triggers: str) -> bool:
+def validate_less_than_250(triggers: str) -> bool:
     return True if len(triggers) < 250 else False
