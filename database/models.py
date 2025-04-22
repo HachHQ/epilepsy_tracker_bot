@@ -27,7 +27,7 @@ class User(Base):
     login = Column(String(25), nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     current_profile = Column(Integer, default=None, nullable=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
 
     profiles = relationship("Profile", back_populates="user")
 
@@ -42,7 +42,7 @@ class Profile(Base):
     sex = Column(String(20))
     timezone = Column(String(3))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
 
     user = relationship("User", back_populates="profiles")
     drugs = relationship("Drug", secondary="profile_drugs", back_populates="profiles")
@@ -81,7 +81,7 @@ class Seizure(Base):
 
     video_tg_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     #creator_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
 
     triggers = Column(String, nullable=True)
@@ -109,6 +109,39 @@ class TrustedPersonRequest(Base):
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
+
+'''
+class MedicationCourse(Base):
+    __tablename__ = 'medication_courses'
+
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete='CASCADE'), nullable=False)
+
+    # Если препарат выбран из справочника
+    drug_id = Column(Integer, ForeignKey('drugs.id'), nullable=True)
+
+    # Если препарат введен вручную
+    manual_entry_name = Column(String(100), nullable=True)  # Например: "Кеппра 500мг"
+    is_manual = Column(Boolean, default=False)  # True — пользователь ввел руками
+
+    dosage = Column(String(50))       # Например: "100мг 2 раза в день"
+    form = Column(String(30))         # Таблетки, сироп и т.д.
+    frequency = Column(String(30))    # Например: "2 раза в день"
+    time_slots = Column(ARRAY(String), nullable=True)  # Временные точки приема
+    reminder_enabled = Column(Boolean, default=False)
+
+    raw_input = Column(String(200), nullable=True)  # Сырой текст от пользователя
+    notes = Column(String(200), nullable=True)      # Примечания
+
+    start_date = Column(Date)
+    end_date = Column(Date, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    drug = relationship("Drug", back_populates="medication_courses")
+    profile = relationship("Profile", back_populates="medication_courses")'''
 
 profile_drugs = Table(
     'profile_drugs',
