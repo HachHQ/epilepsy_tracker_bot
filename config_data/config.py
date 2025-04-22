@@ -13,6 +13,7 @@ class DatabaseConfig:
 class TgBot:
     token: str
     admins: str
+    hmac_secret_key: bytes
 
 @dataclass
 class Config:
@@ -27,7 +28,8 @@ def load_config(path: str | None = None) -> Config:
     return Config(
         tg_bot=TgBot(
             token=env('API_TOKEN'),
-            admins=env('ADMINS')
+            admins=env('ADMINS'),
+            hmac_secret_key=env('HMAC_SEKRET_KEY')
         ),
         db=DatabaseConfig(
             db_name=env('DB_NAME'),
