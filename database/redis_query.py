@@ -1,6 +1,8 @@
 import json
 from database.redis_client import redis
 
+CACHE_TIME = 3600
+
 # Get operations
 async def get_redis_cached_login(user_id: int) -> str:
     login = await redis.get(f"user:login:{user_id}")
@@ -23,17 +25,17 @@ async def get_redis_cached_profiles_list(user_id: int, profile_type: str = "user
 
 # Set operations
 async def set_redis_cached_login(user_id: int, login: str):
-    await redis.setex(f"user:login:{user_id}", 3600, login)
+    await redis.setex(f"user:login:{user_id}", CACHE_TIME, login)
 
 async def set_redis_cached_user_id_from_db(user_id: int, user_db_id: int):
-        await redis.setex(f"user:user_db_id:{user_id}", 3600, user_db_id)
+        await redis.setex(f"user:user_db_id:{user_id}", CACHE_TIME, user_db_id)
 
 async def set_redis_cached_current_profile(user_id: int, profile_id: int, profile_name: str):
     profile_key = f"user:current_profile:{user_id}"
-    await redis.setex(profile_key, 3600, f"{profile_id}|{profile_name}")
+    await redis.setex(profile_key, CACHE_TIME, f"{profile_id}|{profile_name}")
 
 async def set_redis_cached_profiles_list(user_id: int, profile_type: str, profiles):
-    await redis.setex(f"profiles:{user_id}:{profile_type}", 3600, json.dumps(profiles))
+    await redis.setex(f"profiles:{user_id}:{profile_type}", CACHE_TIME, json.dumps(profiles))
 
 # Delete operations
 async def delete_redis_cached_login(user_id: int):
