@@ -220,6 +220,17 @@ async def orm_create_profile(
         )
     session.add(new_profile)
 
+async def orm_set_current_profile(session: AsyncSession, user_id: int, profile_id: int):
+    query = (
+        select(User)
+        .where(
+            (User.telegram_id == int(user_id))
+        )
+    )
+    res = await session.execute(query)
+    user = res.scalars().first()
+    user.current_profile = int(profile_id)
+
 async def orm_add_new_seizure(
         session: AsyncSession,
         profile_id,
