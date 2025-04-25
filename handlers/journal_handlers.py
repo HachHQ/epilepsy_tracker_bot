@@ -12,8 +12,8 @@ from handlers_logic.seizure_form_logic import ask_for_a_year, handle_severity
 from handlers.seizures_handlers import start_fix_seizure
 from database.orm_query import orm_get_seizures_by_profile_ascending, orm_get_seizures_by_profile_descending, orm_get_seizure_info, orm_delete_seizure
 from services.redis_cache_data import get_cached_current_profile
-from services.note_format import get_formatted_seizure_info
-from keyboards.journal_kb import get_nav_btns_of_list_of_seizures
+from services.note_format import get_formatted_seizure_info, get_minutes_and_seconds
+from keyboards.journal_kb import get_nav_btns_of_list_of_seizures, get_journal_nav_kb
 from keyboards.seizure_kb import (
     get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
     generate_features_keyboard
@@ -33,11 +33,18 @@ def display_seizure_notes(seizures, current_page):
         text += line
     return text
 
+@journal_router.callback_query(F.data == "seizure_data")
+async def process_journal_handler(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    await callback.message.edit_text("Выберите, что просмотреть: журнал, графики или статистику", reply_markup=get_journal_nav_kb())
+
 @journal_router.callback_query(F.data == "journal")
 async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     print(callback.message.chat.id)
     current_profile_id = await get_cached_current_profile(db, callback.message.chat.id)
+    if current_profile_id is None:
+        await callback.message.answer("Выберите профиль для просмотра журнала")
+        return
     seizures = await orm_get_seizures_by_profile_descending(db, int(current_profile_id.split('|', 1)[0]))
     if not seizures:
         await callback.message.answer(f"Для профиля _{current_profile_id.split('|', 1)[1]}_ нет зафиксированных приступов", parse_mode='MarkDownV2')
@@ -67,6 +74,9 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
         await message.answer("Неверный индекс записи.")
         return
     current_profile = await get_cached_current_profile(db, message.chat.id)
+    if current_profile is None:
+        await message.answer("Выберите профиль.")
+        return
     seizure = await orm_get_seizure_info(db, int(seizure_id), current_profile.split('|', 1)[0])
     if not seizure:
         await message.answer(f'Нет такой записи для профиля {current_profile.split('|', 1)[1]}.')
@@ -78,7 +88,7 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
         count = seizure.count,
         triggers = seizure.triggers,
         severity = seizure.severity,
-        duration = seizure.duration,
+        duration = get_minutes_and_seconds(seizure.duration),
         comment = seizure.comment,
         symptoms = seizure.symptoms,
         video_tg_id = seizure.video_tg_id,
@@ -108,7 +118,7 @@ async def show_edit_options(message: Message, state: FSMContext, db: AsyncSessio
         count = seizure.count,
         triggers = seizure.triggers,
         severity = seizure.severity,
-        duration = seizure.duration,
+        duration = get_minutes_and_seconds(seizure.duration),
         comment = seizure.comment,
         symptoms = seizure.symptoms,
         video_tg_id = seizure.video_tg_id,
