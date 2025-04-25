@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
     CallbackQuery, Message
@@ -10,6 +10,7 @@ from datetime import datetime
 from database.orm_query import (
     orm_get_profile_by_id,
 )
+from services.note_format import get_minutes_and_seconds
 from services.redis_cache_data import get_cached_current_profile
 from services.validators import (
     validate_non_neg_N_num, validate_less_than_250, validate_date,
@@ -20,7 +21,7 @@ from handlers_logic.states_factories import SeizureForm
 from keyboards.seizure_kb import (
     get_year_date_kb, get_month_date_kb, get_day_kb,
     get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard,
-    get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb
+    get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb, get_stop_duration_kb
 )
 
 async def get_action_btns_flag(state):
@@ -58,8 +59,44 @@ def format_small_date_numbers(date: str) -> str:
     else:
         return date
 
+async def handle_seizre_right_now(message: Message, state: FSMContext, db: AsyncSession):
+    current_profile = await get_cached_current_profile(db, message.chat.id)
+    profile = await orm_get_profile_by_id(db, int(current_profile.split('|', 1)[0]))
+    profile_tz = profile.timezone
+    local_profile_tz = get_local_time_from_offset(int(profile_tz))
+    local_date = local_profile_tz.date()
+    local_time = local_profile_tz.time().isoformat(timespec='minutes')
+
+    duration_datetime_flag = str(datetime.now(timezone.utc))
+    await state.update_data(exact_duration=duration_datetime_flag)
+
+
+    await state.update_data(date_short=str(local_date))
+    await state.update_data(time_of_day=str(local_time))
+
+    await message.answer("Нажмите на 'СТОП', когда приступ закончится", reply_markup=get_stop_duration_kb())
+
+async def handle_stop_tracking_duration(message: Message, state: FSMContext):
+    seizure_data = await state.get_data()
+    duration_flag_str = seizure_data.get('exact_duration', None)
+    clean_date_string = duration_flag_str.strip('"')
+    print(clean_date_string)
+    duration_flag_datetime = datetime.fromisoformat(clean_date_string)
+    print(duration_flag_datetime)
+    print(datetime.now(timezone.utc))
+    duration_diff = datetime.now(timezone.utc) - duration_flag_datetime
+    duration_diff = duration_diff.total_seconds()
+    print(duration_diff, type(duration_diff))
+
+    await state.update_data(duration=int(duration_diff))
+    await message.answer(f"Продолжительность зафиксирована: {get_minutes_and_seconds(duration_diff)}")
+    await message.answer("Если в рамках одного приступа была серия приступов, выберите их количество", reply_markup=get_count_of_seizures_kb())
+    await state.set_state(SeizureForm.count)
+
 async def ask_for_a_year(message: Message, state: FSMContext):
     action_btns_flag = await get_action_btns_flag(state)
+    # duration_datetime_flag = str(datetime.now(timezone.utc))
+    # await state.update_data(exact_duration=duration_datetime_flag)
     await message.answer(f"Выберите год или сразу день из преложенных\n\n<u>Либо введите дату вручную в формате ГОД-МЕСЯЦ-ДЕНЬ</u>",
                                 reply_markup=get_year_date_kb(4,0, action_btns=action_btns_flag),
                                 parse_mode='HTML')
@@ -175,7 +212,7 @@ async def handle_time_of_date_message(message: Message, state: FSMContext, db: A
             return
         await state.update_data(time_of_day=time)
         print(message.text)
-        await state.set_state(SeizureForm.count)
+        await state.set_state(SeizureForm.duration)
         await message.answer(
             "Если в рамках одного приступа была серия приступов, выберите их количество",
             reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
@@ -239,27 +276,13 @@ async def handle_time_by_btns(callback: CallbackQuery, state: FSMContext, db: As
         await callback.answer()
         await state.clear()
         return
-    await state.set_state(SeizureForm.count)
+    await state.set_state(SeizureForm.duration)
     await callback.message.edit_text(
         f"Если в рамках одного приступа была серия приступов, выберите их количество",
         reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag)
     )
     await callback.answer()
 
-async def handle_toggle_trigger(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    _, feature, current_page = callback.data.split(':', 2)
-    action_btns_flag = await get_action_btns_flag(state)
-    data = await state.get_data()
-    selected_triggers = data.get("selected_triggers", [])
-    if feature in selected_triggers:
-        selected_triggers.remove(feature)
-    else:
-        selected_triggers.append(feature)
-    await state.update_data(selected_triggers=selected_triggers)
-    await callback.message.edit_text('Выберите или введите возможные триггеры: ',
-        reply_markup=generate_features_keyboard(selected_triggers, current_page, 5, action_btns=action_btns_flag)
-    )
-    await callback.answer()
 
 async def handle_count_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     count_of_seizures = int(callback.data.split(':', 1)[1])
@@ -296,7 +319,7 @@ async def handle_count_by_message(message: Message, state: FSMContext, db: Async
         await state.update_data(count=message.text)
         await state.set_state(SeizureForm.triggers)
         await state.update_data(selected_triggers=[], current_page=0)
-        await message.edit_text("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=action_btns_flag))
+        await message.answer("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=action_btns_flag))
     else:
         await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 1 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
@@ -354,8 +377,9 @@ async def handle_save_toggled_triggers(callback: CallbackQuery, state: FSMContex
 
 async def handle_triggers_by_message(message: Message, state: FSMContext, db: AsyncSession):
     if validate_less_than_250(message.text):
-        triggers = message.text
         data = await state.get_data()
+        triggers_list = data.get('selected_triggers')
+        triggers = ", ".join(triggers_list) + ", " + message.text
         mode = data.get("mode", "create")
         if mode == 'edit':
             seizure_id = data["seizure_id"]
@@ -363,7 +387,7 @@ async def handle_triggers_by_message(message: Message, state: FSMContext, db: As
             await orm_update_seizure(db, int(seizure_id), int(profile_id), 'triggers', triggers)
             await message.answer(f"Сохраненные триггеры обновлены: {'Список пуст' if triggers is None else triggers}")
             return
-        await state.update_data(triggers=message.text)
+        await state.update_data(triggers=triggers)
         await state.set_state(SeizureForm.severity)
         await message.answer("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
     else:
@@ -385,9 +409,12 @@ async def handle_severity(callback: CallbackQuery, state: FSMContext, db: AsyncS
         await state.clear()
     else:
         await state.update_data(severity=severity)
-        await callback.message.edit_text(f"Введите примерную продолжительность в минутах: ", reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
-        await state.set_state(SeizureForm.duration)
+        await callback.message.edit_text(f"Оставьте комментарий, если это нужно", reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
+        await state.set_state(SeizureForm.comment)
         await callback.answer()
+
+#async def handle_duration_cb(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+
 
 async def handle_duration(message: Message, state: FSMContext, db: AsyncSession):
     action_btns_flag = await get_action_btns_flag(state)
@@ -403,7 +430,7 @@ async def handle_duration(message: Message, state: FSMContext, db: AsyncSession)
             await state.clear()
         else:
             await state.update_data(duration=duration)
-            await state.set_state(SeizureForm.comment)
+            await state.set_state(SeizureForm.count)
             await message.answer("Введите любой комментарий к приступу: ", reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
     else:
         await message.answer("Продолжительность приступа должна быть любым не отрицательным числом (в минутах)\nНапример: 0 или 55</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
