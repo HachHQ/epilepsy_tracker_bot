@@ -16,6 +16,7 @@ from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_profiles_list, get_cached_login
 from services.notification_queue import NotificationQueue
 from services.validators import validate_login_of_user_form
+from services.hmac_encrypt import unpack_callback_data
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.trusted_user_kb import get_y_or_n_buttons_to_continue_process, get_y_or_n_buttons_to_finish_process
@@ -102,9 +103,10 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
             return
 
         uuid_for_request = uuid.uuid4()
+        short_uuid = str(uuid_for_request)[:16]
 
         new_request = TrustedPersonRequest(
-            id = str(uuid_for_request),
+            id = str(short_uuid),
             sender_id = user.id,
             recepient_id = recipient.id,
             transmitted_profile_id = int(data['transmitted_profile_id']),
@@ -113,7 +115,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
 
         print(f"Новый запрос добавлен: {new_request}")
         await notification_queue.send_trusted_contact_request(chat_id=recipient.telegram_id,
-                                              request_uuid=uuid_for_request,
+                                              request_uuid=short_uuid,
                                               sender_login=sender_login,
                                               sender_id=user.id,
                                               transmitted_profile_id=int(data['transmitted_profile_id']),)
@@ -134,13 +136,21 @@ async def process_rejection(callback: CallbackQuery, state: FSMContext):
 
 @add_trusted_person_router.callback_query(F.data.startswith("p_conf") | F.data.startswith("n_conf"))
 async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession, bot: Bot):
-    action, uuid_request, transmitted_profile_id, sender_id = callback.data.split("|", 3)
-
+    unpacked_callback_data = unpack_callback_data(callback.data)
+    if not unpacked_callback_data:
+        print("Ошибка сравнения цифровых подписей")
+        return
+    action, uuid_request, transmitted_profile_id, sender_id = unpacked_callback_data.split('|', 3)
     search_sender_result = await db.execute(select(User).filter(User.id == int(sender_id)))
     sender = search_sender_result.scalars().first()
 
     search_recepient_id_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
     recepient = search_recepient_id_result.scalars().first()
+
+    if not recepient:
+        await callback.message.answer("Запрос не найден. Попросите пользователя отправить новый.")
+        await callback.answer()
+        return
 
     search_request_result = await db.execute(
         select(TrustedPersonRequest).filter(
@@ -155,10 +165,6 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         await callback.message.answer("Запрос не найден.")
         return
 
-    if not recepient:
-        await callback.message.answer("Запрос не найден. Попросите пользователя отправить новый.")
-        await callback.answer()
-        return
 
     if request.status != RequestStatus.PENDING:
         await callback.message.answer("Запрос уже был обработан ранее.")
