@@ -30,7 +30,7 @@ class MedicationCourse(StatesGroup):
     reception_schedule = State()
     start_course = State()
     end_course = State()
-    
+
 
 class SeizureForm(StatesGroup):
     date = State()
@@ -41,7 +41,7 @@ class SeizureForm(StatesGroup):
     count = State()
     triggers = State()
     type_of_seizure = State()
-    #minutes_range = State()
+
     severity = State()
     duration = State()
     comment = State()
@@ -49,3 +49,17 @@ class SeizureForm(StatesGroup):
     video_tg_id = State()
     location = State()
     medication = State()
+    states_sequence = [
+        date, year, month, day, hour, count, triggers,
+        type_of_seizure, severity, duration, comment,
+        symptoms, video_tg_id, location, medication
+    ]
+    @classmethod
+    def next_state(cls, current_state: str | None) -> State | None:
+        if not current_state:
+            return cls.states_sequence[0]
+
+        for idx, state in enumerate(cls.states_sequence):
+            if state.state == current_state:
+                return cls.states_sequence[idx + 1] if idx + 1 < len(cls.states_sequence) else None
+        return None
