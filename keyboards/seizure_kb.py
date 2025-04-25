@@ -98,12 +98,11 @@ def get_severity_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
 def get_duration_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     duration_bd = InlineKeyboardBuilder()
     duration_btns = [
-        InlineKeyboardButton(text="<1", callback_data=f"duration:<{1}"),
-        InlineKeyboardButton(text="<3", callback_data=f"duration:<{3}"),
-        InlineKeyboardButton(text="<5", callback_data=f"duration:<{5}"),
-        InlineKeyboardButton(text="<7", callback_data=f"duration:<{7}"),
-        InlineKeyboardButton(text="<10", callback_data=f"duration:<{10}"),
-        InlineKeyboardButton(text="<15", callback_data=f"duration:<{15}"),
+        InlineKeyboardButton(text="< 30 сек", callback_data=f"seizure_duration:<{30}s"),
+        InlineKeyboardButton(text="< 1 мин", callback_data=f"seizure_duration:<{1}m"),
+        InlineKeyboardButton(text="1 - 2 мин", callback_data=f"seizure_duration:<{1-2}m"),
+        InlineKeyboardButton(text="2 - 5 мин", callback_data=f"seizure_duration:<{2-5}m"),
+        InlineKeyboardButton(text="Более 5 мин", callback_data=f"seizure_duration:>{5}m"),
     ]
     duration_bd.row(*duration_btns)
     duration_bd.adjust(3)
@@ -144,4 +143,18 @@ def get_count_of_seizures_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     builder.adjust(5)
     if action_btns:
         builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
+    return builder.as_markup()
+
+def get_seizure_timing():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⚠️ Приступ происходит сейчас", callback_data="seizure_right_now")
+    builder.button(text="🕓 Приступ уже прошёл", callback_data="seizure_passed")
+    builder.button(text="⬅️ Назад", callback_data="to_menu_edit")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_stop_duration_kb():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔴 Стоп", callback_data="stop_track_duration")
+    builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
     return builder.as_markup()
