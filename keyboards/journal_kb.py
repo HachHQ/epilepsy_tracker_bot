@@ -4,9 +4,14 @@ from aiogram.types import InlineKeyboardButton, KeyboardButton
 import calendar
 from datetime import datetime
 
-dates = [datetime(2025, 3, 19), datetime(2025, 3, 29), datetime(2025, 3, 15), datetime(2025, 3, 9), datetime(2025, 1, 1), datetime(2025, 2, 1)]
-
-
+def get_journal_nav_kb():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📖 Журнал приступов", callback_data="journal")
+    builder.button(text="📉 Статистика", callback_data="stats")
+    builder.button(text="📊 Графики", callback_data="graphs")
+    builder.button(text="⬅️ Назад", callback_data="to_menu_edit")
+    builder.adjust(1)
+    return builder.as_markup()
 
 def get_nav_btns_of_list_of_seizures(seizures_count, notes_on_page: int, current_page: int):
     if notes_on_page <=0:
