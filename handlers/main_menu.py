@@ -28,13 +28,21 @@ async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
         parse_mode='MarkDownV2'
     )
 
-@main_menu_router.callback_query(F.data == "to_menu")
+@main_menu_router.callback_query((F.data == "to_menu") | (F.data == "to_menu_edit"))
 async def send_main_menu_callback(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     text = await get_main_menu_text(db, callback.message)
-    await callback.message.answer(
-        text,
-        reply_markup=get_main_menu_keyboard(),
-        parse_mode='MarkDownV2'
-    )
+
+    if callback.data == "to_menu":
+        await callback.message.answer(
+            text,
+            reply_markup=get_main_menu_keyboard(),
+            parse_mode='MarkDownV2'
+        )
+    else:
+        await callback.message.edit_text(
+            text,
+            reply_markup=get_main_menu_keyboard(),
+            parse_mode='MarkDownV2'
+        )
     await callback.answer()
