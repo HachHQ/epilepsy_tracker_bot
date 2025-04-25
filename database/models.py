@@ -35,7 +35,7 @@ class Profile(Base):
     __tablename__ = 'profiles'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
     profile_name = Column(String(40), nullable=False)
     type_of_epilepsy = Column(String(20))
     age = Column(Integer)
@@ -71,7 +71,7 @@ class Seizure(Base):
     __tablename__ = 'seizures'
 
     id = Column(Integer, primary_key=True)
-    profile_id = Column(Integer, ForeignKey('profiles.id'), nullable=False)
+    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete="CASCADE"), nullable=False)
     date = Column(String(25))
     time = Column(String(25), nullable=True)
     severity = Column(String(50), nullable=True)
@@ -83,7 +83,9 @@ class Seizure(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     #creator_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-
+    #type_of_seizure = Column(String(30), nullable=True)
+    #postical_duration = Column(Integer(), nullable=True)
+    #postical_symptoms = Column(String(250), nullable=True)
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
@@ -94,7 +96,7 @@ class TrustedPersonProfiles(Base):
     id = Column(Integer, primary_key=True)
     trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     profile_owner_id = Column(Integer, ForeignKey("users.id"))
-    profile_id = Column(Integer, ForeignKey("profiles.id"))
+    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
     can_read = Column(Boolean, nullable=False, default=True)
     can_edit = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -105,7 +107,7 @@ class TrustedPersonRequest(Base):
     id = Column(String, primary_key=True, server_default=func.now())
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    transmitted_profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False)
+    transmitted_profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
