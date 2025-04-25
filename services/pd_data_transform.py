@@ -31,20 +31,6 @@ async def pd_get_min_max_year_in_seizures(session: AsyncSession, chat_id: int):
     min_year = min(years)
     max_year = max(years)
     print(sorted(uniq_years))
-    # Формируем результат
     result = f"{min_year}-{max_year}"
     print(result)
     return sorted(uniq_years)
-    # data = format_orm_data_obj_to_dict(seizures)
-    # columns = ['id', 'profile_id', 'date', 'time',
-    #            'severity', 'duration', 'comment', 'count',
-    #              'video_tg_id', 'created_at', 'updated_at', 'triggers',
-    #                'location', 'symptoms']
-    # df = pd.DataFrame(data, columns=columns)
-    # df['date'] = pd.to_datetime(df['date'])
-    # if df['date'].isnull().all():
-    #     print("Столбец date пустой или содержит только пропущенные значения.")
-    # else:
-    #     min_year = df['date'].dt.year.min()
-    #     max_year = df['date'].dt.year.max()
-    #     return f"{min_year}-{max_year}"
