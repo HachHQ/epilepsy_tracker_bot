@@ -63,7 +63,8 @@ async def get_cached_current_profile(session: AsyncSession, user_id: int) -> str
         return current_profile
     user = await orm_get_user(session, user_id)
     profile = await orm_get_current_profile_data(session, user_id)
-
+    if profile is None:
+        return None
     await set_redis_cached_current_profile(user_id, user.current_profile, profile.profile_name)
     print("get current profile from db")
 
