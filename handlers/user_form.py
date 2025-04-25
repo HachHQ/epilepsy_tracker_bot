@@ -10,16 +10,23 @@ from sqlalchemy.future import select
 
 from handlers_logic.states_factories import UserForm
 from database.models import User
+from database.orm_query import orm_get_user
 from database.redis_query import set_redis_cached_login
 from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
 from services.validators import validate_login_of_user_form, validate_name_of_user_form
+from services.redis_cache_data import get_cached_login
 from keyboards.menu_kb import get_cancel_kb
 
 user_form_router = Router()
 
-
 @user_form_router.callback_query(F.data == "submit_welcome_msg")
-async def start_form(callback: CallbackQuery, state: FSMContext):
+async def start_form(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    user_is_exist = await get_cached_login(db, callback.message.chat.id)
+    if user_is_exist is not None:
+        await state.clear()
+        await callback.message.edit_text("Вы уже зарегистрированы")
+        await callback.answer()
+        return
     await callback.message.answer(LEXICON_RU['enter_username'], reply_markup=get_cancel_kb())
     await state.set_state(UserForm.name)
     await callback.answer()
