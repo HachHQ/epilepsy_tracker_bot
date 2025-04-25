@@ -1,3 +1,4 @@
+import json
 from aiogram import Router, F
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, InputMediaAudio,
@@ -17,7 +18,8 @@ from handlers_logic.seizure_form_logic import (
     ask_for_a_year, handle_severity, handle_duration, handle_comment, handle_day,
     handle_short_date, handle_date_by_message, handle_time_of_date_message,
     handle_time_by_btns, handle_month_of_date, handle_count_by_message, handle_count_of_seizures,
-    handle_toggle_trigger, handle_triggers_page, handle_save_toggled_triggers
+    handle_toggle_trigger, handle_triggers_page, handle_save_toggled_triggers,
+    handle_triggers_by_message, handle_seizre_right_now, handle_stop_tracking_duration
 
 )
 from database.orm_query import (
@@ -26,10 +28,10 @@ from database.orm_query import (
 from keyboards.seizure_kb import (
     get_year_date_kb, get_month_date_kb, get_day_kb,
     get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard,
-    get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb
+    get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb, get_seizure_timing
 )
 from services.redis_cache_data import get_cached_current_profile
-from services.note_format import get_formatted_seizure_info
+from services.note_format import get_formatted_seizure_info, get_minutes_and_seconds
 from services.validators import validate_date, validate_time, validate_non_neg_N_num, validate_less_than_250
 
 seizures_router = Router()
@@ -57,6 +59,17 @@ def get_seizure_info_dict(seizure_data: dict):
         seizure_data_dict[key] = seizure_data.get(key, default_value)
 
     return seizure_data_dict
+
+@seizures_router.callback_query(F.data ==  "fix_seizure")
+async def process_right_now_or_passed(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    text = (
+        "Приступ происходит прямо сейчас или вы хотите зафиксировать его постфактум?\n\n"
+
+        "Если выбрать фиксацию в реальном времени, начнётся автоматический отсчёт продолжительности приступа, и дата с временем будут установлены автоматически.\n"
+
+        "Если же вы фиксируете приступ задним числом, вы сможете вручную указать все данные.\n"
+    )
+    await callback.message.edit_text(text, reply_markup=get_seizure_timing())
 
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
 async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
@@ -96,7 +109,7 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         count = count,
         triggers = triggers,
         severity = severity,
-        duration = duration,
+        duration = get_minutes_and_seconds(duration),
         comment = comment,
         symptoms = symptoms,
         video_tg_id = video_tg_id,
@@ -123,7 +136,17 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     await callback.answer()
     await state.clear()
 
-@seizures_router.callback_query(F.data.startswith("fix_seizure"))
+@seizures_router.callback_query(F.data == "seizure_right_now")
+async def process_seizre_right_now(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    await handle_seizre_right_now(callback.message, state, db)
+    await callback.answer()
+
+@seizures_router.callback_query(F.data == "stop_track_duration")
+async def process_stop_tracking_duration(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    await handle_stop_tracking_duration(callback.message, state)
+    await callback.answer()
+
+@seizures_router.callback_query(F.data.startswith("seizure_passed"))
 async def start_fix_seizure(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.update_data(start_fix=True)
@@ -148,16 +171,6 @@ def format_small_date_numbers(date: str) -> str:
 @seizures_router.callback_query(F.data.startswith('month'), StateFilter(SeizureForm.month))
 async def process_month_of_date(callback: CallbackQuery, state: FSMContext):
     await handle_month_of_date(callback, state)
-    # _, month_index, month_name = callback.data.split(':', 2)
-    # print("Пойман")
-    # await state.update_data(month=format_small_date_numbers(month_index))
-    # year_month = await state.get_data()
-    # await state.set_state(SeizureForm.day)
-    # await callback.message.edit_text(f"Выбран месяц {month_name}",
-    #                                  reply_markup=get_day_kb(
-    #                                     int(year_month['year']),
-    #                                     int(year_month['month']))
-    #                                  )
 
 @seizures_router.callback_query(F.data.startswith('day'), StateFilter(SeizureForm.day))
 async def process_day_of_date(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
@@ -174,82 +187,26 @@ async def process_time_by_btns(callback: CallbackQuery, state: FSMContext, db: A
 @seizures_router.callback_query(F.data.startswith('count_of_seizures'), StateFilter(SeizureForm.count))
 async def process_count_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await handle_count_of_seizures(callback, state, db)
-    # _, count_of_seizures = callback.data.split(':', 1)
-    # await state.update_data(count=count_of_seizures)
-    # await state.set_state(SeizureForm.triggers)
-    # await state.update_data(selected_triggers=[], current_page=0)
-    # await callback.message.edit_text("Введите возможные триггеры через запятую: ", reply_markup=generate_features_keyboard([], 0, 5))
-    # await callback.answer()
 
 @seizures_router.message(StateFilter(SeizureForm.count))
 async def process_count_message(message: Message, state: FSMContext, db: AsyncSession):
     await handle_count_by_message(message, state, db)
-    # if validate_non_neg_N_num(message.text):
-    #     await state.update_data(count=message.text)
-    #     await state.set_state(SeizureForm.triggers)
-    #     await state.update_data(selected_triggers=[], current_page=0)
-    #     await message.edit_text("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5))
-    # else:
-    #     await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 0 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
-
 
 @seizures_router.callback_query(F.data.startswith('toggle'), StateFilter(SeizureForm.triggers))
 async def process_toggle_trigger(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await handle_toggle_trigger(callback, state, db)
-    # _, feature, current_page = callback.data.split(':', 2)
-
-    # data = await state.get_data()
-    # selected_triggers = data.get("selected_triggers", [])
-    # if feature in selected_triggers:
-    #     selected_triggers.remove(feature)
-    # else:
-    #     selected_triggers.append(feature)
-    # await state.update_data(selected_triggers=selected_triggers)
-    # await callback.message.edit_text('Выберите или введите возможные триггеры: ',
-    #     reply_markup=generate_features_keyboard(selected_triggers, current_page, 5)
-    # )
-    # await callback.answer()
 
 @seizures_router.callback_query(F.data.startswith('page'), StateFilter(SeizureForm.triggers))
 async def process_triggers_page(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await handle_triggers_page(callback, state, db)
-    # data = await state.get_data()
-    # selected_triggers = data.get("selected_triggers", [])
-    # print(callback.data)
-    # new_page = callback.data.split(':', 1)[1]
-
-    # await state.update_data(current_page=new_page)
-    # await callback.message.edit_text('Выберите или введите возможные триггеры: ',
-    #     reply_markup=generate_features_keyboard(selected_triggers, int(new_page), 5)
-    # )
-    # await callback.answer()
 
 @seizures_router.callback_query(F.data.startswith('done'), StateFilter(SeizureForm.triggers))
 async def process_save_toggled_triggers(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await handle_save_toggled_triggers(callback, state, db)
 
-    # data = await state.get_data()
-    # selected_triggers = data.get("selected_triggers", [])
-    # if selected_triggers:
-    #     await state.set_state(SeizureForm.severity)
-    #     print(selected_triggers)
-    #     await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
-    # else:
-    #     await state.update_data(selected_triggers=[])
-    #     await state.set_state(SeizureForm.severity)
-    #     print(selected_triggers)
-    #     await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
-    # await callback.answer()
-
 @seizures_router.message(StateFilter(SeizureForm.triggers))
-async def process_triggers_message(message: Message, state: FSMContext):
-    if validate_less_than_250(message.text):
-        print('триггер')
-        await state.update_data(triggers=message.text)
-        await state.set_state(SeizureForm.severity)
-        await message.answer("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
-    else:
-        await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
+async def process_triggers_message(message: Message, state: FSMContext, db: AsyncSession):
+    await handle_triggers_by_message(message, state, db)
 
 @seizures_router.callback_query(F.data.startswith('saverity'), StateFilter(SeizureForm.severity))
 async def process_severity_message(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
@@ -275,3 +232,5 @@ async def receive_file_id(message: Message, state: FSMContext):
         print(video_tg_id=message.video_note.file_unique_id)
     else:
         await message.answer("Пришилите видео приступа: ", reply_markup=get_temporary_cancel_submit_kb())
+
+#@seizures_router.location
