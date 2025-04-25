@@ -10,11 +10,11 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
 
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
-    panic_btn = InlineKeyboardButton(text="⚠️ Аура", callback_data="aura_notification")
+    panic_btn = InlineKeyboardButton(text="🆘 Аура", callback_data="aura_notification")
     fix_btn = InlineKeyboardButton(text="✏️ Зафиксировать приступ", callback_data="fix_seizure")
-    journal_btn = InlineKeyboardButton(text="📖 Журнал", callback_data="journal")
+    journal_btn = InlineKeyboardButton(text="🗂️ Данные о приступах", callback_data="seizure_data")
     profiles_btn = InlineKeyboardButton(text="👤 Профили", callback_data="choose_profile")
-    add_trusted_person_btn = InlineKeyboardButton(text="🙍 Добавить ДЛ",callback_data="add_trusted")
+    add_trusted_person_btn = InlineKeyboardButton(text="🔗 Добавить ДЛ",callback_data="add_trusted")
     notification_btn = InlineKeyboardButton(text="🔔 Уведомления", callback_data="set_notifications")
     import_btn = InlineKeyboardButton(text="⬇️ Импортировать", callback_data="import_log")
     kb_builder.row(panic_btn)
