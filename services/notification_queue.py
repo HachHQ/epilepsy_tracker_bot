@@ -3,6 +3,7 @@ from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from redis.asyncio import Redis
 from database.db_init import SessionLocal
+from services.hmac_encrypt import pack_callback_data
 
 class NotificationQueue:
     def __init__(self, bot: Bot, redis: Redis, rate_limit: float = 0.05):
@@ -35,8 +36,10 @@ class NotificationQueue:
                 print("текст", text)
                 print("Кварги", kwargs)
                 keyboard = InlineKeyboardBuilder()
-                keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
-                keyboard.button(text="Нет", callback_data=f"n_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
+                base64_payload = pack_callback_data(request_uuid, transmitted_profile_id, sender_id)
+                print(base64_payload)
+                keyboard.button(text="Да", callback_data=f"p_conf|{base64_payload}")
+                keyboard.button(text="Нет", callback_data=f"n_conf|{base64_payload}")
                 try:
                     await self.bot.send_message(chat_id, text, reply_markup=keyboard.as_markup(), **kwargs)
                     print("Уведомление успешно отправлено")
