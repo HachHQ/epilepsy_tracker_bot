@@ -43,7 +43,7 @@ def get_formatted_seizure_info(
         f"😓 Тяжесть: {str(severity) + ' баллов ' if severity else "Не введено"}" +
         f"{' /update_severity_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
 
-        f"⏱️ Продолжительность: {str(duration) + ' минут ' if duration else "Не введено"}" +
+        f"⏱️ Продолжительность: {str(duration) if duration else "Не введено"}" +
         f"{' /update_duration_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
 
         f"📝 Комментарий: {comment if comment else "Не введено"}" +
@@ -65,7 +65,18 @@ def get_formatted_seizure_info(
         )
     return note
 
-def get_formatter_profile_info(
+def get_minutes_and_seconds(seconds: int) -> str:
+    if seconds is None:
+        return None
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds} секунд"
+    elif seconds == 60:
+        return f"1 минута"
+    else:
+        return f"{seconds // 60} минут {seconds % 60} секунд"
+
+def get_formatted_profile_info(
     profile_id: int,
     profile_name: str,
     bio_species,
