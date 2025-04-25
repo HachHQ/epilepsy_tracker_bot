@@ -14,7 +14,7 @@ from timezonefinder import TimezoneFinder
 from handlers_logic.states_factories import ProfileForm
 from database.redis_query import set_redis_cached_profiles_list
 from database.models import User, Profile, Drug, profile_drugs
-from database.orm_query import orm_get_user_own_profiles_list, orm_get_user, orm_create_profile
+from database.orm_query import orm_get_user_own_profiles_list, orm_get_user, orm_create_profile, orm_set_current_profile
 from lexicon.lexicon import LEXICON_RU
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import (
