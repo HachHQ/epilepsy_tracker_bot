@@ -29,7 +29,7 @@ def load_config(path: str | None = None) -> Config:
         tg_bot=TgBot(
             token=env('API_TOKEN'),
             admins=env('ADMINS'),
-            hmac_secret_key=env('HMAC_SEKRET_KEY')
+            hmac_secret_key=env('HMAC_SECRET_KEY')
         ),
         db=DatabaseConfig(
             db_name=env('DB_NAME'),
