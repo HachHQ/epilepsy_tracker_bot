@@ -44,5 +44,14 @@ def validate_time(time: str) -> bool:
 def validate_non_neg_N_num(count: str) -> bool:
     return count.isnumeric()
 
+def validate_less_than_40(diagnosis: str) -> bool:
+    return len(diagnosis) <= 40
+
+def validate_less_than_30(diagnosis: str) -> bool:
+    return len(diagnosis) <= 30
+
 def validate_less_than_250(triggers: str) -> bool:
     return True if len(triggers) < 250 else False
+
+def validate_timezone(timezone: str):
+    return True if (timezone[0] == "+" or timezone[0] == "-") and (timezone[1:].isdecimal()) and (len(timezone) < 4) and (int(timezone[1:]) <= 14) else False
