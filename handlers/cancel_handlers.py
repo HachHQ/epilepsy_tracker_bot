@@ -1,11 +1,10 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, default_state
-from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.state import default_state
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command, StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.pd_data_transform import pd_get_min_max_year_in_seizures
 from database.redis_query import (
     delete_redis_cached_login, delete_redis_cached_current_profile, delete_redis_cached_profiles_list
 )
@@ -15,22 +14,22 @@ cancel_router = Router()
 
 @cancel_router.message(Command(commands="cancel"), ~StateFilter(default_state))
 async def cancel_form(message: Message, state: FSMContext):
-    await message.answer(LEXICON_RU['cancel_script'])
+    await message.answer(LEXICON_RU['cancel_script'], reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
 @cancel_router.message(Command(commands="cancel"), StateFilter(default_state))
 async def cancel_outside_fsm(message: Message):
-    await message.answer(LEXICON_RU['not_in_script'])
+    await message.answer(LEXICON_RU['not_in_script'], reply_markup=ReplyKeyboardRemove())
 
 @cancel_router.callback_query(F.data == "cancel_fsm_script", ~StateFilter(default_state))
 async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(LEXICON_RU['cancel_script'])
+    await callback.message.answer(LEXICON_RU['cancel_script'], reply_markup=ReplyKeyboardRemove())
     await state.clear()
     await callback.answer()
 
 @cancel_router.callback_query(F.data == "cancel_fsm_script", StateFilter(default_state))
 async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(LEXICON_RU['not_in_script'])
+    await callback.message.answer(LEXICON_RU['not_in_script'], reply_markup=ReplyKeyboardRemove())
     await callback.answer()
 
 @cancel_router.message(F.text.lower().contains('clear_redis'))
