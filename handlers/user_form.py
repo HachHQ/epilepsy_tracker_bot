@@ -1,21 +1,22 @@
+import pytz
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import Command, StateFilter
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from timezonefinder import TimezoneFinder
 
 from handlers_logic.states_factories import UserForm
 from database.models import User
-from database.orm_query import orm_get_user
 from database.redis_query import set_redis_cached_login
 from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
-from services.validators import validate_login_of_user_form, validate_name_of_user_form
+from services.validators import validate_login_of_user_form, validate_name_of_user_form, validate_timezone
 from services.redis_cache_data import get_cached_login
 from keyboards.menu_kb import get_cancel_kb
+from keyboards.profile_form_kb import get_timezone_kb, get_geolocation_for_timezone_kb
 
 user_form_router = Router()
 
@@ -36,11 +37,56 @@ async def process_name(message: Message, state: FSMContext):
     if validate_name_of_user_form(message.text):
         print("Имя валидно")
         await state.update_data(name=message.text)
-        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
-        await state.set_state(UserForm.login)
+        await message.answer("Имя сохранено.", reply_markup=get_geolocation_for_timezone_kb())
+        await message.answer(LEXICON_RU['timezone_info'], reply_markup=get_timezone_kb(), parse_mode='MarkDownV2')
+        await state.set_state(UserForm.timezone)
     else:
         await message.answer("Имя должно иметь длину от 1 до 20 символов, и использовать только буквы русского или английского алфавита", reply_markup=get_cancel_kb())
         return
+
+@user_form_router.message(F.location, StateFilter(UserForm.timezone))
+async def process_timezone_by_geolocation(message: Message, state: FSMContext):
+    tf = TimezoneFinder()
+    latitude = message.location.latitude
+    longitude = message.location.longitude
+    timezone_name = tf.timezone_at(lat=latitude, lng=longitude)
+    if timezone_name:
+        timezone = pytz.timezone(timezone_name)
+        now = datetime.now(timezone)
+        utc_offset_seconds = now.utcoffset().total_seconds()
+        utc_offset_hours = utc_offset_seconds / 3600
+        await state.update_data(timezone=f"{int(utc_offset_hours):+}")
+        data = await state.get_data()
+        await message.answer(f"Часовой пояс определен: {int(utc_offset_hours):+}", reply_markup=ReplyKeyboardRemove())
+        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
+        await state.set_state(UserForm.login)
+    else:
+        await message.answer("Часовой пояс не найден, воспользуйтесь клавиатурой или вводом.")
+
+
+
+@user_form_router.callback_query(F.data.contains("timezone_"),
+                                    StateFilter(UserForm.timezone))
+async def process_timezone(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(timezone=callback.data.split('_')[1])
+    await callback.message.answer(f"Часовой пояс определен: {callback.data.split('_')[1]}",
+                                    reply_markup=ReplyKeyboardRemove())
+    await callback.message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
+    await state.set_state(UserForm.login)
+    await callback.answer()
+
+
+@user_form_router.message(StateFilter(UserForm.timezone))
+async def process_timezone_by_msg(message: Message, state: FSMContext):
+    timezone = message.text
+    if validate_timezone(timezone):
+        await state.update_data(timezone=timezone)
+        await message.answer(f"Часовой пояс определен: {timezone}", reply_markup=ReplyKeyboardRemove())
+        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
+        await state.set_state(UserForm.login)
+    else:
+        await message.answer("Часовой пояс должен иметь формат - +7 или +3", reply_markup=get_cancel_kb())
+
 
 @user_form_router.message(StateFilter(UserForm.login))
 async def process_login(message: Message, state: FSMContext, db: AsyncSession):
@@ -70,6 +116,7 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
                 telegram_fullname=message.from_user.full_name,
                 name=data["name"],
                 login=data["login"],
+                timezone=data["timezone"],
                 created_at=datetime.now(timezone.utc)
             )
 
