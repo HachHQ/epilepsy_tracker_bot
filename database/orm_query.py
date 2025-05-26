@@ -2,11 +2,10 @@ import math
 from sqlalchemy import select, update, delete, asc, desc, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from datetime import datetime, timezone, timedelta
-
+from datetime import datetime
 
 from database.models import (User, Profile, RequestStatus, TrustedPersonProfiles,
-                              TrustedPersonRequest, Drug, Seizure, profile_drugs)
+                              TrustedPersonRequest, Seizure)
 
 #Get user/profile data operations
 async def orm_get_user(session: AsyncSession, chat_id: int):
@@ -86,13 +85,12 @@ async def orm_get_seizure_info(session: AsyncSession, seizure_id: int, current_p
     seizures_res = await session.execute(query)
     return seizures_res.scalars().first()
 
-async def orm_get_seizures_for_a_specific_period(session: AsyncSession, curr_prof: int, period_in_days: int):
-    one_year_ago = datetime.now() - timedelta(days=period_in_days)
-
+async def orm_get_seizures_for_a_specific_period(session: AsyncSession,  curr_prof: int, year: int, month: int = 1, day: int = 1):
+    date = datetime(year=year, month=month, day=day)
     query = (
         select(Seizure)
         .where(
-            (cast(Seizure.date, Date) >= one_year_ago),
+            (cast(Seizure.date, Date) >= date),
             (Seizure.profile_id == int(curr_prof))
         )
     )
@@ -206,7 +204,6 @@ async def orm_create_profile(
         type_of_epilepsy,
         age,
         sex,
-        timezone,
         created_at
     ):
     new_profile = Profile(
@@ -215,7 +212,6 @@ async def orm_create_profile(
             type_of_epilepsy=type_of_epilepsy,
             age=age,
             sex=sex,
-            timezone=timezone,
             created_at=created_at
         )
     session.add(new_profile)
@@ -243,7 +239,8 @@ async def orm_add_new_seizure(
         video_tg_id,
         triggers,
         location,
-        symptoms
+        symptoms,
+        creator_login
     ):
     new_seizure = Seizure(
         profile_id = profile_id,
@@ -256,7 +253,8 @@ async def orm_add_new_seizure(
         video_tg_id = video_tg_id if video_tg_id else None,
         triggers = triggers if triggers else None,
         location = location if location else None,
-        symptoms = symptoms if symptoms else None
+        symptoms = symptoms if symptoms else None,
+        creator_login = creator_login
     )
     session.add(new_seizure)
 
