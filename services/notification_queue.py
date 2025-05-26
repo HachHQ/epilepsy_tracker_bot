@@ -2,7 +2,6 @@ import asyncio
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from redis.asyncio import Redis
-from database.db_init import SessionLocal
 from services.hmac_encrypt import pack_callback_data
 
 class NotificationQueue:

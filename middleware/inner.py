@@ -1,10 +1,7 @@
-from aiogram.types import Message
 from aiogram.types import TelegramObject
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from typing import Any, Awaitable, Callable, Dict
 from services.notification_queue import NotificationQueue
-from sqlalchemy.orm import sessionmaker
-
 
 class NotificationMiddleware(BaseMiddleware):
     def __init__(self, notification_queue: NotificationQueue):
