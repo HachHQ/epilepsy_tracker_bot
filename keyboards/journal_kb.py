@@ -1,6 +1,6 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
-from aiogram.types import InlineKeyboardButton, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton
 import calendar
 from datetime import datetime
 
@@ -9,7 +9,7 @@ def get_journal_nav_kb():
     builder.button(text="📖 Журнал приступов", callback_data="journal")
     builder.button(text="📉 Статистика", callback_data="stats")
     builder.button(text="📊 Графики", callback_data="graphs")
-    builder.button(text="⬅️ Назад", callback_data="to_menu_edit")
+    builder.button(text="↩️ Назад", callback_data="to_menu_edit")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -40,6 +40,15 @@ def get_nav_btns_of_list_of_seizures(seizures_count, notes_on_page: int, current
 
     return builder.as_markup()
 
+def get_delete_edit_kb(seizure_id):
+    builder = InlineKeyboardBuilder()
+    delete_btn = InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"delete|{seizure_id}")
+    edit_btn = InlineKeyboardButton(text="✍️ Изменить", callback_data=f"edit|{seizure_id}")
+    builder.button(delete_btn)
+    builder.button(edit_btn)
+    builder.adjust(2)
+    return builder.as_markup()
+
 
 def get_journal_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -57,6 +66,8 @@ def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarku
     years_journal_bd.adjust(rows)
 
     pass
+
+
 
 def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -> InlineKeyboardMarkup:
     date_set = {(date.year, date.month, date.day) for date in dates}
