@@ -2,15 +2,15 @@ import uuid
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State, default_state
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
+from filters.correct_commands import UserOwnProfilesListExist
 from handlers_logic.states_factories import TrustedPersonForm
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
-from database.redis_query import set_redis_cached_profiles_list
+from database.redis_query import set_redis_cached_profiles_list, set_redis_sending_timeout_ten_min, get_redis_sending_timeout_ten_min
 from database.orm_query import orm_update_list_of_trusted_profiles, orm_get_user_by_login
 from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_profiles_list, get_cached_login
@@ -23,9 +23,12 @@ from keyboards.trusted_user_kb import get_y_or_n_buttons_to_continue_process, ge
 
 add_trusted_person_router = Router()
 
-
 @add_trusted_person_router.callback_query(F.data == 'add_trusted')
 async def process_input_trusted_person_login(callback: CallbackQuery, state: FSMContext):
+    timeout_check = await get_redis_sending_timeout_ten_min(callback.message.chat.id)
+    if timeout_check is not None:
+        await callback.message.answer("Запрос на добавление доверенного лица можно отправлять раз в 10 минут")
+        return
     await state.set_state(TrustedPersonForm.trusted_person_login)
     await callback.message.answer("Введите логин профиля пользователя, которому хотите доверить свой профиль: ", reply_markup=get_cancel_kb())
     await callback.answer()
@@ -52,7 +55,7 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
     else:
         await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
 
-@add_trusted_person_router.callback_query(F.data == "trusted_person_correct", StateFilter(TrustedPersonForm.correct_trusted_person_login))
+@add_trusted_person_router.callback_query(F.data == "trusted_person_correct", StateFilter(TrustedPersonForm.correct_trusted_person_login), UserOwnProfilesListExist())
 async def process_display_profile_for_transmitting(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id)
     await callback.message.answer("Выберите профиль, которым хотите поделиться: ", reply_markup=get_paginated_profiles_kb(profiles_redis, to_share=True))
@@ -73,6 +76,7 @@ async def process_submitting_profile_to_share(callback: CallbackQuery, state: FS
 @add_trusted_person_router.callback_query(F.data == 'confirm_transfer', StateFilter(TrustedPersonForm.confirm_transfer))
 async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: AsyncSession, notification_queue: NotificationQueue):
     try:
+
         data = await state.get_data()
         recipient_login = data['trusted_person_login']
         sender_login = await get_cached_login(db, callback.message.chat.id)
@@ -121,6 +125,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
                                               transmitted_profile_id=int(data['transmitted_profile_id']),)
         db.add(new_request)
         await callback.message.answer("Запрос отправлен и будет активен в течение десяти минут.")
+        await set_redis_sending_timeout_ten_min(callback.message.chat.id, "can")
         await callback.answer()
         await state.clear()
     except Exception as e:
