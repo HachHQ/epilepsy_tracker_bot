@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from datetime import datetime, timezone, timedelta
 from database.orm_query import (
     orm_get_user,
     orm_get_current_profile_data,
@@ -11,6 +11,7 @@ from database.redis_query import (
     get_redis_cached_login,
     get_redis_cached_profiles_list,
     get_redis_cached_user_id_from_db,
+    get_redis_user_timezone,
 
     set_redis_cached_current_profile,
     set_redis_cached_login,
@@ -20,7 +21,8 @@ from database.redis_query import (
     delete_redis_cached_current_profile,
     delete_redis_cached_login,
     delete_redis_cached_profiles_list,
-    delete_redis_cached_user_id_from_db
+    delete_redis_cached_user_id_from_db,
+    set_redis_user_timezone
 )
 
 # Get operations
@@ -88,3 +90,20 @@ async def get_cached_profiles_list(session: AsyncSession, user_id: int, profile_
     print("get profiles list from db")
     await set_redis_cached_profiles_list(user_id=user_id, profile_type=profile_type, profiles=profiles)
     return profiles
+
+async def get_cached_user_timezone(session: AsyncSession, user_id: int):
+    user_timezone = await get_redis_user_timezone(user_id)
+    if user_timezone:
+        print("Get user timezone from redis")
+        return user_timezone
+    user = await orm_get_user(session, user_id)
+    if user is None:
+        return None
+    await set_redis_user_timezone(user_id, user.timezone)
+    print("Get user timezone from DB")
+    return user.timezone
+
+async def get_user_local_datetime(session: AsyncSession, user_id: int):
+    user_timezone = await get_cached_user_timezone(session, user_id)
+    offset = timezone(timedelta(hours=int(user_timezone)))
+    return datetime.now(timezone.utc).astimezone(offset)
