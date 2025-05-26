@@ -1,13 +1,8 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types, F
-# from aiogram.client.default import DefaultBotProperties
-# from aiogram.enums import ParseMode
+from aiogram import Bot, Dispatcher
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ErrorEvent
+from aiogram.types import ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.filters import Command
-
-import requests
 
 from database.db_init import init_db
 from database.redis_client import redis
@@ -28,6 +23,7 @@ from handlers.user_form import user_form_router
 from handlers.profile_form import profile_form_router
 from handlers.main_menu import main_menu_router
 from handlers.seizures_handlers import seizures_router
+from handlers.control_profiles_handlers import control_profiles_router
 
 from keyboards.set_menu import set_main_menu
 
@@ -36,7 +32,6 @@ from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 from services.notification_queue import NotificationQueue
 
 config = load_config(".env")
-
 
 storage = RedisStorage(redis=redis)
 # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
@@ -66,6 +61,7 @@ async def main():
     dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
     dp.include_router(journal_router)
+    dp.include_router(control_profiles_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
     await notification_queue.start()
