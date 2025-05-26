@@ -2,6 +2,7 @@ import json
 from database.redis_client import redis
 
 CACHE_TIME = 3600
+REQUEST_TIMEOUT = 600
 
 # Get operations
 async def get_redis_cached_login(user_id: int) -> str:
@@ -22,6 +23,16 @@ async def get_redis_cached_profiles_list(user_id: int, profile_type: str = "user
     cached_profiles = await redis.get(cache_key)
     return json.loads(cached_profiles.decode('utf-8')) if cached_profiles else None
 
+async def get_redis_sending_timeout_ten_min(user_id: int):
+    cache_key = f"user:timeout_check:{user_id}"
+    timeout_check = await redis.get(cache_key)
+    return timeout_check.decode('utf-8') if timeout_check else None
+
+async def get_redis_user_timezone(user_id: int):
+    cache_key = f"user:timezone:{user_id}"
+    timeout_check = await redis.get(cache_key)
+    return timeout_check.decode('utf-8') if timeout_check else None
+
 
 # Set operations
 async def set_redis_cached_login(user_id: int, login: str):
@@ -36,6 +47,12 @@ async def set_redis_cached_current_profile(user_id: int, profile_id: int, profil
 
 async def set_redis_cached_profiles_list(user_id: int, profile_type: str, profiles):
     await redis.setex(f"profiles:{user_id}:{profile_type}", CACHE_TIME, json.dumps(profiles))
+
+async def set_redis_sending_timeout_ten_min(user_id: int, can_send: str):
+    await redis.setex(f"user:timeout_check:{user_id}", REQUEST_TIMEOUT, can_send)
+
+async def set_redis_user_timezone(user_id: int, timezone: str):
+    await redis.setex(f"user:timezone:{user_id}", CACHE_TIME, timezone)
 
 # Delete operations
 async def delete_redis_cached_login(user_id: int):
@@ -69,3 +86,11 @@ async def delete_redis_cached_profiles_list(user_id: int):
         print(f"Список профилей пользователя - {user_id} удален из Redis")
     else:
         print(f"Список профилей пользователя - {user_id} не найден в Redis")
+
+async def delete_redis_sending_timeout_ten_min(user_id: int):
+    key = f"user:timeout_check:{user_id}"
+    deleted = await redis.delete(key)
+    if deleted:
+        print(f"Пользователь найден и теперь может отправить запрос - {user_id}")
+    else:
+        print(f"Пользователь не найдет, ограничения на отправку нет - {user_id}")
