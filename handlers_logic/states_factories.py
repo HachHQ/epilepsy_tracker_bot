@@ -22,10 +22,6 @@ class TrustedPersonForm(StatesGroup):
     selected_profile = State()
     confirm_transfer = State()
 
-class UpdateSeizureAttribute(StatesGroup):
-    choose_attribute = State()
-    input_new_value = State()
-
 class MedicationCourse(StatesGroup):
     name_of_medication = State()
     dose = State()
