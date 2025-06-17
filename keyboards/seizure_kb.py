@@ -112,19 +112,19 @@ def get_duration_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
         duration_bd.row(*main_btns)
     return duration_bd.as_markup()
 
-def generate_features_keyboard(selected_features: list, current_page: int, page_size: int = 5, action_btns: bool = True):
+def generate_features_keyboard(features_list: list, selected_features: list, current_page: int, page_size: int = 5, action_btns: bool = True):
     current_page = int(current_page)
     page_size = int(page_size)
-    total_pages = (len(LEXICON_EPILEPSY_TRIGGERS) + page_size - 1) // page_size
+    total_pages = (len(features_list) + page_size - 1) // page_size
     start_index = current_page * page_size
     end_index = int(start_index) + page_size
-    features_on_page = LEXICON_EPILEPSY_TRIGGERS[start_index:end_index]
+    features_on_page = features_list[start_index:end_index]
     builder = InlineKeyboardBuilder()
     builder.adjust(1)
     for feature in features_on_page:
         emoji = "▫️" if feature in selected_features else "▪️"
         builder.row(InlineKeyboardButton(text=f"{emoji} {feature}", callback_data=f"toggle:{feature}:{current_page}"))
-    if len(LEXICON_EPILEPSY_TRIGGERS) > page_size:
+    if len(features_list) > page_size:
         nav_btns = []
         if current_page > 0:
             nav_btns.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page:{current_page-1}"))
