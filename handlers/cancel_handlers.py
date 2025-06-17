@@ -6,7 +6,7 @@ from aiogram.filters import Command, StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.redis_query import (
-    delete_redis_cached_login, delete_redis_cached_current_profile, delete_redis_cached_profiles_list
+    delete_redis_cached_login, delete_redis_cached_current_profile, delete_redis_cached_profiles_list, delete_redis_trusted_persons
 )
 from lexicon.lexicon import LEXICON_RU
 
@@ -37,4 +37,6 @@ async def test(message: Message, db: AsyncSession):
     await delete_redis_cached_profiles_list(message.chat.id)
     await delete_redis_cached_current_profile(message.chat.id)
     await delete_redis_cached_login(message.chat.id)
+    await delete_redis_cached_profiles_list(message.chat.id)
+    await delete_redis_trusted_persons(message.chat.id)
     await message.answer(f"Success")
