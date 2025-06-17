@@ -1,11 +1,11 @@
 import math
-from sqlalchemy import select, update, delete, asc, desc, cast, Date
+from sqlalchemy import select, update, delete, asc, desc, cast, Date, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased, selectinload
 from datetime import datetime
 
 from database.models import (User, Profile, RequestStatus, TrustedPersonProfiles,
-                              TrustedPersonRequest, Seizure)
+                              TrustedPersonRequest, Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger)
 
 #Get user/profile data operations
 async def orm_get_user(session: AsyncSession, chat_id: int):
@@ -74,6 +74,64 @@ async def orm_get_seizures_by_profile_descending(session: AsyncSession, current_
     seizures_result = await session.execute(query)
     return seizures_result.scalars().all()
 
+async def get_seizures_with_details(session: AsyncSession, profile_id: int):
+    result = await session.execute(
+        select(Seizure)
+        .where(Seizure.profile_id == profile_id)
+        .options(
+            selectinload(Seizure.symptoms).joinedload(SeizureSymptom.symptom),
+            selectinload(Seizure.triggers).joinedload(SeizureTrigger.trigger)
+        )
+    )
+    seizures = result.scalars().all()
+
+    seizure_data = []
+    for seizure in seizures:
+        symptoms = [ss.symptom.symptom_name for ss in seizure.symptoms if ss.symptom]
+        triggers = [st.trigger.trigger_name for st in seizure.triggers if st.trigger]
+
+        seizure_data.append({
+            "id": seizure.id,
+            "date": seizure.date,
+            "time": seizure.time,
+            "severity": seizure.severity,
+            "duration": seizure.duration,
+            "comment": seizure.comment,
+            "count": seizure.count,
+            "type_of_seizure": seizure.type_of_seizure,
+            "location": seizure.location,
+            "video_tg_id": seizure.video_tg_id,
+            "created_at": seizure.created_at,
+            "updated_at": seizure.updated_at,
+            "symptoms": symptoms,
+            "triggers": triggers,
+        })
+
+    return seizure_data
+
+async def orm_get_average_duration(session: AsyncSession, current_profile_id: int):
+    query = (
+        select(func.avg(Seizure.duration))
+        .where(
+            Seizure.profile_id == int(current_profile_id),
+            Seizure.duration.is_not(None)
+        )
+    )
+    result = await session.execute(query)
+    avg_duration = result.scalar()
+    return avg_duration
+
+async def orm_get_seizures_with_duration(session: AsyncSession, current_profile_id: int):
+    query = (
+        select(Seizure)
+        .where(
+            (Seizure.profile_id == int(current_profile_id)),
+            (Seizure.duration.is_not(None))
+        )
+    )
+    seizure_with_duration = await session.execute(query)
+    return seizure_with_duration.scalars().all()
+
 async def orm_get_seizure_info(session: AsyncSession, seizure_id: int, current_profile_id: int):
     query = (
         select(Seizure)
@@ -107,6 +165,14 @@ async def orm_delete_seizure(session: AsyncSession, seizure_id: int, current_pro
     deleted_count = del_res.rowcount
     return deleted_count > 0
 
+async def orm_get_profile_info(session: AsyncSession, profile_id: int) -> bool:
+    query = (
+        select(Profile)
+        .where(Profile.id == int(profile_id))
+    )
+    res = await session.execute(query)
+    profile = res.scalars().first()
+    return profile if profile is not None else None
 
 #Trusted person operations
 async def orm_get_can_trusted_person_read(
@@ -127,6 +193,17 @@ async def orm_get_can_trusted_person_read(
     tr_person = result.scalars().first()
     return tr_person.can_read
 
+async def orm_delete_tursted_person(session: AsyncSession, tpp_id: int):
+    query = (
+        delete(TrustedPersonProfiles)
+        .where(
+            TrustedPersonProfiles.id == int(tpp_id)
+        )
+    )
+    del_res = await session.execute(query)
+    deleted_count = del_res.rowcount
+    return deleted_count > 0
+
 async def orm_get_can_trusted_person_edit(
         session: AsyncSession,
         trusted_person_id: int,
@@ -145,20 +222,16 @@ async def orm_get_can_trusted_person_edit(
     tr_person = result.scalars().first()
     return tr_person.can_edit
 
-async def orm_switch_trusted_profile_read_edit_state(
+async def orm_switch_trusted_profile_notify_edit_state(
         session: AsyncSession,
-        trusted_person_id: int,
-        profile_owner_id: int,
-        profile_id: int,
+        tpp_id: int,
+        getting_notify: bool = False,
         switch_edit: bool = False,
-        switch_read: bool = False
     ):
     query = (
         select(TrustedPersonProfiles)
         .where(
-            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
-            (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
-            (TrustedPersonProfiles.profile_id == int(profile_id))
+            TrustedPersonProfiles.id == int(tpp_id)
         )
     )
     if switch_edit:
@@ -171,17 +244,18 @@ async def orm_switch_trusted_profile_read_edit_state(
             tr_person.can_edit = False
         elif not tr_person.can_edit:
             tr_person.can_edit = True
-    if switch_read:
+        return tr_person
+    if getting_notify:
         result = await session.execute(query)
         tr_person = result.scalars().first()
         if tr_person is None:
             return None
 
-        if tr_person.can_read:
-            tr_person.can_read = False
-        elif not tr_person.can_read:
-            tr_person.can_read = True
-    return
+        if tr_person.get_notification:
+            tr_person.get_notification = False
+        elif not tr_person.get_notification:
+            tr_person.get_notification = True
+        return tr_person
 
 async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: int):
     query = (
@@ -194,9 +268,33 @@ async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: in
     profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
     return profiles
 
+async def orm_get_trusted_users_with_full_info(session: AsyncSession, chat_id: int):
+    owner_alias = aliased(User)
+    query = (
+        select(User, TrustedPersonProfiles, Profile, owner_alias)
+        .join(TrustedPersonProfiles, User.id == TrustedPersonProfiles.trusted_person_user_id)
+        .join(owner_alias, TrustedPersonProfiles.profile_owner_id == owner_alias.id)
+        .join(Profile, TrustedPersonProfiles.profile_id == Profile.id)
+        .where(owner_alias.telegram_id == chat_id)
+    )
+    result = await session.execute(query)
+    trusted_data = []
+    for trusted_user, trusted_profile, profile, owner in result.all():
+        trusted_data.append({
+            'trusted_user': trusted_user.to_dict(),
+            'profile_owner': owner.to_dict(),
+            'profile': profile.to_dict(),
+            'permissions': {
+                'id': trusted_profile.id,
+                #'can_read': trusted_profile.can_read,
+                'can_edit': trusted_profile.can_edit,
+                'created_at': trusted_profile.created_at,
+                'get_notification': trusted_profile.get_notification
+            }
+        })
 
+    return trusted_data
 
-# Create profile
 async def orm_create_profile(
         session: AsyncSession,
         user_id,
@@ -226,6 +324,106 @@ async def orm_set_current_profile(session: AsyncSession, user_id: int, profile_i
     res = await session.execute(query)
     user = res.scalars().first()
     user.current_profile = int(profile_id)
+
+async def get_seizures_with_details(session: AsyncSession, profile_id: int):
+    result = await session.execute(
+        select(Seizure)
+        .where(Seizure.profile_id == profile_id)
+        .options(
+            selectinload(Seizure.symptoms).joinedload(SeizureSymptom.symptom),
+            selectinload(Seizure.triggers).joinedload(SeizureTrigger.trigger)
+        )
+    )
+    seizures = result.scalars().all()
+
+    seizure_data = []
+    for seizure in seizures:
+        symptoms = [ss.symptom.symptom_name for ss in seizure.symptoms if ss.symptom]
+        triggers = [st.trigger.trigger_name for st in seizure.triggers if st.trigger]
+
+        seizure_data.append({
+            "id": seizure.id,
+            "date": seizure.date,
+            "time": seizure.time,
+            "severity": seizure.severity,
+            "duration": seizure.duration,
+            "comment": seizure.comment,
+            "count": seizure.count,
+            "type_of_seizure": seizure.type_of_seizure,
+            "location": seizure.location,
+            "video_tg_id": seizure.video_tg_id,
+            "created_at": seizure.created_at,
+            "updated_at": seizure.updated_at,
+            "symptoms": symptoms,
+            "triggers": triggers,
+        })
+
+    return seizure_data
+
+async def create_seizure(
+        session: AsyncSession,
+        profile_id,
+        date,
+        time,
+        severity,
+        duration,
+        comment,
+        count,
+        video_tg_id,
+        trigger_names,
+        symptom_names,
+        location,
+        creator_login
+    ):
+    new_seizure = Seizure(
+        profile_id = profile_id,
+        date = date,
+        time = time if time else None,
+        severity = severity if severity else None,
+        duration = int(duration) if duration else None,
+        comment = comment if comment else None,
+        count = int(count) if count else None,
+        video_tg_id = video_tg_id if video_tg_id else None,
+        location = location if location else None,
+        creator_login = creator_login
+    )
+    session.add(new_seizure)
+    await session.flush()
+    symptom_ids = []
+    if symptom_names is not None:
+        for name in symptom_names:
+            symptom = await session.scalar(
+                select(Symptom).where(
+                    Symptom.symptom_name == name,
+                    (Symptom.profile_id == None) | (Symptom.profile_id == profile_id)
+                )
+            )
+            if not symptom:
+                symptom = Symptom(symptom_name=name, profile_id=profile_id)
+                session.add(symptom)
+                await session.flush()
+            symptom_ids.append(symptom.id)
+    trigger_ids = []
+    if trigger_names is not None:
+        for name in trigger_names:
+            trigger = await session.scalar(
+                select(Trigger).where(
+                    Trigger.trigger_name == name,
+                    (Trigger.profile_id == None) | (Trigger.profile_id == profile_id)
+                )
+            )
+            if not trigger:
+                trigger = Trigger(trigger_name=name.lower().capitalize(), profile_id=profile_id)
+                session.add(trigger)
+                await session.flush()
+            trigger_ids.append(trigger.id)
+    if len(symptom_ids) > 0:
+        for sid in symptom_ids:
+            session.add(SeizureSymptom(seizure_id=new_seizure.id, symptom_id=sid))
+    if len(trigger_ids) > 0:
+        for tid in trigger_ids:
+            session.add(SeizureTrigger(seizure_id=new_seizure.id, trigger_id=tid))
+
 
 async def orm_add_new_seizure(
         session: AsyncSession,
@@ -276,3 +474,44 @@ async def orm_update_seizure(session: AsyncSession, seizure_id: int, current_pro
     else:
         raise ValueError(f"Атрибут '{attribute}' не существует в модели Seizure.")
     return sz
+
+
+#GET SYMPTOMS AND TRIGGERS FROM DB
+async def orm_get_global_symptoms(session: AsyncSession):
+    global_symptoms = await session.execute(
+        select(Symptom.symptom_name)
+        .where(Symptom.profile_id.is_(None))
+    )
+    global_symptoms = [symptom.symptom_name for symptom in global_symptoms.all()]
+    return global_symptoms
+async def orm_get_global_triggers(session: AsyncSession):
+    try:
+        result = await session.execute(
+            select(Trigger.trigger_name)
+            .where(Trigger.profile_id.is_(None))
+        )
+        global_triggers = [row.trigger_name for row in result.fetchall()]
+        return global_triggers
+    except Exception as e:
+        print(f"Database error: {e}")
+        return []
+
+async def orm_get_symptoms_by_profile(session: AsyncSession, profile_id: int):
+    profile_symptoms = await session.execute(
+        select(Symptom.name)
+        .where(Symptom.profile_id == profile_id)
+    )
+    profile_symptoms = [symptom.symptom_name for symptom in profile_symptoms.all()]
+    return profile_symptoms if profile_symptoms else None
+async def orm_get_triggers_by_profile(session: AsyncSession, profile_id: int):
+    result = await session.execute(
+        select(Trigger.name)
+        .where(Trigger.profile_id == profile_id)
+    )
+    rows = result.fetchall()
+    if not rows:
+        print("No triggers found")
+        return None
+    profile_triggers = [trigger.trigger_name for trigger in result.fetchall()]
+    print(profile_triggers)
+    return profile_triggers if profile_triggers else None
