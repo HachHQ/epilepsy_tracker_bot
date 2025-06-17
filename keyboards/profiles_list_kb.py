@@ -46,6 +46,8 @@ def get_profile_submenu_kb() -> InlineKeyboardMarkup:
     builder.button(text="👤 Редактирование профиля", callback_data="prof_edit")
     builder.button(text="⚙️ Панель управления ДЛ", callback_data="trusted_person_control_panel")
     builder.button(text="🔗 Добавить ДЛ",callback_data="add_trusted")
+    builder.button(text="📥 Импорт данных",callback_data="import_data")
+    builder.button(text="📤 Экспорт данных",callback_data="export_data")
     builder.button(text="↩️ Назад", callback_data="to_menu_edit")
     builder.adjust(1)
     return builder.as_markup()
