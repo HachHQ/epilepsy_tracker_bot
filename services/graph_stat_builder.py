@@ -12,11 +12,12 @@ from matplotlib.ticker import MaxNLocator
 
 Path("temp_images").mkdir(exist_ok=True)
 
-from services.note_format import get_minutes_and_seconds
+from services.notes_formatters import get_minutes_and_seconds
 from database.orm_query import (
     orm_get_seizures_by_profile_ascending,
     orm_get_seizures_by_profile_descending,
     orm_get_seizures_for_a_specific_period,
+    orm_get_seizures_with_duration,
 )
 from services.redis_cache_data import (
     get_cached_current_profile,
@@ -129,6 +130,7 @@ async def get_total_seizure_count(session: AsyncSession, message: Message):
     if current_profile is None:
         return await message.answer("Выберите профиль.")
     seizures_data = await orm_get_seizures_by_profile_ascending(session, int(current_profile.split('|')[0]))
+    print(seizures_data)
     if len(seizures_data) == 0 or len(seizures_data) < 2:
         return None
     return len(seizures_data)
@@ -149,13 +151,14 @@ async def get_avg_duration_of_seizure(session: AsyncSession, message: Message) -
     current_profile = await get_cached_current_profile(session, message.chat.id)
     if current_profile is None:
         return await message.answer("Выберите профиль.")
+    szrs_data = await orm_get_seizures_with_duration(session, int(current_profile.split('|')[0]))
     seizures_data = await orm_get_seizures_by_profile_ascending(session, int(current_profile.split('|')[0]))
     if len(seizures_data) == 0 or len(seizures_data) < 2:
         return None
     seizures_with_duration = 0
     total_duration_in_sec = 0
     for seizure in seizures_data:
-        if seizure.duration:
+        if seizure.duration is not None:
             seizures_with_duration += 1
             total_duration_in_sec += seizure.duration
     if seizures_with_duration == 0:
@@ -180,14 +183,11 @@ async def get_avg_duration_of_seizure_in_a_week(session: AsyncSession, message: 
     current_profile = await get_cached_current_profile(session, message.chat.id)
     local_date = await get_user_local_datetime(session, message.chat.id)
     start_of_week = local_date - timedelta(days=(local_date.isoweekday() - 1))
-    print("Понедельник", start_of_week.year, start_of_week.month, start_of_week.day)
-    print(local_date)
     if current_profile is None:
         return await message.answer("Выберите профиль.")
     seizures_data = await orm_get_seizures_for_a_specific_period(session, int(current_profile.split('|')[0]), start_of_week.year, start_of_week.month, start_of_week.day)
     if len(seizures_data) < 2:
         return 0
-    print("Приступов за неделю", len(seizures_data))
     seizures_with_duration = 0
     total_duration_in_sec = 0
     for seizure in seizures_data:
@@ -229,5 +229,4 @@ async def get_avg_days_without_seizures(session: AsyncSession, message: Message)
         (date_obj[i + 1] - date_obj[i]).days
         for i in range(len(date_obj) - 1)
     )
-
     return total_sum_days // len(date_obj)
