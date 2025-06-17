@@ -55,3 +55,6 @@ def validate_less_than_250(triggers: str) -> bool:
 
 def validate_timezone(timezone: str):
     return True if (timezone[0] == "+" or timezone[0] == "-") and (timezone[1:].isdecimal()) and (len(timezone) < 4) and (int(timezone[1:]) <= 14) else False
+
+def validate_codeword(code_word: str):
+    return True if 8 <= len(code_word) <= 25 else False
