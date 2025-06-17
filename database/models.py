@@ -2,13 +2,14 @@ import enum
 import uuid
 from sqlalchemy import ( Column, Integer, BigInteger, Index,
                         String, Enum, ForeignKey, Table,
-                        DateTime, Boolean)
+                        DateTime, Boolean, Time, UniqueConstraint, PrimaryKeyConstraint,
+                        Date
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql import text
 
 from database.db_init import Base
-from datetime import datetime, timedelta, timezone
 
 class RequestStatus(enum.Enum):
     PENDING = "pending"
@@ -27,10 +28,25 @@ class User(Base):
     login = Column(String(25), nullable=False, unique=True)
     timezone = Column(String(3))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    keyword_hash = Column(String(60))
     current_profile = Column(Integer, default=None, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
 
     profiles = relationship("Profile", back_populates="user")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'telegram_id': self.telegram_id,
+            'telegram_username': self.telegram_username,
+            'telegram_fullname': self.telegram_fullname,
+            'name': self.name,
+            'login': self.login,
+            'timezone': self.timezone,
+            'created_at': self.created_at,
+            'current_profile': self.current_profile,
+            'updated_at': self.updated_at
+        }
 
 class Profile(Base):
     __tablename__ = 'profiles'
@@ -76,11 +92,37 @@ class Seizure(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     creator_login = Column(String(25), nullable=False)
     #type_of_seizure = Column(String(30), nullable=True)
-    #postical_duration = Column(Integer(), nullable=True)
-    #postical_symptoms = Column(String(250), nullable=True)
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
+
+class SeizureSymptom(Base):
+    __tablename__ = 'seizure_symptoms'
+    seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
+    symptom_id = Column(Integer, ForeignKey("symptoms.id", ondelete="CASCADE"))
+    __table_args__ = (
+        PrimaryKeyConstraint('seizure_id', 'symptom_id'),
+    )
+class SeizureTrigger(Base):
+    __tablename__ = 'seizure_triggers'
+    seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
+    trigger_id = Column(Integer, ForeignKey("triggers.id", ondelete="CASCADE"))
+    __table_args__ = (
+        PrimaryKeyConstraint('seizure_id', 'trigger_id'),
+    )
+class Symptom(Base):
+    __tablename__ = 'symptoms'
+    id = Column(Integer, primary_key=True)
+    symptom_name = Column(String(100), nullable=False)
+    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    __table_args__ = (UniqueConstraint('symptom_name', 'profile_id', name='uix_symptom_name_profile'),)
+class Trigger(Base):
+    __tablename__ = 'triggers'
+    id = Column(Integer, primary_key=True)
+    trigger_name = Column(String(100), nullable=False)
+    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    __table_args__ = (UniqueConstraint('trigger_name', 'profile_id', name='uix_trigger_name_profile'),)
+
 
 class TrustedPersonProfiles(Base):
     __tablename__ = "trusted_person_profiles"
@@ -89,10 +131,20 @@ class TrustedPersonProfiles(Base):
     trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     profile_owner_id = Column(Integer, ForeignKey("users.id"))
     profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
-    can_read = Column(Boolean, nullable=False, default=True)
     can_edit = Column(Boolean, nullable=False, default=True)
-    #receives notification = Column(Boolean, nullable=False, default=True)
+    get_notification = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trusted_person_user_id': self.trusted_person_user_id,
+            'profile_owner_id': self.profile_owner_id,
+            'profile_id': self.profile_id,
+            #'can_read': self.can_read,
+            'can_edit': self.can_edit,
+            'get_notification': self.get_notification,
+            'created_at': self.created_at
+        }
 
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
@@ -105,28 +157,27 @@ class TrustedPersonRequest(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
 
-'''
 class UserNotifications(Base):
     __tablename__ = 'user_notifications'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, unique=True)
-    notification_time_hour = Column(Integer, nullable=False, default=9)  # 0-23
-    notification_time_minute = Column(Integer, nullable=False, default=0)  # 0, 15, 30, 45
-    pattern = Column(String(20), nullable=False, default="daily")  # daily, every_2_days, every_3_days
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    notify_time = Column(Time, nullable=False)
+    pattern = Column(String(20), nullable=False, default="daily")
     is_enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-'''
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    __table_args__ = (
+        UniqueConstraint('user_id', 'notify_time', name='uix_user_notify_time'),
+    )
 
-'''
 class MedicationCourse(Base):
     __tablename__ = 'medication_courses'
 
     id = Column(Integer, primary_key=True)
     profile_id = Column(Integer, ForeignKey('profiles.id', ondelete='CASCADE'), nullable=False)
 
-    raw_entry_name = Column(String(100))
+    medication_name = Column(String(100))
     dosage = Column(String(50))
     frequency = Column(String(30))
     notes = Column(String(200))
@@ -136,4 +187,3 @@ class MedicationCourse(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    '''
