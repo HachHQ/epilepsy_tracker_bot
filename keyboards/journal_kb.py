@@ -13,7 +13,8 @@ def get_journal_nav_kb():
     builder.adjust(1)
     return builder.as_markup()
 
-def get_nav_btns_of_list_of_seizures(seizures_count, notes_on_page: int, current_page: int):
+def get_nav_btns_for_list(seizures_count, notes_on_page: int, current_page: int, prefix: str):
+    current_page = int(current_page)
     if notes_on_page <=0:
         return
     total_pages = (seizures_count + notes_on_page - 1) // notes_on_page
@@ -24,14 +25,14 @@ def get_nav_btns_of_list_of_seizures(seizures_count, notes_on_page: int, current
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="⬅️ Назад",
-                    callback_data=f"journal_page:{current_page - 1}"
+                    callback_data=f"{prefix}:{current_page - 1}"
                 )
             )
         if current_page < total_pages - 1:
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="Вперед ➡️",
-                    callback_data=f"journal_page:{current_page + 1}"
+                    callback_data=f"{prefix}:{current_page + 1}"
                 )
             )
         if nav_buttons:
@@ -49,15 +50,6 @@ def get_delete_edit_kb(seizure_id):
     builder.adjust(2)
     return builder.as_markup()
 
-
-def get_journal_kb() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    choose_from_year = InlineKeyboardButton(text="Выбрать год", callback_data="choose_year")
-    get_graph = InlineKeyboardButton(text="Выбрать график", callback_data="choose_graph")
-    last_5 = InlineKeyboardButton(text="Последние 5", callback_data="choose_last_5")
-    last_10 = InlineKeyboardButton(text="Последние 10", callback_data="choose_last_10")
-    last_20 = InlineKeyboardButton(text="Последние 20", callback_data="choose_last_20")
-    #last_30 = InlineKeyboardButton(text="Последние 30", callback_data="choose_last_30")
 
 def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarkup:
     years_journal_bd = InlineKeyboardBuilder()
@@ -81,4 +73,10 @@ def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -
     kb_builder.adjust(columns)
     back_btn = InlineKeyboardButton(text="Назад", callback_data="back")
     kb_builder.row(back_btn)
+    return kb_builder.as_markup()
+
+def get_delete_seizure_note_kb(seizure_id: int):
+    kb_builder = InlineKeyboardBuilder()
+    kb_builder.button(text="Да", callback_data=f"delete_seizure_note:yes:{seizure_id}")
+    kb_builder.button(text="Нет", callback_data=f"delete_seizure_note:no")
     return kb_builder.as_markup()
