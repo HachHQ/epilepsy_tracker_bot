@@ -10,7 +10,7 @@ from datetime import datetime
 from database.orm_query import (
     orm_get_user
 )
-from services.note_format import get_minutes_and_seconds
+from services.notes_formatters import get_minutes_and_seconds
 from services.validators import (
     validate_non_neg_N_num, validate_less_than_250, validate_date,
     validate_time,
@@ -28,7 +28,7 @@ from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
 async def handle_skip_step(message: Message, state: FSMContext):
     current_state = await state.get_state()
     if (current_state is None) or (str(current_state).split(':', 1)[0] != "SeizureForm"):
-        return await message.answer("Начните заполнение заново wtf")
+        return await message.answer("Начните заполнение заново.")
     if str(current_state).split(':', 1)[0] == "SeizureForm":
         await state.set_state(SeizureForm.next_state(current_state))
         if current_state == "SeizureForm:hour":
@@ -244,8 +244,13 @@ async def handle_time_of_date_message(message: Message, state: FSMContext, db: A
         print(message.text)
         await state.set_state(SeizureForm.duration)
         await message.answer(
-            "Если в рамках одного приступа была серия приступов, выберите их количество",
-            reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
+            f"Введите примерную продолжительность в минутах: ",
+            reply_markup=get_duration_kb(action_btns=action_btns_flag)
+        )
+        # await state.set_state(SeizureForm.duration)
+        # await message.answer(
+        #     "Если в рамках одного приступа была серия приступов, выберите их количество",
+        #     reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
     else:
         await message.answer(
             "<u>Время приступа должно быть в формате ЧАСЫ:МИНУТЫ\nНапример: 23:29</u>",
@@ -407,7 +412,13 @@ async def handle_triggers_by_message(message: Message, state: FSMContext, db: As
     if validate_less_than_250(message.text):
         data = await state.get_data()
         triggers_list = data.get('selected_triggers')
-        triggers = ", ".join(triggers_list) + ", " + message.text
+        print(f'triggers list - {triggers_list}')
+        triggers = ''
+        if len(triggers_list) == 0:
+            triggers = message.text
+        else:
+            triggers = ", ".join(triggers_list) + ", " + message.text
+
         mode = data.get("mode", "create")
         if mode == 'edit':
             seizure_id = data["seizure_id"]
