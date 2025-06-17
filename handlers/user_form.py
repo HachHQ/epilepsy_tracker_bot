@@ -1,9 +1,10 @@
 import pytz
+import hashlib
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import StateFilter
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -12,9 +13,10 @@ from timezonefinder import TimezoneFinder
 from handlers_logic.states_factories import UserForm
 from database.models import User
 from database.redis_query import set_redis_cached_login
-from lexicon.lexicon import LEXICON_COMMANDS, LEXICON_RU
-from services.validators import validate_login_of_user_form, validate_name_of_user_form, validate_timezone
+from lexicon.lexicon import LEXICON_RU
+from services.validators import validate_login_of_user_form, validate_name_of_user_form, validate_timezone, validate_codeword
 from services.redis_cache_data import get_cached_login
+from services.keyword_hasher import KeywordHasher
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import get_timezone_kb, get_geolocation_for_timezone_kb
 
@@ -58,8 +60,16 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
         await state.update_data(timezone=f"{int(utc_offset_hours):+}")
         data = await state.get_data()
         await message.answer(f"Часовой пояс определен: {int(utc_offset_hours):+}", reply_markup=ReplyKeyboardRemove())
-        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
-        await state.set_state(UserForm.login)
+        await message.answer(
+                (
+                    f"Ввведите ключевое слово, с помощью которого, в дальшейшем мы сможем идентифицировать вас, "
+                    f"в случае если вы потеряете доступ к телефону/телеграмму.\n\n"
+                    f"Ключевое слово может быть любым, содержать любые буквы/цифры/знаки. Иметь длину от 8 до 25 символов.\n\n"
+                    f"Запомните его или запишите!"
+                ),
+            reply_markup=get_cancel_kb()
+            )
+        await state.set_state(UserForm.codeword)
     else:
         await message.answer("Часовой пояс не найден, воспользуйтесь клавиатурой или вводом.")
 
@@ -71,10 +81,17 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext):
     await state.update_data(timezone=callback.data.split('_')[1])
     await callback.message.answer(f"Часовой пояс определен: {callback.data.split('_')[1]}",
                                     reply_markup=ReplyKeyboardRemove())
-    await callback.message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
-    await state.set_state(UserForm.login)
+    await callback.message.answer(
+            (
+                f"Ввведите ключевое слово, с помощью которого, в дальшейшем мы сможем идентифицировать вас, "
+                f"в случае если вы потеряете доступ к телефону/телеграмму.\n\n"
+                f"Ключевое слово может быть любым, содержать любые буквы/цифры/знаки. Иметь длину от 8 до 25 символов.\n\n"
+                f"Запомните его или запишите! После ввода сообщение удалится."
+            ),
+        reply_markup=get_cancel_kb()
+        )
+    await state.set_state(UserForm.code_word)
     await callback.answer()
-
 
 @user_form_router.message(StateFilter(UserForm.timezone))
 async def process_timezone_by_msg(message: Message, state: FSMContext):
@@ -82,11 +99,32 @@ async def process_timezone_by_msg(message: Message, state: FSMContext):
     if validate_timezone(timezone):
         await state.update_data(timezone=timezone)
         await message.answer(f"Часовой пояс определен: {timezone}", reply_markup=ReplyKeyboardRemove())
-        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
-        await state.set_state(UserForm.login)
+        await message.answer(
+            (
+                f"Ввведите ключевое слово, с помощью которого, в дальшейшем мы сможем идентифицировать вас, "
+                f"в случае если вы потеряете доступ к телефону/телеграмму.\n\n"
+                f"Ключевое слово может быть любым, содержать любые буквы/цифры/знаки. Иметь длину от 8 до 25 символов.\n\n"
+                f"Запомните его или запишите! После ввода сообщение удалится."
+            ),
+        reply_markup=get_cancel_kb()
+        )
+        await state.set_state(UserForm.code_word)
     else:
         await message.answer("Часовой пояс должен иметь формат - +7 или +3", reply_markup=get_cancel_kb())
 
+@user_form_router.message(StateFilter(UserForm.code_word))
+async def process_codeword(message: Message, state: FSMContext):
+    code_word = message.text
+    if validate_codeword(code_word):
+        hasher = KeywordHasher()
+        hashed_codeword = hasher.hash_keyword(code_word)
+        await state.update_data(codeword=hashed_codeword)
+        print(hashed_codeword)
+        await state.set_state(UserForm.login)
+        await message.answer(LEXICON_RU['enter_login'], reply_markup=get_cancel_kb())
+
+    else:
+        await message.answer(f"Ключевое слово может быть любым, содержать любые буквы/цифры/знаки. Иметь длину от 8 до 25 символов.\n\nЗапомните его или запишите!", reply_markup=get_cancel_kb())
 
 @user_form_router.message(StateFilter(UserForm.login))
 async def process_login(message: Message, state: FSMContext, db: AsyncSession):
@@ -98,10 +136,8 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
         try:
             result = await db.execute(select(User).filter(User.login == data["login"]))
             existing_login = result.scalars().first()
-
             result = await db.execute(select(User).filter(User.telegram_id == message.chat.id))
             existing_tgid = result.scalars().first()
-
             if existing_tgid:
                 await message.answer(LEXICON_RU['user_exist'])
                 await state.clear()
@@ -109,7 +145,6 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             if existing_login:
                 await message.answer(LEXICON_RU['login_exist'], reply_markup=get_cancel_kb())
                 return
-
             new_user = User(
                 telegram_id=message.chat.id,
                 telegram_username=message.from_user.username,
@@ -117,16 +152,13 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
                 name=data["name"],
                 login=data["login"],
                 timezone=data["timezone"],
+                keyword_hash = data['codeword'],
                 created_at=datetime.now(timezone.utc)
             )
-
             print(f"Создается пользователь: {new_user}")
             db.add(new_user)
-
             await set_redis_cached_login(user_id=message.chat.id, login=data["login"])
-
             await db.commit()
-
             next_to_profile_form_kb_bd = InlineKeyboardBuilder()
             next_to_profile_form_kb_bd.button(
                 text=LEXICON_RU['yes'], callback_data="to_filling_profile_form"
@@ -134,7 +166,6 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
             next_to_profile_form_kb_bd.button(
                 text=LEXICON_RU['no'], callback_data="to_menu"
             )
-
             await message.answer(
                 "Анкета заполнена!\nИмя: "
                 f"<b>{data['name']}</b>\nЛогин: <b>{data['login']}</b>\n\n"
@@ -152,5 +183,4 @@ async def process_login(message: Message, state: FSMContext, db: AsyncSession):
     else:
         await message.answer(LEXICON_RU['incorrect_login'], reply_markup=get_cancel_kb())
         return
-
     await state.clear()
