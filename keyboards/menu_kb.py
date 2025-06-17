@@ -16,7 +16,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     profiles_btn = InlineKeyboardButton(text="👤 Выбрать профиль", callback_data="choose_profile")
     control_profiles = InlineKeyboardButton(text="⚙️ Управление",callback_data="control_profiles")
     notification_btn = InlineKeyboardButton(text="🔔 Уведомления", callback_data="set_notifications")
-    import_btn = InlineKeyboardButton(text="🗄️ Импортировать", callback_data="import_log")
+    import_btn = InlineKeyboardButton(text="💊 Медицина", callback_data="medication")
     kb_builder.row(panic_btn)
     kb_builder.row(fix_btn)
     kb_builder.row(profiles_btn, notification_btn)

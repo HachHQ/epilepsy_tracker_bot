@@ -7,10 +7,16 @@ from datetime import datetime
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import SeizureForm
 from handlers_logic.seizure_form_logic import ask_for_a_year
-from database.orm_query import orm_get_seizures_by_profile_descending, orm_get_seizure_info, orm_delete_seizure
-from services.redis_cache_data import get_cached_current_profile, get_cached_login
-from services.note_format import get_formatted_seizure_info, get_minutes_and_seconds
-from keyboards.journal_kb import get_nav_btns_of_list_of_seizures, get_journal_nav_kb
+from database.orm_query import (
+    orm_get_seizures_by_profile_descending, orm_get_seizure_info, orm_delete_seizure,
+
+)
+from services.redis_cache_data import (
+    get_cached_current_profile, get_cached_login, get_cached_triggers_list,
+    get_cached_profile_triggers_list,
+)
+from services.notes_formatters import get_formatted_seizure_info, get_minutes_and_seconds
+from keyboards.journal_kb import get_nav_btns_for_list, get_journal_nav_kb, get_delete_seizure_note_kb
 from keyboards.seizure_kb import (
     get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
     generate_features_keyboard, get_duration_kb
@@ -71,7 +77,7 @@ async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: A
         return
     text = f"Зафиксированные приступы для профиля <u>{current_profile_id.split('|', 1)[1]}</u>\n\n"
     text += display_seizure_notes(seizures, 0, login)
-    await callback.message.answer(f"{text}", parse_mode='HTML', reply_markup=get_nav_btns_of_list_of_seizures(len(seizures), NOTES_PER_PAGE, 0))
+    await callback.message.answer(f"{text}", parse_mode='HTML', reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, 0, 'journal_page'))
     await callback.answer()
 
 @journal_router.callback_query(F.data.startswith('journal_page'))
@@ -83,7 +89,7 @@ async def process_pagination_of__seizures_list(callback: CallbackQuery, state: F
     seizures = await orm_get_seizures_by_profile_descending(db, int(current_profile_id.split('|', 1)[0]))
     text = f"Зафиксированные приступы для профиля <u>{current_profile_id.split('|', 1)[1]}</u>\n\n"
     text += display_seizure_notes(seizures, int(page), login)
-    await callback.message.edit_text(text, reply_markup=get_nav_btns_of_list_of_seizures(len(seizures), NOTES_PER_PAGE, int(page)), parse_mode='HTML')
+    await callback.message.edit_text(text, reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, int(page), 'journal_page'), parse_mode='HTML')
 
 
 @journal_router.message(F.text.startswith('/show'))
@@ -164,7 +170,10 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
         await state.set_state(SeizureForm.count)
     elif action == "triggers":
         await state.update_data(selected_triggers=[], current_page=0)
-        await message.answer("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=False))
+        global_triggers = await get_cached_triggers_list(db, message.chat.id)
+        profiles_triggers = await get_cached_profile_triggers_list(db, message.chat.id, int(current_profile.split('|', 1)[0]))
+        print(profiles_triggers + global_triggers)
+        await message.answer("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5, action_btns=False))
         await state.set_state(SeizureForm.triggers)
     elif action == "severity":
         await message.answer("Выберите степень тяжести:", reply_markup=get_severity_kb(action_btns=False))
@@ -193,8 +202,22 @@ async def delete_seizure(message: Message, state: FSMContext, db: AsyncSession, 
     if current_profile is None:
         await message.answer("Выберите профиль.")
         return
-    res = await orm_delete_seizure(db, seizure_id, int(current_profile.split('|', 1)[0]))
-    if res:
-        await message.answer("Запись успешно удалена.")
+    await message.answer("Вы действительно хотите удалить запись?", reply_markup=get_delete_seizure_note_kb(int(seizure_id)))
+
+
+@journal_router.callback_query(F.data.startswith("delete_seizure_note"))
+async def process_delete_seizure_note(callback: CallbackQuery, db: AsyncSession):
+    _, answer, seizure_id = callback.data.split(':', 2)
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    if current_profile is None:
+        await callback.message.answer("Выберите профиль.")
+        return
+    if answer == 'yes':
+        res = await orm_delete_seizure(db, int(seizure_id), int(current_profile.split('|', 1)[0]))
+        if res:
+            await callback.message.edit_text("Запись успешно удалена.")
+        else:
+            await callback.message.edit_text("Нет такой записи.")
     else:
-        await message.answer("Нет такой записи.")
+        await callback.message.edit_text("Удаление отменено.")
+    await callback.answer()
