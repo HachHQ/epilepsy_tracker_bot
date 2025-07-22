@@ -18,7 +18,7 @@ from services.redis_cache_data import (
 from services.notes_formatters import get_formatted_seizure_info, get_minutes_and_seconds
 from keyboards.journal_kb import get_nav_btns_for_list, get_journal_nav_kb, get_delete_seizure_note_kb
 from keyboards.seizure_kb import (
-    get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
+    generate_seizure_type_keyboard, get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
     generate_features_keyboard, get_duration_kb
 )
 from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
@@ -59,7 +59,7 @@ def display_seizure_notes(seizures, current_page, login):
 
 @journal_router.callback_query(F.data == "seizure_data")
 async def process_journal_handler(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    await callback.message.edit_text("Выберите, что просмотреть: журнал, графики или статистику", reply_markup=get_journal_nav_kb())
+    await callback.message.edit_text("Выберите действие:\n- Журнал приступов\n- Cтатистика\n- Графики, визуализация данных", reply_markup=get_journal_nav_kb())
 
 @journal_router.callback_query(F.data == "journal", ProfileIsSetCb())
 async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
@@ -120,12 +120,13 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
         symptoms = seizure.symptoms,
         video_tg_id = seizure.video_tg_id,
         location = seizure.location,
+        type_of_seizure=seizure.type_of_seizure,
         seizure_id = seizure.id,
         bot = bot,
         message = message
     )
 
-@journal_router.message(F.text.startswith('/edit'))
+@journal_router.message(F.text.startswith('/sjedit'))
 async def show_edit_options(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
     await state.clear()
     seizure_id = int(message.text.split('_', 1)[1])
@@ -147,6 +148,7 @@ async def show_edit_options(message: Message, state: FSMContext, db: AsyncSessio
         symptoms = seizure.symptoms,
         video_tg_id = seizure.video_tg_id,
         location = seizure.location,
+        type_of_seizure=seizure.type_of_seizure,
         edit_mode=True,
         bot = bot,
         message = message
@@ -158,6 +160,7 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
     await state.clear()
     _, action, seizure_id = message.text.split('_', 2)
     current_profile = await get_cached_current_profile(db, message.chat.id)
+
     await state.update_data(mode="edit", seizure_id=int(seizure_id), profile_id=int(current_profile.split('|', 1)[0]))
     if action == "date":
         await ask_for_a_year(message, state)
@@ -168,11 +171,14 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
     elif action == "count":
         await message.answer("Выберите количество приступов: ", reply_markup=get_count_of_seizures_kb(action_btns=False))
         await state.set_state(SeizureForm.count)
+    elif action == 'type':
+        await state.set_state(SeizureForm.type_of_seizure)
+        keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6, action_btns=False)
+        await message.answer("Выберите тип приступа:", reply_markup=keyboard)
     elif action == "triggers":
         await state.update_data(selected_triggers=[], current_page=0)
         global_triggers = await get_cached_triggers_list(db, message.chat.id)
         profiles_triggers = await get_cached_profile_triggers_list(db, message.chat.id, int(current_profile.split('|', 1)[0]))
-        print(profiles_triggers + global_triggers)
         await message.answer("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5, action_btns=False))
         await state.set_state(SeizureForm.triggers)
     elif action == "severity":
@@ -193,6 +199,8 @@ async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: Asyn
     elif action == "location":
         await message.answer("Напишите, где случился приступ или пришлите вашу геолокацию, нажав на кнопку под строкой ввода: ", reply_markup=get_geolocation_for_timezone_kb())
         await state.set_state(SeizureForm.location)
+    else:
+        await message.answer('Нет такой команды.')
 
 
 @journal_router.message(F.text.startswith('/delete'))

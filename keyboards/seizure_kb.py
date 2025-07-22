@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
 from services.redis_cache_data import get_user_local_datetime
-from lexicon.lexicon import LEXICON_EPILEPSY_TRIGGERS
+from lexicon.lexicon import LEXICON_EPILEPSY_TRIGGERS, LEXICON_TYPES_OF_SEIZURE
 cancel_seizure_menu_btn = InlineKeyboardButton(text="❌", callback_data="cancel_fsm_script")
 confirm_seizure_data_btn = InlineKeyboardButton(text="✅", callback_data="check_input_seizure_data")
 skip_btn = InlineKeyboardButton(text="⏩", callback_data="skip_step")
@@ -28,7 +28,6 @@ def get_temporary_cancel_submit_kb(action_btns: bool = True) -> InlineKeyboardMa
         return builder.as_markup()
     else:
         pass
-
 
 def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1, action_btns: bool = True):
     current_datetime = datetime.now(timezone.utc)
@@ -57,7 +56,6 @@ def get_month_date_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     if action_btns:
         month_kb_bd.row(cancel_seizure_menu_btn)
     return month_kb_bd.as_markup()
-
 
 def get_day_kb(year: int, month: int, action_btns: bool = True) -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
@@ -139,6 +137,38 @@ def generate_features_keyboard(features_list: list, selected_features: list, cur
         builder.row(InlineKeyboardButton(text="☑️ Готово", callback_data=f"done:{current_page}"))
     return builder.as_markup()
 
+def generate_seizure_type_keyboard(current_page: int, page_size: int = 5, action_btns: bool = True) -> InlineKeyboardMarkup:
+    current_page = int(current_page)
+    page_size = int(page_size)
+    builder = InlineKeyboardBuilder()
+    total_items = list(LEXICON_TYPES_OF_SEIZURE.items())
+    total_pages = (len(total_items) + page_size - 1) // page_size
+    start_index = current_page * page_size
+    end_index = start_index + page_size
+    features_on_page = total_items[start_index:end_index]
+    for index, label in features_on_page:
+        builder.button(
+            text=label,
+            callback_data=f"seizure_type:{index}"
+        )
+    builder.adjust(1)
+    nav_buttons = []
+    if current_page > 0:
+        nav_buttons.append(InlineKeyboardButton(
+            text="⬅️ Назад",
+            callback_data=f"seizure_type_page:{current_page - 1}"
+        ))
+    if current_page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(
+            text="Вперед ➡️",
+            callback_data=f"seizure_type_page:{current_page + 1}"
+        ))
+    if nav_buttons:
+        builder.row(*nav_buttons)
+    if action_btns:
+        builder.row(*main_btns)
+    return builder.as_markup()
+
 def get_count_of_seizures_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for i in range(1, 11):
@@ -161,3 +191,12 @@ def get_stop_duration_kb():
     builder.button(text="🔴 Стоп", callback_data="stop_track_duration")
     builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
     return builder.as_markup()
+
+def build_statistics_navigation_keyboard(current_page: str = "stats") -> InlineKeyboardBuilder:
+    kb = InlineKeyboardBuilder()
+    if current_page != "stats":
+        kb.button(text="📊 Статистика", callback_data="stats_edit")
+    if current_page != "features":
+        kb.button(text="🧾 Частые признаки", callback_data="view:features")
+    kb.adjust(1)
+    return kb.as_markup()

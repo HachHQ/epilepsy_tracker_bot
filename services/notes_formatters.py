@@ -39,10 +39,10 @@ async def get_formatted_seizure_info(
 
     action_lines = (
         f"\n_______________________________________"
-        f"\n\n✍️ Редактировать запись: /edit_{seizure_id}\n\n"
+        f"\n\n✍️ Редактировать запись: /sjedit_{seizure_id}\n\n"
         f"🗑️ Удалить запись: /delete_{seizure_id}"
     )
-    #suus = f" {'/update_date_' + {seizure_id} + '\n\n' if edit_mode else ""}"
+    #suus = f" {'/update_date_' + {seizure_id} + '\n\n' if sjedit_mode else ""}"
     note = (
         f"Данные о приступе для профиля {current_profile}:\n\n"
 
@@ -56,7 +56,7 @@ async def get_formatted_seizure_info(
         f"🧮 Количество: {count if count else "Не введено"}" +
         f"{' /update_count_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
 
-        f"⚡ Тип припадка: {type_of_seizure + '\n' if type_of_seizure else 'Не введено'}" +
+        f"⚡ Тип припадка: {type_of_seizure if type_of_seizure else 'Не введено'}" +
         f"{' /update_type_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
 
         f"💥 Триггеры: {triggers if triggers else "Не введено"}" +

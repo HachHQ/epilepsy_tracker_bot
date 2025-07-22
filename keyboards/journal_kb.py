@@ -13,6 +13,16 @@ def get_journal_nav_kb():
     builder.adjust(1)
     return builder.as_markup()
 
+def get_graphs_type():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📊 Продолжительность", callback_data="duration_graphs")
+    builder.button(text="📊 Частота", callback_data="frequency_graphs")
+    builder.button(text="📊 Эффективность лекарств", callback_data="efficiency_graphs")
+    builder.button(text="↩️ Назад", callback_data="seizure_data")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def get_nav_btns_for_list(seizures_count, notes_on_page: int, current_page: int, prefix: str):
     current_page = int(current_page)
     if notes_on_page <=0:

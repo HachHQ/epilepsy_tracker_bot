@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.redis_query import delete_redis_profile_triggers_list
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import SeizureForm
 from handlers_logic.seizure_form_logic import (
@@ -14,12 +15,13 @@ from handlers_logic.seizure_form_logic import (
     handle_time_by_btns, handle_month_of_date, handle_count_by_message, handle_count_of_seizures,
     handle_toggle_trigger, handle_triggers_page, handle_save_toggled_triggers,
     handle_triggers_by_message, handle_seizre_right_now, handle_stop_tracking_duration,
-    handle_duration_by_cb, handle_geolocation, handle_video, handle_location_by_message
+    handle_duration_by_cb, handle_geolocation, handle_video, handle_location_by_message,
+    handle_type_of_seizure_page, handle_type_of_seizure_save
 )
-from database.orm_query import orm_add_new_seizure
+from database.orm_query import orm_add_new_seizure, create_seizure
 from keyboards.seizure_kb import get_seizure_timing
 from services.redis_cache_data import get_cached_current_profile, get_cached_login
-from services.note_format import get_formatted_seizure_info, get_minutes_and_seconds
+from services.notes_formatters import get_formatted_seizure_info, get_minutes_and_seconds
 seizures_router = Router()
 
 def get_seizure_info_dict(seizure_data: dict):
@@ -47,7 +49,7 @@ def get_seizure_info_dict(seizure_data: dict):
 
 @seizures_router.callback_query(F.data == "skip_step")
 async def process_skip_step(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    await handle_skip_step(callback.message, state)
+    await handle_skip_step(callback.message, state, db)
     await callback.answer()
 
 @seizures_router.callback_query(F.data ==  "fix_seizure")
@@ -62,7 +64,7 @@ async def process_right_now_or_passed(callback: CallbackQuery, state: FSMContext
     await callback.message.edit_text(text, reply_markup=get_seizure_timing())
 
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
-async def process_display_of_input_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
+async def process_save_and_display_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
     seizure_data = await state.get_data()
     login = await get_cached_login(db, callback.message.chat.id)
     if not seizure_data:
@@ -76,8 +78,9 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         date = f"{seizure_data.get('year', 'Не заполнено')}-{seizure_data.get('month', 'Не заполнено')}-{seizure_data.get('day', 'Не заполнено')}"
 
     time_of_day = seizure_data.get('time_of_day', None)
-    list_of_triggers = seizure_data.get('selected_triggers', None)
+    list_of_triggers = seizure_data.get('selected_triggers', [])
     count = seizure_data.get('count', None)
+    type_of_seizure = seizure_data.get('type_of_seizure', None)
     triggers = seizure_data.get('triggers', None)
     severity = seizure_data.get('severity', None)
     duration = seizure_data.get('duration', None)
@@ -86,29 +89,31 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
     video_tg_id = seizure_data.get('video_tg_id', None)
     location = seizure_data.get('location', None)
     location_by_message = seizure_data.get('location_by_message', None)
-
+    print(type_of_seizure)
     if current_profile == None:
         await callback.message.answer("Выберите профиль в основном меню.")
-    if list_of_triggers and triggers == None:
-        triggers = ", ".join(list_of_triggers)
-
+    if triggers is not None:
+        triggers = triggers.split(',')
+        for i in range(0, len(triggers)):
+            list_of_triggers.append(triggers[i].strip())
     await get_formatted_seizure_info(
         seizure_id = 0,
         current_profile = current_profile.split('|', 1)[1],
         date = date,
         time = time_of_day,
         count = count,
-        triggers = triggers,
+        triggers = ", ".join(list_of_triggers),
         severity = severity,
         duration = get_minutes_and_seconds(duration),
         comment = comment,
         symptoms = symptoms,
+        type_of_seizure=type_of_seizure,
         video_tg_id = video_tg_id,
         location = f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
         bot = bot,
         message = callback.message
     )
-    await orm_add_new_seizure(
+    await create_seizure(
         db,
         int(current_profile.split("|")[0]),
         date,
@@ -118,11 +123,28 @@ async def process_display_of_input_seizure_data(callback: CallbackQuery, state: 
         comment,
         count,
         video_tg_id,
-        triggers,
-        f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
+        list_of_triggers,
         symptoms,
-        creator_login = login
+        f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
+        login,
+        type_of_seizure
     )
+    await delete_redis_profile_triggers_list(callback.message.chat.id, int(current_profile.split("|")[0]))
+    # await orm_add_new_seizure(
+    #     db,
+    #     int(current_profile.split("|")[0]),
+    #     date,
+    #     time_of_day,
+    #     severity,
+    #     duration,
+    #     comment,
+    #     count,
+    #     video_tg_id,
+    #     triggers,
+    #     f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
+    #     symptoms,
+    #     creator_login = login
+    # )
     await callback.answer()
     await state.clear()
 
@@ -177,6 +199,14 @@ async def process_time_by_btns(callback: CallbackQuery, state: FSMContext, db: A
 @seizures_router.callback_query(F.data.startswith('count_of_seizures'), StateFilter(SeizureForm.count))
 async def process_count_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await handle_count_of_seizures(callback, state, db)
+
+@seizures_router.callback_query(F.data.startswith('seizure_type_page'), StateFilter(SeizureForm.type_of_seizure))
+async def process_type_of_seizure_page(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    await handle_type_of_seizure_page(callback, state, db)
+
+@seizures_router.callback_query(F.data.startswith('seizure_type'), StateFilter(SeizureForm.type_of_seizure))
+async def process_type_of_seizure_page(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    await handle_type_of_seizure_save(callback, state, db)
 
 @seizures_router.message(StateFilter(SeizureForm.count))
 async def process_count_message(message: Message, state: FSMContext, db: AsyncSession):

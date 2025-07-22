@@ -376,29 +376,27 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Time, select
 from sqlalchemy.orm import sessionmaker
 from database.db_init import SessionLocal
 from functools import partial
-
 from database.models import User, UserNotifications
+from keyboards.notification_kb import get_confirm_of_notification_message
 
-# === Очередь и обработка уведомлений ===
 from asyncio import Queue
 
 notification_queue = Queue()
 
 async def throttled_worker(bot: Bot):
-    """Обработка очереди отправки с контролем частоты"""
     while True:
         chat_id, text = await notification_queue.get()
         try:
+
             if not text:
                 raise ValueError("Пустой текст сообщения")
-            await bot.send_message(chat_id=chat_id, text=text)
+            await bot.send_message(chat_id=chat_id, text=text, reply_markup=get_confirm_of_notification_message())
         except Exception as e:
             print(f"[Ошибка] chat_id={chat_id}: {e}")
-        await asyncio.sleep(0.05)  # ~20 сообщений/секунда
+        await asyncio.sleep(0.05)
         notification_queue.task_done()
 
 async def start_workers(bot: Bot, n=5):
-    """Запустить воркеры очереди"""
     for _ in range(n):
         asyncio.create_task(throttled_worker(bot))
 
@@ -420,36 +418,29 @@ def get_nearest_slot(dt: datetime) -> datetime:
     return dt.replace(minute=slot_minute, second=0, microsecond=0)
 
 def convert_utc_to_user_time(utc_dt: datetime, tz_offset_str: str) -> datetime:
-    """Преобразует UTC во время пользователя"""
     try:
         offset = int(tz_offset_str)
         return utc_dt + timedelta(hours=offset)
     except ValueError:
         return utc_dt
 
-# === Обработка слота уведомлений ===
-
 async def process_slot_notifications(slot_time_utc: datetime):
-    """Обрабатывает текущий UTC-слот и планирует отправки"""
     async with SessionLocal() as session:
         result = await session.execute(select(User))
         users = result.scalars().all()
-
         for user in users:
             user_time = convert_utc_to_user_time(slot_time_utc, user.timezone)
             slot_time = get_nearest_slot(user_time).time()
-
             notif_query = select(UserNotifications).where(
                 UserNotifications.user_id == user.id,
-                UserNotifications.notify_time == slot_time
+                UserNotifications.notify_time == slot_time,
+                UserNotifications.is_enabled == True
             )
             result = await session.execute(notif_query)
             notifications = result.scalars().all()
-
             for notif in notifications:
-                await notification_queue.put((user.telegram_id, f"🔔 Напоминание: {notif.pattern}"))
+                await notification_queue.put((user.telegram_id, f"🔔 Напоминание: {notif.note}"))
 
-# === Планирование слотов APScheduler ===
 
 scheduler = AsyncIOScheduler()
 

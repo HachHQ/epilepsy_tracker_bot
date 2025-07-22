@@ -1,10 +1,13 @@
+from contextlib import AsyncContextDecorator
+from hmac import new
 import math
-from sqlalchemy import select, update, delete, asc, desc, cast, Date, func
+from re import L
+from sqlalchemy import select, update, delete, asc, desc, cast, Date, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, aliased, selectinload
-from datetime import datetime
+from datetime import datetime, date
 
-from database.models import (User, Profile, RequestStatus, TrustedPersonProfiles,
+from database.models import (MedicationCourse, User, Profile, RequestStatus, TrustedPersonProfiles, UserNotifications,
                               TrustedPersonRequest, Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger)
 
 #Get user/profile data operations
@@ -53,7 +56,6 @@ async def orm_get_user_own_profiles_list(session: AsyncSession, chat_id: int):
     profiles_result = await session.execute(query)
     profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
     return profiles
-
 
 #Get seizures data
 async def orm_get_seizures_by_profile_ascending(session: AsyncSession, current_profile_id: int):
@@ -156,6 +158,25 @@ async def orm_get_seizures_for_a_specific_period(session: AsyncSession,  curr_pr
     records = result.scalars().all()
     return records
 
+async def orm_get_seizures_for_a_specific_year(
+    session: AsyncSession,
+    curr_prof: int,
+    year: int
+):
+    start_date = date(year, 1, 1)
+    end_date = date(year + 1, 1, 1)
+
+    query = (
+        select(Seizure)
+        .where(
+            Seizure.profile_id == curr_prof,
+            cast(Seizure.date, Date) >= start_date,
+            cast(Seizure.date, Date) < end_date
+        )
+    )
+    result = await session.execute(query)
+    return result.scalars().all()
+
 async def orm_delete_seizure(session: AsyncSession, seizure_id: int, current_profile_id: int) -> bool:
     query = (
         delete(Seizure)
@@ -165,16 +186,7 @@ async def orm_delete_seizure(session: AsyncSession, seizure_id: int, current_pro
     deleted_count = del_res.rowcount
     return deleted_count > 0
 
-async def orm_get_profile_info(session: AsyncSession, profile_id: int) -> bool:
-    query = (
-        select(Profile)
-        .where(Profile.id == int(profile_id))
-    )
-    res = await session.execute(query)
-    profile = res.scalars().first()
-    return profile if profile is not None else None
-
-#Trusted person operations
+#TRUSTED PERSON FUNCS
 async def orm_get_can_trusted_person_read(
         session: AsyncSession,
         trusted_person_id: int,
@@ -360,6 +372,62 @@ async def get_seizures_with_details(session: AsyncSession, profile_id: int):
 
     return seizure_data
 
+async def get_top_seizure_features(session: AsyncSession, profile_id: int) -> dict:
+    symptom_query = (
+        select(Symptom.symptom_name, func.count(Symptom.id))
+        .join(SeizureSymptom, Symptom.id == SeizureSymptom.symptom_id)
+        .join(Seizure, Seizure.id == SeizureSymptom.seizure_id)
+        .where(Symptom.profile_id == profile_id)
+        .group_by(Symptom.symptom_name)
+        .order_by(desc(func.count(Symptom.id)))
+        .limit(5)
+    )
+    symptoms_result = await session.execute(symptom_query)
+    top_symptoms = [{"name": name, "count": count} for name, count in symptoms_result.all()]
+    trigger_query = (
+        select(Trigger.trigger_name, func.count(Trigger.id))
+        .join(SeizureTrigger, Trigger.id == SeizureTrigger.trigger_id)
+        .join(Seizure, Seizure.id == SeizureTrigger.seizure_id)
+        .where(Trigger.profile_id == profile_id)
+        .group_by(Trigger.trigger_name)
+        .order_by(desc(func.count(Trigger.id)))
+        .limit(5)
+    )
+    triggers_result = await session.execute(trigger_query)
+    top_triggers = [{"name": name, "count": count} for name, count in triggers_result.all()]
+    type_query = (
+        select(Seizure.type_of_seizure, func.count(Seizure.id))
+        .where(Seizure.profile_id == profile_id)
+        .where(Seizure.type_of_seizure.isnot(None))
+        .group_by(Seizure.type_of_seizure)
+        .order_by(desc(func.count(Seizure.id)))
+        .limit(5)
+    )
+    types_result = await session.execute(type_query)
+    top_types = [{"name": name, "count": count} for name, count in types_result.all()]
+    return {
+        "top_symptoms": top_symptoms,
+        "top_triggers": top_triggers,
+        "top_types": top_types
+    }
+
+async def get_avg_duration_by_month(session: AsyncSession, profile_id: int, year: int):
+    query = (
+        select(
+            extract('month', func.to_date(Seizure.date, 'YYYY-MM-DD')).label("month"),
+            func.avg(Seizure.duration).label("avg_duration")
+        )
+        .where(
+            Seizure.profile_id == profile_id,
+            func.extract('year', func.to_date(Seizure.date, 'YYYY-MM-DD')) == year,
+            Seizure.duration.isnot(None)
+        )
+        .group_by("month")
+        .order_by("month")
+    )
+    result = await session.execute(query)
+    return result.all()  # [(1, 24.3), (2, 18.9), ...]
+
 async def create_seizure(
         session: AsyncSession,
         profile_id,
@@ -373,7 +441,8 @@ async def create_seizure(
         trigger_names,
         symptom_names,
         location,
-        creator_login
+        creator_login,
+        type_of_seizure
     ):
     new_seizure = Seizure(
         profile_id = profile_id,
@@ -385,7 +454,8 @@ async def create_seizure(
         count = int(count) if count else None,
         video_tg_id = video_tg_id if video_tg_id else None,
         location = location if location else None,
-        creator_login = creator_login
+        creator_login = creator_login,
+        type_of_seizure = type_of_seizure if type_of_seizure else None
     )
     session.add(new_seizure)
     await session.flush()
@@ -423,7 +493,6 @@ async def create_seizure(
     if len(trigger_ids) > 0:
         for tid in trigger_ids:
             session.add(SeizureTrigger(seizure_id=new_seizure.id, trigger_id=tid))
-
 
 async def orm_add_new_seizure(
         session: AsyncSession,
@@ -475,8 +544,195 @@ async def orm_update_seizure(session: AsyncSession, seizure_id: int, current_pro
         raise ValueError(f"Атрибут '{attribute}' не существует в модели Seizure.")
     return sz
 
+#PROFILE
+async def orm_get_profile_info(session: AsyncSession, profile_id: int) -> bool:
+    query = (
+        select(Profile)
+        .where(Profile.id == int(profile_id))
+    )
+    res = await session.execute(query)
+    profile = res.scalars().first()
+    return profile if profile is not None else None
 
-#GET SYMPTOMS AND TRIGGERS FROM DB
+async def orm_update_profile_settings(session: AsyncSession, profile_id: int, attribute: str, new_value):
+    query = (
+        select(Profile)
+        .where(
+            (Profile.id == int(profile_id))
+        )
+    )
+    res = await session.execute(query)
+    prof = res.scalars().first()
+    if not prof:
+        return None
+    if hasattr(prof, attribute):
+        setattr(prof, attribute, new_value)
+    else:
+        raise ValueError(f"Атрибут '{attribute}' не существует в модели Profile.")
+    return prof
+
+async def orm_delete_profile(session: AsyncSession, profile_id: int):
+    query = (
+        delete(Profile)
+        .where(
+            (Profile.id == int(profile_id)),
+        )
+    )
+    print('зашли1')
+    del_res = await session.execute(query)
+    print('зашли2')
+    deleted_count = del_res.rowcount
+    return deleted_count > 0
+
+#MEDICATIONS
+async def orm_get_profile_medications_list(session: AsyncSession, current_profile_id: int):
+    res = await session.execute(
+        select(MedicationCourse)
+        .where(
+            MedicationCourse.profile_id == int(current_profile_id)
+        )
+    )
+    med_courses = res.scalars().all()
+    if len(med_courses) == 0:
+        return None
+    return med_courses
+
+async def orm_delete_profile_medication(session: AsyncSession, current_profile_id: int, medication_id: int):
+    query = (
+        delete(MedicationCourse)
+        .where(
+            (MedicationCourse.id == int(medication_id)),
+            (MedicationCourse.profile_id == int(current_profile_id))
+        )
+    )
+    del_res = await session.execute(query)
+    deleted_count = del_res.rowcount
+    return deleted_count > 0
+
+async def orm_get_profile_medication_by_id(session: AsyncSession, current_profile_id: int, medication_id: int):
+    query = (
+        select(MedicationCourse)
+        .where(
+            (MedicationCourse.profile_id == int(current_profile_id)),
+            (MedicationCourse.id == int(medication_id))
+        )
+    )
+    res = await session.execute(query)
+    mdc = res.scalars().first()
+    if mdc is None:
+        return None
+    return mdc
+
+async def orm_update_medication_attribute(session: AsyncSession, current_profile_id: int, medication_id: int, attribute: str, new_value):
+    query = (
+        select(MedicationCourse)
+        .where(
+            (MedicationCourse.profile_id == int(current_profile_id)),
+            (MedicationCourse.id == int(medication_id))
+        )
+    )
+    res = await session.execute(query)
+    mdc = res.scalars().first()
+    if not mdc:
+        return None
+    if hasattr(mdc, attribute):
+        setattr(mdc, attribute, new_value)
+    else:
+        raise ValueError(f"Атрибут '{attribute}' не существует в модели MedicationCourse.")
+    return mdc
+
+async def orm_create_medication_course(session: AsyncSession, *args):
+    start_date = None
+    end_date = None
+    if args[5]:
+        try:
+            start_date = datetime.strptime(args[5], '%Y-%m-%d').date()
+        except ValueError as e:
+            print(f"Ошибка преобразования start_date: {e}")
+    if args[6]:
+        try:
+            end_date = datetime.strptime(args[6], '%Y-%m-%d').date()
+        except ValueError as e:
+            print(f"Ошибка преобразования end_date: {e}")
+    new_medication_course = MedicationCourse(
+        profile_id = args[0],
+        medication_name = args[1],
+        dosage = args[2],
+        frequency = args[3],
+        notes = args[4],
+        start_date = start_date,
+        end_date = end_date,
+    )
+    session.add(new_medication_course)
+
+#NOTIFICATIONS
+async def orm_create_new_notification(session: AsyncSession, *args):
+    print(args[1])
+    new_notification = UserNotifications(
+        user_id = int(args[0]),
+        notify_time = args[1],
+        note = args[2],
+        pattern = args[3]
+    )
+    session.add(new_notification)
+
+async def orm_get_all_user_notifications(session: AsyncSession, user_id_db: int):
+    res = await session.execute(
+        select(UserNotifications)
+        .where(
+            UserNotifications.user_id == int(user_id_db)
+        )
+    )
+    user_notifys = res.scalars().all()
+    if len(user_notifys) == 0:
+        return None
+    return user_notifys
+
+async def orm_get_notification_by_id(session: AsyncSession, user_id_db: int, notification_id: int):
+    query = (
+        select(UserNotifications)
+        .where(
+            (UserNotifications.user_id == int(user_id_db)),
+            (UserNotifications.id == int(notification_id))
+        )
+    )
+    res = await session.execute(query)
+    notify = res.scalars().first()
+    if notify is None:
+        return None
+    return notify
+
+async def orm_update_notification_settings(session: AsyncSession, user_id_db: int, notification_id: int, attribute: str, new_value):
+    query = (
+        select(UserNotifications)
+        .where(
+            (UserNotifications.user_id == int(user_id_db)),
+            (UserNotifications.id == int(notification_id))
+        )
+    )
+    res = await session.execute(query)
+    nt = res.scalars().first()
+    if not nt:
+        return None
+    if hasattr(nt, attribute):
+        setattr(nt, attribute, new_value)
+    else:
+        raise ValueError(f"Атрибут '{attribute}' не существует в модели UserNotifications.")
+    return nt
+
+async def orm_delete_notification(session: AsyncSession, user_id_db: int, notification_id: int):
+    query = (
+        delete(UserNotifications)
+        .where(
+            (UserNotifications.id == int(notification_id)),
+            (UserNotifications.user_id == int(user_id_db))
+        )
+    )
+    del_res = await session.execute(query)
+    deleted_count = del_res.rowcount
+    return deleted_count > 0
+
+#SYMPTOMS AND TRIGGERS
 async def orm_get_global_symptoms(session: AsyncSession):
     global_symptoms = await session.execute(
         select(Symptom.symptom_name)
@@ -484,6 +740,7 @@ async def orm_get_global_symptoms(session: AsyncSession):
     )
     global_symptoms = [symptom.symptom_name for symptom in global_symptoms.all()]
     return global_symptoms
+
 async def orm_get_global_triggers(session: AsyncSession):
     try:
         result = await session.execute(
@@ -498,20 +755,20 @@ async def orm_get_global_triggers(session: AsyncSession):
 
 async def orm_get_symptoms_by_profile(session: AsyncSession, profile_id: int):
     profile_symptoms = await session.execute(
-        select(Symptom.name)
+        select(Symptom.symptom_name)
         .where(Symptom.profile_id == profile_id)
     )
     profile_symptoms = [symptom.symptom_name for symptom in profile_symptoms.all()]
     return profile_symptoms if profile_symptoms else None
-async def orm_get_triggers_by_profile(session: AsyncSession, profile_id: int):
-    result = await session.execute(
-        select(Trigger.name)
-        .where(Trigger.profile_id == profile_id)
-    )
-    rows = result.fetchall()
-    if not rows:
-        print("No triggers found")
-        return None
-    profile_triggers = [trigger.trigger_name for trigger in result.fetchall()]
-    print(profile_triggers)
-    return profile_triggers if profile_triggers else None
+
+async def orm_get_triggers_by_profile(session: AsyncSession, profile_id: int) -> list[str]:
+    try:
+        result = await session.execute(
+            select(Trigger.trigger_name)
+            .where(Trigger.profile_id == int(profile_id))
+        )
+        profile_triggers = [row.trigger_name.capitalize() for row in result.fetchall()]
+        return profile_triggers
+    except Exception as e:
+        print(f"Database error: {e}")
+        return []

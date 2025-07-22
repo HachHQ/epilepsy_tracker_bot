@@ -1,14 +1,17 @@
 import uuid
+import os
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime, timezone
+from aiogram.types.document import Document as AiogramDocument
+from uuid import uuid4
 
 from filters.correct_commands import UserOwnProfilesListExist
-from handlers_logic.states_factories import TrustedPersonForm
+from handlers_logic.states_factories import GetExcelTableForm, TrustedPersonForm
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from database.redis_query import (
     set_redis_cached_profiles_list, set_redis_sending_timeout_ten_min, get_redis_sending_timeout_ten_min,
@@ -19,8 +22,9 @@ from database.orm_query import (
     orm_switch_trusted_profile_notify_edit_state, orm_delete_tursted_person
     )
 from lexicon.lexicon import LEXICON_RU
-from services.redis_cache_data import get_cached_profiles_list, get_cached_login, get_cached_trusted_persons_agrigated_data
-from services.notification_queue import NotificationQueue
+from services.redis_cache_data import get_cached_current_profile, get_cached_profiles_list, get_cached_login, get_cached_trusted_persons_agrigated_data
+from services.notification_queue import NotificationQueue, TrustedContactRequest
+from services.to_excel import export_seizures_to_excel, generate_excel_template, import_seizures_from_xlsx
 from services.validators import validate_login_of_user_form
 from services.hmac_encrypt import unpack_callback_data
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
@@ -146,11 +150,11 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         )
 
         print(f"Новый запрос добавлен: {new_request}")
-        await notification_queue.send_trusted_contact_request(chat_id=recipient.telegram_id,
+        await notification_queue.enqueue(TrustedContactRequest(chat_id=recipient.telegram_id,
                                               request_uuid=short_uuid,
                                               sender_login=sender_login,
                                               sender_id=user.id,
-                                              transmitted_profile_id=int(data['transmitted_profile_id']),)
+                                              transmitted_profile_id=int(data['transmitted_profile_id'])))
         db.add(new_request)
         await callback.message.answer("Запрос отправлен и будет активен в течение десяти минут.")
         await set_redis_sending_timeout_ten_min(callback.message.chat.id, "can")
@@ -259,7 +263,7 @@ async def process_trusted_person_control_panel(callback: CallbackQuery, state: F
     await callback.answer()
 
 @control_panel_router.callback_query(F.data.startswith('trusted_person_control_panel'))
-async def process_pagination_of__seizures_list(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_pagination_of_trusted_persons_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     _, page = callback.data.split(':', 1)
     trusted_persons = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
@@ -295,15 +299,15 @@ async def process_showing_tp_detailed_info(message: Message, state: FSMContext, 
         f"Юзернейм в телеграме - {'@' + trusted_person_info['trusted_user']['telegram_username'] if trusted_person_info['trusted_user']['telegram_username'] is not None else "Неизвестно"}\n"
         f"Владеет профилем <b>{trusted_person_info['profile']['profile_name']}</b> с {str(trusted_person_info['permissions']['created_at'])[:10]}\n\n"
 
-        f"Редактирование/внесение данных о приступах: <b>{"✅ Да" if trusted_person_info['permissions']['can_edit'] else "❌ Нет"}</b> - "
-        f"/tpchangecanedit_{tpp_id}\n"
-        f"Получает экстренные уведомления: <b>{"✅ Да" if trusted_person_info['permissions']['get_notification'] else "❌ Нет"}</b> - "
-        f"/tpchangecanrecievenotify_{tpp_id}\n\n"
+        f"Редактирование/внесение данных о приступах: <b>\n{"✅ Да" if trusted_person_info['permissions']['can_edit'] else "❌ Нет"}</b> - "
+        f"/tpeditcned_{tpp_id}\n\n"
+        f"Получает экстренные уведомления: <b>\n{"✅ Да" if trusted_person_info['permissions']['get_notification'] else "❌ Нет"}</b> - "
+        f"/tpeditntfyprm_{tpp_id}\n\n"
         f"Удалить доверенное лицо - /tpdelete_{tpp_id}"
     )
     await message.answer(text, parse_mode='HTML')
 
-@control_panel_router.message(F.text.startswith("/tpchangecanedit"))
+@control_panel_router.message(F.text.startswith("/tpeditcned_"))
 async def process_change_editing_permission(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -332,7 +336,7 @@ async def process_commit_changing_editing_permission(callback: CallbackQuery, st
         await callback.message.edit_text("Изменения прав отменено.")
     await callback.answer()
 
-@control_panel_router.message(F.text.startswith("/tpchangecanrecievenotify"))
+@control_panel_router.message(F.text.startswith("/tpeditntfyprm"))
 async def process_change_getting_notification_permission(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -346,7 +350,7 @@ async def process_change_getting_notification_permission(message: Message, state
     trusted_person_info = find_trusted_record_by_id(trusted_persons, int(tpp_id))
     if trusted_person_info['permissions']['get_notification']:
         await message.answer(f"Вы хотите <b>запретить</b> пользователю {trusted_person_info['trusted_user']['login']} получать экстренные уведомления о приступах?", parse_mode='HTML', reply_markup=get_commiting_changing_notify_permission_kb(tpp_id))
-    elif not trusted_person_info['permissions']['can_edit']:
+    else:
         await message.answer(f"Вы хотите <b>разрешить</b> пользователю {trusted_person_info['trusted_user']['login']} получать экстренные уведомления о приступах?", parse_mode='HTML', reply_markup=get_commiting_changing_notify_permission_kb(tpp_id))
 
 @control_panel_router.callback_query(F.data.startswith("tpchangegettingnotify"))
@@ -387,3 +391,53 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
     else:
         await callback.message.edit_text("Удаление доверенного лица отменено.")
     await callback.answer()
+
+@control_panel_router.callback_query(F.data == 'export_data')
+async def process_export_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
+    prof = await get_cached_current_profile(db, callback.message.chat.id)
+    await export_seizures_to_excel(int(prof.split('|')[0]), db, bot, callback.message)
+    await callback.answer()
+
+@control_panel_router.callback_query(F.data == 'import_data')
+async def process_export_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
+    prof = await get_cached_current_profile(db, callback.message.chat.id)
+    await generate_excel_template(bot, callback.message)
+    await callback.message.answer("Скачайте таблицу, вставьте данные и пришлите ее обратно.")
+    await state.set_state(GetExcelTableForm.get_xlsx_file)
+    await callback.answer()
+
+@control_panel_router.message(F.document, StateFilter(GetExcelTableForm))
+async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMContext, bot: Bot):
+    if message.document.file_name.endswith('.xlsx'):
+        try:
+            prof = await get_cached_current_profile(db, message.chat.id)
+            login = await get_cached_login(db, message.chat.id)
+            file_id = str(uuid4())
+            file_path = f"import_temp/{file_id}.xlsx"
+            os.makedirs("import_temp", exist_ok=True)
+            document = message.document
+            file = await bot.get_file(document.file_id)
+            await bot.download_file(file.file_path, destination=file_path)
+            valid_count, failed_rows = await import_seizures_from_xlsx(file_path, db=db, profile_id=int(prof.split('|')[0]), bot=bot, message=message, login=login )
+            text = f"✅ Импорт завершён:\n\n✅ Успешных записей: {valid_count}\n❌ Ошибок: {len(failed_rows)}"
+            await message.answer(text)
+            if failed_rows:
+                import pandas as pd
+                df_failed = pd.DataFrame(failed_rows)
+                failed_file_path = f"import_temp/{file_id}_errors.xlsx"
+                df_failed.to_excel(failed_file_path, index=False)
+
+                await message.answer_document(
+                    document=FSInputFile(failed_file_path),
+                    caption="⚠️ Следующие строки не были импортированы из-за ошибок:"
+                )
+                os.remove(failed_file_path)
+
+        except Exception as e:
+            await message.answer(f"Произошла ошибка при обработке файла: {str(e)}")
+        finally:
+            await state.clear()
+            if os.path.exists(file_path):
+                os.remove(file_path)
+    else:
+        await message.answer("Требуется xlsx тип документа.")

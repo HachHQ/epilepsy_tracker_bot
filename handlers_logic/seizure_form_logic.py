@@ -10,7 +10,10 @@ from datetime import datetime
 from database.orm_query import (
     orm_get_user
 )
+from database.redis_query import get_redis_cached_current_profile
+from lexicon.lexicon import LEXICON_TYPES_OF_SEIZURE
 from services.notes_formatters import get_minutes_and_seconds
+from services.redis_cache_data import get_cached_current_profile, get_cached_profile_triggers_list, get_cached_triggers_list
 from services.validators import (
     validate_non_neg_N_num, validate_less_than_250, validate_date,
     validate_time,
@@ -18,14 +21,14 @@ from services.validators import (
 from database.orm_query import orm_update_seizure
 from handlers_logic.states_factories import SeizureForm
 from keyboards.seizure_kb import (
-    get_year_date_kb, get_month_date_kb, get_day_kb,
+    generate_seizure_type_keyboard, get_year_date_kb, get_month_date_kb, get_day_kb,
     get_severity_kb, get_temporary_cancel_submit_kb, generate_features_keyboard,
     get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb, get_stop_duration_kb, get_final_seizure_btns
 )
 from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
 
 
-async def handle_skip_step(message: Message, state: FSMContext):
+async def handle_skip_step(message: Message, state: FSMContext, db):
     current_state = await state.get_state()
     if (current_state is None) or (str(current_state).split(':', 1)[0] != "SeizureForm"):
         return await message.answer("Начните заполнение заново.")
@@ -36,7 +39,18 @@ async def handle_skip_step(message: Message, state: FSMContext):
         elif current_state == "SeizureForm:duration":
             await message.edit_text("Если в рамках одного припадка было несколько приступов, выберите их количество: ", reply_markup=get_count_of_seizures_kb())
         elif current_state == "SeizureForm:count":
-            await message.edit_text("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5))
+            keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
+            await message.answer("Выберите тип приступа:", reply_markup=keyboard)
+        elif current_state == 'SeizureForm:type_of_seizure':
+            print('ну и')
+            current_profile = await get_cached_current_profile(db, message.chat.id)
+            print('ну и2')
+            global_triggers = await get_cached_triggers_list(db, message.chat.id)
+            print('ну и3')
+            profiles_triggers = await get_cached_profile_triggers_list(db, message.chat.id, int(current_profile.split('|', 1)[0]))
+            print('ну и4')
+            print(profiles_triggers + global_triggers)
+            await message.edit_text("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5))
         elif current_state == "SeizureForm:triggers":
             await message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
         elif current_state == "SeizureForm:severity":
@@ -48,8 +62,6 @@ async def handle_skip_step(message: Message, state: FSMContext):
             await message.answer("Или пришлите вашу геолокацию (нажмите на кнопку под полем ввода): ", reply_markup=get_geolocation_for_timezone_kb())
         elif current_state == "SeizureForm:location":
             await message.answer("Все параметры заполнены, завершите или отмените заполнение: ", reply_markup=get_final_seizure_btns())
-
-
 
 async def get_action_btns_flag(state):
     data = await state.get_data()
@@ -331,13 +343,12 @@ async def handle_count_of_seizures(callback: CallbackQuery, state: FSMContext, d
         await state.clear()
         return
     await state.update_data(count=count_of_seizures)
-    await state.set_state(SeizureForm.triggers)
-    await state.update_data(selected_triggers=[], current_page=0)
-    await callback.message.edit_text("Введите возможные триггеры через запятую: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=action_btns_flag))
+    await state.set_state(SeizureForm.type_of_seizure)
+    keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
+    await callback.message.edit_text("Выберите тип приступа:", reply_markup=keyboard)
     await callback.answer()
 
 async def handle_count_by_message(message: Message, state: FSMContext, db: AsyncSession):
-    action_btns_flag = await get_action_btns_flag(state)
     if validate_non_neg_N_num(message.text):
         count = int(message.text)
         data = await state.get_data()
@@ -350,11 +361,48 @@ async def handle_count_by_message(message: Message, state: FSMContext, db: Async
             await state.clear()
             return
         await state.update_data(count=message.text)
-        await state.set_state(SeizureForm.triggers)
-        await state.update_data(selected_triggers=[], current_page=0)
-        await message.answer("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard([], 0, 5, action_btns=action_btns_flag))
+        await state.set_state(SeizureForm.type_of_seizure)
+        keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
+        await message.answer("Выберите тип приступа:", reply_markup=keyboard)
     else:
         await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 1 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
+
+async def handle_type_of_seizure_page(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    _, current_page = callback.data.split(':', 1)
+    print(current_page)
+    keyboard = generate_seizure_type_keyboard(current_page=current_page, page_size=6)
+    await callback.message.edit_reply_markup(reply_markup=keyboard)
+    await callback.answer()
+
+async def handle_type_of_seizure_save(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    action_btns_flag = await get_action_btns_flag(state)
+    type_of_seizure_id = callback.data.split(':', 1)[1]
+    data = await state.get_data()
+    mode = data.get("mode", "create")
+    if mode == 'edit':
+        seizure_id = data["seizure_id"]
+        profile_id = data["profile_id"]
+        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'type_of_seizure', LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
+        await callback.message.answer(f"Тип приступа обновлен: {LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)]}")
+        await state.clear()
+        return
+    print(type_of_seizure_id)
+    await state.update_data(type_of_seizure=LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
+
+    await state.set_state(SeizureForm.triggers)
+    await state.update_data(selected_triggers=[], current_page=0)
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
+    profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
+    print(profiles_triggers+global_triggers)
+    await callback.message.edit_text("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard(
+        profiles_triggers+global_triggers,
+        [],
+        0,
+        5,
+        action_btns=action_btns_flag)
+        )
+    await callback.answer()
 
 async def handle_toggle_trigger(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, feature, current_page = callback.data.split(':', 2)
@@ -365,9 +413,18 @@ async def handle_toggle_trigger(callback: CallbackQuery, state: FSMContext, db: 
         selected_triggers.remove(feature)
     else:
         selected_triggers.append(feature)
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
+    profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
     await state.update_data(selected_triggers=selected_triggers)
     await callback.message.edit_text('Выберите или введите возможные триггеры: ',
-        reply_markup=generate_features_keyboard(selected_triggers, current_page, 5, action_btns=action_btns_flag)
+        reply_markup=generate_features_keyboard(
+            profiles_triggers+global_triggers,
+            selected_triggers,
+            current_page,
+            5,
+            action_btns=action_btns_flag
+            )
     )
     await callback.answer()
 
@@ -375,12 +432,19 @@ async def handle_triggers_page(callback: CallbackQuery, state: FSMContext, db: A
     data = await state.get_data()
     action_btns_flag = await get_action_btns_flag(state)
     selected_triggers = data.get("selected_triggers", [])
-    print(callback.data)
     new_page = callback.data.split(':', 1)[1]
-
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
+    profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
     await state.update_data(current_page=new_page)
     await callback.message.edit_text('Выберите или введите возможные триггеры: ',
-        reply_markup=generate_features_keyboard(selected_triggers, int(new_page), 5, action_btns=action_btns_flag)
+        reply_markup=generate_features_keyboard(
+            features_list=profiles_triggers + global_triggers,
+            selected_features=selected_triggers,
+            current_page=int(new_page),
+            page_size=5,
+            action_btns=action_btns_flag
+            )
     )
     await callback.answer()
 

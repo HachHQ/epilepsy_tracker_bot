@@ -51,7 +51,7 @@ async def get_redis_global_symptoms_list(user_id: int):
 async def get_redis_triggers_list_by_profile(user_id: int, profile_id: int):
     cache_key = f"user:profile:triggers:{user_id}:{profile_id}"
     profile_triggers = await redis.get(cache_key)
-    return profile_triggers.decode('utf-8') if profile_triggers else None
+    return json.loads(profile_triggers.decode('utf-8')) if profile_triggers else None
 async def get_redis_symptoms_list_by_profile(user_id: int, profile_id: int):
     cache_key = f"user:profile:symptoms:{user_id}:{profile_id}"
     profile_symptoms = await redis.get(cache_key)
@@ -98,7 +98,9 @@ async def set_redis_global_symptoms_list(user_id: int, symptoms):
 async def set_redis_triggers_list_by_profile(user_id: int, profile_id: int, triggers):
     cache_key = f"user:profile:triggers:{user_id}:{profile_id}"
     try:
+        print('редис кэш зашли')
         json_data = json.dumps(triggers)
+        print('задампали данные')
         await redis.set(cache_key, json_data, CACHE_TIME)
     except Exception as e:
         print(f"Redis save error: {e}")
@@ -135,8 +137,8 @@ async def delete_redis_cached_current_profile(user_id: int):
     else:
         print(f"Текущий профиль пользователя с ID {user_id} не найден в Redis")
 
-async def delete_redis_cached_profiles_list(user_id: int):
-    key = f"profiles:{user_id}"
+async def delete_redis_cached_profiles_list(user_id: int, profile_type: str):
+    key = f"profiles:{user_id}:{profile_type}"
     deleted = await redis.delete(key)
     if deleted:
         print(f"Список профилей пользователя - {user_id} удален из Redis")
@@ -174,7 +176,6 @@ async def delete_redis_global_triggers(user_id: int):
         print(f"Глобальные триггеры удалены для юзера - {user_id}")
     else:
         print(f"Глобальные триггеры не найдены для юзера - {user_id}")
-
 
 async def delete_redis_profile_symptoms_list(user_id: int, profile_id: int):
     key = f"user:profile:symptoms:{user_id}:{profile_id}"

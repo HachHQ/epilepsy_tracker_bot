@@ -26,6 +26,9 @@ from handlers.profile_form import profile_form_router
 from handlers.main_menu import main_menu_router
 from handlers.seizures_handlers import seizures_router
 from handlers.control_profiles_handlers import control_profiles_router
+from handlers.medication_handlers import medication_router
+from handlers.notification_handlers import notification_router
+from handlers.sos_handlers import sos_router
 
 from keyboards.set_menu import set_main_menu
 
@@ -57,6 +60,7 @@ async def main():
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
+    dp.include_router(sos_router)
     dp.include_router(control_panel_router)
     dp.include_router(analytics_router)
     dp.include_router(pagination_router)
@@ -66,10 +70,12 @@ async def main():
     dp.include_router(control_profiles_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
+    dp.include_router(medication_router)
+    dp.include_router(notification_router)
 
     schedule_notification_slots()
     scheduler.start()
-    await start_workers(bot)  # Запускаем очередь
+    await start_workers(bot)
 
     await notification_queue.start()
     await set_main_menu(bot)

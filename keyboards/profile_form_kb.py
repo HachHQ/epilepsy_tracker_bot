@@ -50,3 +50,18 @@ def get_qeustion_about_species():
     builder.adjust(2)
     builder.row(cancel_btn, width=1)
     return builder.as_markup()
+
+def get_biospec_edit_kb():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Да", callback_data="profile_for_human")
+    builder.button(text="Нет", callback_data="profile_for_animal")
+    builder.adjust(2)
+    builder.row(cancel_btn, width=1)
+    return builder.as_markup()
+
+def get_commit_deleting_profile_kb(prof_id):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Да", callback_data=f"delete_profile:yes:{prof_id}")
+    builder.button(text="Нет", callback_data=f"delete_profile:no:{prof_id}")
+    builder.adjust(1)
+    return builder.as_markup()

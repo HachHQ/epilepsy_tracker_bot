@@ -58,3 +58,12 @@ def validate_timezone(timezone: str):
 
 def validate_codeword(code_word: str):
     return True if 8 <= len(code_word) <= 25 else False
+
+def validate_less_than_40(smth: str):
+    return True if 0 <= len(smth) <= 40 else False
+
+def validate_less_than_60(smth: str):
+    return True if 0 <= len(smth) <= 60 else False
+
+def validate_less_than_100(smth: str):
+    return True if 0 <= len(smth) <= 100 else False
