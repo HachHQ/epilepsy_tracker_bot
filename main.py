@@ -1,25 +1,23 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types, F
-# from aiogram.client.default import DefaultBotProperties
-# from aiogram.enums import ParseMode
+from aiogram import Bot, Dispatcher
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ErrorEvent
+from aiogram.types import ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.filters import Command
-
-import requests
 
 from database.db_init import init_db
 from database.redis_client import redis
 from database.db_init import SessionLocal
 
+from services.medication_reminders import schedule_notification_slots, scheduler, start_workers
+
 from config_data.config import load_config
 
 from test_scripts.test1 import test_create_user
 
+from handlers.analytics_handlers import analytics_router
 from handlers.journal_handlers import journal_router
 from handlers.choose_profile_handlers import choose_profile_router
-from handlers.add_trusted_person_handlers import add_trusted_person_router
+from handlers.control_panel_handlers import control_panel_router
 from handlers.profiles_pagination_handlers import pagination_router
 from handlers.cancel_handlers import cancel_router
 from handlers.start_message import start_message_router
@@ -27,6 +25,10 @@ from handlers.user_form import user_form_router
 from handlers.profile_form import profile_form_router
 from handlers.main_menu import main_menu_router
 from handlers.seizures_handlers import seizures_router
+from handlers.control_profiles_handlers import control_profiles_router
+from handlers.medication_handlers import medication_router
+from handlers.notification_handlers import notification_router
+from handlers.sos_handlers import sos_router
 
 from keyboards.set_menu import set_main_menu
 
@@ -35,7 +37,6 @@ from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 from services.notification_queue import NotificationQueue
 
 config = load_config(".env")
-
 
 storage = RedisStorage(redis=redis)
 # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
@@ -59,13 +60,23 @@ async def main():
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
-    dp.include_router(add_trusted_person_router)
+    dp.include_router(sos_router)
+    dp.include_router(control_panel_router)
+    dp.include_router(analytics_router)
     dp.include_router(pagination_router)
     dp.include_router(choose_profile_router)
     dp.include_router(seizures_router)
     dp.include_router(journal_router)
+    dp.include_router(control_profiles_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
+    dp.include_router(medication_router)
+    dp.include_router(notification_router)
+
+    schedule_notification_slots()
+    scheduler.start()
+    await start_workers(bot)
+
     await notification_queue.start()
     await set_main_menu(bot)
     await bot.delete_webhook(drop_pending_updates=True)

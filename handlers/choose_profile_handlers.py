@@ -1,9 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from database.models import User, Profile
 from database.orm_query import orm_get_user, orm_get_profile_by_id
 from database.redis_query import set_redis_cached_current_profile
 from services.redis_cache_data import get_cached_profiles_list

@@ -2,7 +2,56 @@ import asyncio
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from redis.asyncio import Redis
-from database.db_init import SessionLocal
+from services.hmac_encrypt import pack_callback_data
+
+from abc import ABC, abstractmethod
+
+class NotificationBase(ABC):
+    @abstractmethod
+    async def send(self, bot: Bot):
+        pass
+
+class SosMassNotification(NotificationBase):
+    def __init__(self, user_ids: list[int], text: str):
+        self.user_ids = user_ids
+        self.text = text
+
+    async def send(self, bot: Bot):
+        for uid in self.user_ids:
+            try:
+                await bot.send_message(uid, self.text)
+                print(f'Уведомление выслано пользователю - {uid}')
+                await asyncio.sleep(0.05)
+            except Exception as e:
+                print(f"❌ Ошибка при отправке пользователю {uid}: {e}")
+
+class TrustedContactRequest(NotificationBase):
+    def __init__(self,
+                 chat_id: int,
+                 request_uuid: str,
+                 sender_login: str,
+                 sender_id: int,
+                 transmitted_profile_id: int):
+        self.chat_id = chat_id
+        self.request_uuid = request_uuid
+        self.sender_login = sender_login
+        self.sender_id = sender_id
+        self.transmitted_profile_id = transmitted_profile_id
+
+    async def send(self, bot: Bot):
+        keyboard = InlineKeyboardBuilder()
+        base64_payload = pack_callback_data(self.request_uuid, self.transmitted_profile_id, self.sender_id)
+        keyboard.button(text="Да", callback_data=f"p_conf|{base64_payload}")
+        keyboard.button(text="Нет", callback_data=f"n_conf|{base64_payload}")
+        try:
+            await bot.send_message(
+                self.chat_id,
+                f"Подтвердите запрос доверенного лица - {self.sender_login}",
+                reply_markup=keyboard.as_markup()
+            )
+            print(f"✅ Запрос доверенного лица отправлен: {self.chat_id}")
+        except Exception as e:
+            print(f"❌ Ошибка при отправке доверенного запроса: {e}")
 
 class NotificationQueue:
     def __init__(self, bot: Bot, redis: Redis, rate_limit: float = 0.05):
@@ -29,50 +78,14 @@ class NotificationQueue:
     async def worker(self):
         while self.running:
             try:
-                chat_id, sender_id, request_uuid, text, transmitted_profile_id, kwargs = await self.queue.get()
-                print("чат айди", chat_id)
-                print("uuid", request_uuid)
-                print("текст", text)
-                print("Кварги", kwargs)
-                keyboard = InlineKeyboardBuilder()
-                keyboard.button(text="Да", callback_data=f"p_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
-                keyboard.button(text="Нет", callback_data=f"n_conf|{request_uuid}|{transmitted_profile_id}|{sender_id}")
-                try:
-                    await self.bot.send_message(chat_id, text, reply_markup=keyboard.as_markup(), **kwargs)
-                    print("Уведомление успешно отправлено")
-                except Exception as e:
-                    print(f"Ошибка отправки уведомления {chat_id}: {e}")
+                obj = await self.queue.get()
+                if isinstance(obj, NotificationBase):
+                    await obj.send(self.bot)
+                else:
+                    print("⚠️ Получен объект, не реализующий интерфейс NotificationBase")
                 await asyncio.sleep(self.rate_limit)
             except asyncio.CancelledError:
                 break
 
-    async def send_notification(self, chat_id: int, text: str, **kwargs):
-        await self.queue.put((chat_id, text, kwargs))
-
-    #TODO add argument - profile_id to send request method
-    #TODO write a funcion for regular notification about medication time
-    #TODO prohibit entering your own login
-
-    async def send_trusted_contact_request(self,
-                                           chat_id: int,
-                                           request_uuid: str,
-                                           sender_login: str,
-                                           sender_id: int,
-                                           transmitted_profile_id: int,
-                                           **kwargs):
-        text = f"Подтвердите запрос доверенного лица - {sender_login}"
-        await self.queue.put((chat_id, sender_id, request_uuid, text, transmitted_profile_id, {}))
-
-
-    """async def check_and_send_reminders(self):
-        Фоновая задача для рассылки напоминаний о приеме лекарств
-        while self.running:
-            async with SessionLocal() as session:
-                contacts = session.query(TrustedContact).filter(TrustedContact.needs_reminder == True).all()
-
-                for contact in contacts:
-                    await self.send_notification(contact.user_id, "Не забудьте принять лекарство!")
-                    contact.last_reminder_sent = datetime.utcnow()
-                    session.commit()
-
-            await asyncio.sleep(3600)  # Запускать каждый час"""
+    async def enqueue(self, notification: NotificationBase):
+        await self.queue.put(notification)

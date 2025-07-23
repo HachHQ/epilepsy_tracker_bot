@@ -3,15 +3,15 @@ from aiogram.fsm.state import StatesGroup, State
 class UserForm(StatesGroup):
     name = State()
     login = State()
-    check_form = State()
+    timezone = State()
+    code_word = State()
 
 class ProfileForm(StatesGroup):
     profile_name = State()
     type_of_epilepsy = State()
-    drugs = State()
+    biological_species = State()
     age = State()
     sex = State()
-    timezone = State()
     check_form = State()
 
 class TrustedPersonForm(StatesGroup):
@@ -20,17 +20,13 @@ class TrustedPersonForm(StatesGroup):
     selected_profile = State()
     confirm_transfer = State()
 
-class UpdateSeizureAttribute(StatesGroup):
-    choose_attribute = State()
-    input_new_value = State()
-
 class MedicationCourse(StatesGroup):
-    name_of_medication = State()
-    dose = State()
-    reception_schedule = State()
-    start_course = State()
-    end_course = State()
-    
+    medication_name = State()
+    dosage = State()
+    frequency = State()
+    notes = State()
+    start_date = State()
+    end_date = State()
 
 class SeizureForm(StatesGroup):
     date = State()
@@ -38,14 +34,40 @@ class SeizureForm(StatesGroup):
     month = State()
     day = State()
     hour = State()
+    duration = State()
     count = State()
     triggers = State()
     type_of_seizure = State()
-    #minutes_range = State()
     severity = State()
-    duration = State()
     comment = State()
-    symptoms = State()
+    #symptoms = State()
     video_tg_id = State()
     location = State()
-    medication = State()
+    #medication = State()
+    states_sequence = [
+        date, year, month, day, hour, duration, count, type_of_seizure, triggers,
+        #type_of_seizure,
+        severity, comment,
+        #symptoms,
+        video_tg_id, location#, medication
+    ]
+    @classmethod
+    def next_state(cls, current_state: str | None) -> State | None:
+        if not current_state:
+            return cls.states_sequence[0]
+
+        for idx, state in enumerate(cls.states_sequence):
+            if state.state == current_state:
+                return cls.states_sequence[idx + 1] if idx + 1 < len(cls.states_sequence) else None
+        return None
+
+class NotificationForm(StatesGroup):
+    notify_time = State()
+    note = State()
+    pattern = State()
+
+class SosForm(StatesGroup):
+    geolocation = State()
+
+class GetExcelTableForm(StatesGroup):
+    get_xlsx_file = State()

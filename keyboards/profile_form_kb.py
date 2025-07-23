@@ -6,17 +6,13 @@ from lexicon.lexicon import LEXICON_BUTTONS
 
 cancel_btn = InlineKeyboardButton(text=LEXICON_BUTTONS['cancel'], callback_data="cancel_fsm_script")
 
-def get_types_of_epilepsy_kb() -> InlineKeyboardMarkup:
+def get_ask_for_have_diagnosis_kb() -> InlineKeyboardMarkup:
     epilepsy_types_kb_bd = InlineKeyboardBuilder()
-    epilepsy_types_kb_bd.button(text=LEXICON_BUTTONS['focal_type'],
-                                callback_data="focal_type")
-    epilepsy_types_kb_bd.button(text=LEXICON_BUTTONS['generalized_type'],
-                                callback_data="generalized_type")
-    epilepsy_types_kb_bd.button(text=LEXICON_BUTTONS['combied_type'],
-                                callback_data="combied_type")
-    epilepsy_types_kb_bd.button(text=LEXICON_BUTTONS['unidentified_type'],
-                                callback_data="unidentified_type")
-    epilepsy_types_kb_bd.adjust(1)
+    epilepsy_types_kb_bd.button(text="Да",
+                                callback_data="have_epilepsy_diagnosis")
+    epilepsy_types_kb_bd.button(text="Нет",
+                                callback_data="dont_have_epilepsy_diagnosis")
+    epilepsy_types_kb_bd.adjust(2)
     epilepsy_types_kb_bd.row(cancel_btn, width=1)
     return epilepsy_types_kb_bd.as_markup()
 
@@ -46,3 +42,26 @@ def get_submit_profile_settings_kb() -> InlineKeyboardMarkup:
     submit_kb_bd.button(text=LEXICON_BUTTONS['submit'], callback_data="submit_profile_settings")
     submit_kb_bd.row(cancel_btn, width=1)
     return submit_kb_bd.as_markup()
+
+def get_qeustion_about_species():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Да", callback_data="profile_for_human")
+    builder.button(text="Нет", callback_data="profile_for_animal")
+    builder.adjust(2)
+    builder.row(cancel_btn, width=1)
+    return builder.as_markup()
+
+def get_biospec_edit_kb():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Да", callback_data="profile_for_human")
+    builder.button(text="Нет", callback_data="profile_for_animal")
+    builder.adjust(2)
+    builder.row(cancel_btn, width=1)
+    return builder.as_markup()
+
+def get_commit_deleting_profile_kb(prof_id):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Да", callback_data=f"delete_profile:yes:{prof_id}")
+    builder.button(text="Нет", callback_data=f"delete_profile:no:{prof_id}")
+    builder.adjust(1)
+    return builder.as_markup()
