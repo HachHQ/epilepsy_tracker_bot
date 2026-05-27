@@ -84,7 +84,7 @@ async def get_formatted_seizure_info(
         f"{' /update_medication_' + str(seizure_id) + '\n' if edit_mode else "\n"}"
 
         f"{action_lines if seizure_id > 0 else ""}"
-        )
+    )
     await message.answer(note, parse_mode='HTML')
     if not edit_mode:
         if video_tg_id != None:

@@ -115,7 +115,7 @@ async def get_month_gist(session: AsyncSession, message: Message):
         dataY=count_seizures_by_days,
         xticks=days_range
     )
-    path = f'temp_images/{message.chat.id}-{current_profile.split('|', 1)[0]}-{current_date.date()}.jpg'
+    path = f"temp_images/{message.chat.id}-{current_profile.split('|', 1)[0]}-{current_date.date()}.jpg"
     print(path)
     plt.savefig(path)
     file = FSInputFile(path=path)
