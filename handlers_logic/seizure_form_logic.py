@@ -11,7 +11,7 @@ from database.orm_query import (
     orm_get_user
 )
 from database.redis_query import get_redis_cached_current_profile
-from lexicon.lexicon import LEXICON_TYPES_OF_SEIZURE
+from i18n import get_seizure_types, t
 from services.notes_formatters import get_minutes_and_seconds
 from services.redis_cache_data import get_cached_current_profile, get_cached_profile_triggers_list, get_cached_triggers_list
 from services.validators import (
@@ -49,16 +49,16 @@ async def _save_seizure_edit(
 async def handle_skip_step(message: Message, state: FSMContext, db):
     current_state = await state.get_state()
     if (current_state is None) or (str(current_state).split(':', 1)[0] != "SeizureForm"):
-        return await message.answer("Начните заполнение заново.")
+        return await message.answer(t("seizure_form.restart"))
     if str(current_state).split(':', 1)[0] == "SeizureForm":
         await state.set_state(SeizureForm.next_state(current_state))
         if current_state == "SeizureForm:hour":
-            await message.edit_text(f"Выберите или введите примерную продолжительность приступа: ", reply_markup=get_duration_kb())
+            await message.edit_text(t("seizure_form.select_duration"), reply_markup=get_duration_kb())
         elif current_state == "SeizureForm:duration":
-            await message.edit_text("Если в рамках одного припадка было несколько приступов, выберите их количество: ", reply_markup=get_count_of_seizures_kb())
+            await message.edit_text(t("seizure_form.select_count"), reply_markup=get_count_of_seizures_kb())
         elif current_state == "SeizureForm:count":
             keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
-            await message.answer("Выберите тип приступа:", reply_markup=keyboard)
+            await message.answer(t("seizure_form.select_type"), reply_markup=keyboard)
         elif current_state == 'SeizureForm:type_of_seizure':
             print('ну и')
             current_profile = await get_cached_current_profile(db, message.chat.id)
@@ -68,18 +68,18 @@ async def handle_skip_step(message: Message, state: FSMContext, db):
             profiles_triggers = await get_cached_profile_triggers_list(db, message.chat.id, int(current_profile.split('|', 1)[0]))
             print('ну и4')
             print(profiles_triggers + global_triggers)
-            await message.edit_text("Выберите или введите воможные триггеры: ", reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5))
+            await message.edit_text(t("seizure_form.select_triggers"), reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5))
         elif current_state == "SeizureForm:triggers":
-            await message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
+            await message.edit_text(t("seizure_form.select_severity"), reply_markup=get_severity_kb())
         elif current_state == "SeizureForm:severity":
-            await message.edit_text("Оставьте комментарий, если это нужно", reply_markup=get_temporary_cancel_submit_kb())
+            await message.edit_text(t("seizure_form.enter_comment"), reply_markup=get_temporary_cancel_submit_kb())
         elif current_state == "SeizureForm:comment":
-            await message.edit_text("Пришлите видео приступа. Это может быть кружок или mp4 файл в любом виде: ", reply_markup=get_temporary_cancel_submit_kb())
+            await message.edit_text(t("seizure_form.enter_video"), reply_markup=get_temporary_cancel_submit_kb())
         elif current_state == "SeizureForm:video_tg_id":
-            await message.edit_text("Напишите, в каком месте случился приступ: ", reply_markup=get_temporary_cancel_submit_kb())
-            await message.answer("Или пришлите вашу геолокацию (нажмите на кнопку под полем ввода): ", reply_markup=get_geolocation_for_timezone_kb())
+            await message.edit_text(t("seizure_form.enter_location"), reply_markup=get_temporary_cancel_submit_kb())
+            await message.answer(t("seizure_form.enter_location_or_geo"), reply_markup=get_geolocation_for_timezone_kb())
         elif current_state == "SeizureForm:location":
-            await message.answer("Все параметры заполнены, завершите или отмените заполнение: ", reply_markup=get_final_seizure_btns())
+            await message.answer(t("seizure_form.form_complete"), reply_markup=get_final_seizure_btns())
 
 async def get_action_btns_flag(state):
     data = await state.get_data()
@@ -131,14 +131,14 @@ async def handle_seizre_right_now(message: Message, state: FSMContext, db: Async
     await state.update_data(date_short=str(local_date))
     await state.update_data(time_of_day=str(local_time))
 
-    await message.answer("Нажмите на 'СТОП', когда приступ закончится", reply_markup=get_stop_duration_kb())
+    await message.answer(t("seizure_form.stop_duration"), reply_markup=get_stop_duration_kb())
 
 async def handle_stop_tracking_duration(message: Message, state: FSMContext):
     seizure_data = await state.get_data()
     duration_flag_str = seizure_data.get('exact_duration', None)
     print(duration_flag_str)
     if duration_flag_str is None:
-        await message.answer("Начните заполнение заново.")
+        await message.answer(t("seizure_form.restart"))
 
         return
     clean_date_string = duration_flag_str.strip('"')
@@ -151,13 +151,13 @@ async def handle_stop_tracking_duration(message: Message, state: FSMContext):
     print(duration_diff, type(duration_diff))
 
     await state.update_data(duration=int(duration_diff))
-    await message.edit_text("Если в рамках одного припадка была серия приступов, выберите их количество", reply_markup=get_count_of_seizures_kb())
-    await message.answer(f"Продолжительность зафиксирована: {get_minutes_and_seconds(duration_diff)}")
+    await message.edit_text(t("seizure_form.count_series"), reply_markup=get_count_of_seizures_kb())
+    await message.answer(t("seizure_form.duration_recorded", duration=get_minutes_and_seconds(duration_diff)))
     await state.set_state(SeizureForm.count)
 
 async def ask_for_a_year(message: Message, state: FSMContext):
     action_btns_flag = await get_action_btns_flag(state)
-    await message.answer(f"Выберите год или сразу день из преложенных\n\n<u>Либо введите дату вручную в формате ГОД-МЕСЯЦ-ДЕНЬ</u>",
+    await message.answer(t("seizure_form.select_year_or_date"),
                                 reply_markup=get_year_date_kb(4,0, action_btns=action_btns_flag),
                                 parse_mode='HTML')
 
@@ -173,7 +173,7 @@ async def handle_short_date(callback: CallbackQuery, state: FSMContext, db: Asyn
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'date', parsed["date"])
-            await callback.message.answer(f"Дата обновлена: {parsed["date"]}")
+            await callback.message.answer(t("seizure_form.date_updated", value=parsed["date"]))
             await callback.answer()
             await state.clear()
             return
@@ -181,14 +181,14 @@ async def handle_short_date(callback: CallbackQuery, state: FSMContext, db: Asyn
             await state.update_data(date_short=parsed["date"])
             await state.set_state(SeizureForm.hour)
             await callback.message.edit_text(
-                "Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ",
+                t("seizure_form.enter_time"),
                 reply_markup=get_time_ranges_kb(action_btns=action_btns_flag)
             )
             return
     await state.update_data(year=parsed["value"])
     await state.set_state(SeizureForm.month)
     await callback.message.edit_text(
-        f"Выбран {parsed['value']} год.\nВыберите месяц:",
+        t("seizure_form.year_selected", year=parsed['value']),
         reply_markup=get_month_date_kb(action_btns=action_btns_flag)
     )
 
@@ -200,7 +200,7 @@ async def handle_month_of_date(callback: CallbackQuery, state: FSMContext):
     year_month = await state.get_data()
     await state.set_state(SeizureForm.day)
     await callback.message.edit_text(
-        f"Выбран месяц {month_name}",
+        t("seizure_form.month_selected", month_name=month_name),
         reply_markup=get_day_kb(
             int(year_month['year']),
             int(year_month['month']),
@@ -220,14 +220,14 @@ async def handle_day(callback: CallbackQuery, state: FSMContext, db: AsyncSessio
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'date', new_date)
-        await callback.message.answer(f"Дата обновлена: {new_date}")
+        await callback.message.answer(t("seizure_form.date_updated", value=new_date))
         await callback.answer()
         await state.clear()
     else:
         await state.update_data(day=format_small_date_numbers(day_index))
         await state.set_state(SeizureForm.hour)
         await callback.message.edit_text(
-            f"Выбрано число: {day_index}\n\nВведите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ",
+            t("seizure_form.enter_time_with_day", day=day_index),
             reply_markup=get_time_ranges_kb(action_btns=action_btns_flag)
         )
 
@@ -242,18 +242,18 @@ async def handle_date_by_message(message: Message, state: FSMContext, db: AsyncS
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'date', date)
-            await message.answer(f"Дата обновлена: {date}")
+            await message.answer(t("seizure_form.date_updated", value=date))
             await state.clear()
         else:
             await state.update_data(date_short=date)
             await state.set_state(SeizureForm.hour)
             await message.answer(
-                "Введите примерное время в которое произошел приступ в формате ЧАС:МИНУТЫ",
+                t("seizure_form.enter_time"),
                   reply_markup=get_time_ranges_kb(action_btns=action_btns_flag)
             )
     else:
         await message.answer(
-            "<u>Введите дату в формате ГОД-МЕСЯЦ-ДЕНЬ\nНапример: 2020-02-01</u>",
+            t("seizure_form.invalid_date"),
             parse_mode="HTML",
             reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
 
@@ -267,14 +267,14 @@ async def handle_time_of_date_message(message: Message, state: FSMContext, db: A
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'time', time)
-            await message.answer(f"Время обновлено: {time}")
+            await message.answer(t("seizure_form.time_updated", value=time))
             await state.clear()
             return
         await state.update_data(time_of_day=time)
         print(message.text)
         await state.set_state(SeizureForm.duration)
         await message.answer(
-            f"Введите примерную продолжительность в минутах: ",
+            t("seizure_form.enter_duration_minutes"),
             reply_markup=get_duration_kb(action_btns=action_btns_flag)
         )
         # await state.set_state(SeizureForm.duration)
@@ -283,7 +283,7 @@ async def handle_time_of_date_message(message: Message, state: FSMContext, db: A
         #     reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
     else:
         await message.answer(
-            "<u>Время приступа должно быть в формате ЧАСЫ:МИНУТЫ\nНапример: 23:29</u>",
+            t("seizure_form.invalid_time"),
             reply_markup=get_time_ranges_kb(action_btns=action_btns_flag),
             parse_mode='HTML')
 
@@ -336,13 +336,13 @@ async def handle_time_by_btns(callback: CallbackQuery, state: FSMContext, db: As
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'time', time)
-        await callback.message.answer(f"Время обновлено: {time}")
+        await callback.message.answer(t("seizure_form.time_updated", value=time))
         await callback.answer()
         await state.clear()
         return
     await state.set_state(SeizureForm.duration)
     await callback.message.edit_text(
-        f"Введите примерную продолжительность в минутах: ",
+        t("seizure_form.enter_duration_minutes"),
         reply_markup=get_duration_kb(action_btns=action_btns_flag)
     )
     await callback.answer()
@@ -356,14 +356,14 @@ async def handle_count_of_seizures(callback: CallbackQuery, state: FSMContext, d
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'count', count_of_seizures)
-        await callback.message.answer(f"Количество обновлено: {count_of_seizures}")
+        await callback.message.answer(t("seizure_form.count_updated", value=count_of_seizures))
         await callback.answer()
         await state.clear()
         return
     await state.update_data(count=count_of_seizures)
     await state.set_state(SeizureForm.type_of_seizure)
     keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
-    await callback.message.edit_text("Выберите тип приступа:", reply_markup=keyboard)
+    await callback.message.edit_text(t("seizure_form.select_type"), reply_markup=keyboard)
     await callback.answer()
 
 async def handle_count_by_message(message: Message, state: FSMContext, db: AsyncSession):
@@ -375,15 +375,15 @@ async def handle_count_by_message(message: Message, state: FSMContext, db: Async
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'count', count)
-            await message.answer(f"Количество обновлено: {count}")
+            await message.answer(t("seizure_form.count_updated", value=count))
             await state.clear()
             return
         await state.update_data(count=message.text)
         await state.set_state(SeizureForm.type_of_seizure)
         keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6)
-        await message.answer("Выберите тип приступа:", reply_markup=keyboard)
+        await message.answer(t("seizure_form.select_type"), reply_markup=keyboard)
     else:
-        await message.answer("<u>Количество приступов должно быть любым не отрицательным числом\nНапример: 1 или 5</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer(t("seizure_form.invalid_count"), parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
 async def handle_type_of_seizure_page(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, current_page = callback.data.split(':', 1)
@@ -400,12 +400,13 @@ async def handle_type_of_seizure_save(callback: CallbackQuery, state: FSMContext
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'type_of_seizure', LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
-        await callback.message.answer(f"Тип приступа обновлен: {LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)]}")
+        seizure_type = get_seizure_types()[int(type_of_seizure_id)]
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'type_of_seizure', seizure_type)
+        await callback.message.answer(t("seizure.type_updated", seizure_type=seizure_type))
         await state.clear()
         return
     print(type_of_seizure_id)
-    await state.update_data(type_of_seizure=LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
+    await state.update_data(type_of_seizure=get_seizure_types()[int(type_of_seizure_id)])
 
     await state.set_state(SeizureForm.triggers)
     await state.update_data(selected_triggers=[], current_page=0)
@@ -413,7 +414,7 @@ async def handle_type_of_seizure_save(callback: CallbackQuery, state: FSMContext
     global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
     profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
     print(profiles_triggers+global_triggers)
-    await callback.message.edit_text("Выберите или введите возможные триггеры: ", reply_markup=generate_features_keyboard(
+    await callback.message.edit_text(t("seizure_form.select_triggers"), reply_markup=generate_features_keyboard(
         profiles_triggers+global_triggers,
         [],
         0,
@@ -435,7 +436,7 @@ async def handle_toggle_trigger(callback: CallbackQuery, state: FSMContext, db: 
     global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
     profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
     await state.update_data(selected_triggers=selected_triggers)
-    await callback.message.edit_text('Выберите или введите возможные триггеры: ',
+    await callback.message.edit_text(t("seizure_form.select_triggers"),
         reply_markup=generate_features_keyboard(
             profiles_triggers+global_triggers,
             selected_triggers,
@@ -455,7 +456,7 @@ async def handle_triggers_page(callback: CallbackQuery, state: FSMContext, db: A
     global_triggers = await get_cached_triggers_list(db, callback.message.chat.id)
     profiles_triggers = await get_cached_profile_triggers_list(db, callback.message.chat.id, int(current_profile.split('|', 1)[0]))
     await state.update_data(current_page=new_page)
-    await callback.message.edit_text('Выберите или введите возможные триггеры: ',
+    await callback.message.edit_text(t("seizure_form.select_triggers"),
         reply_markup=generate_features_keyboard(
             features_list=profiles_triggers + global_triggers,
             selected_features=selected_triggers,
@@ -475,19 +476,24 @@ async def handle_save_toggled_triggers(callback: CallbackQuery, state: FSMContex
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'triggers', ",".join(selected_triggers))
-        await callback.message.answer(f"Сохраненные триггеры обновлены: {'Список пуст' if len(selected_triggers) == 0 else ", ".join(selected_triggers)}")
+        triggers_value = (
+            t("seizure_form.triggers_empty")
+            if len(selected_triggers) == 0
+            else ", ".join(selected_triggers)
+        )
+        await callback.message.answer(t("seizure_form.triggers_updated", value=triggers_value))
         await callback.answer()
         await state.clear()
         return
     if selected_triggers:
         await state.set_state(SeizureForm.severity)
         print(selected_triggers)
-        await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
+        await callback.message.edit_text(t("seizure_form.select_severity"), reply_markup=get_severity_kb())
     else:
         await state.update_data(selected_triggers=[])
         await state.set_state(SeizureForm.severity)
         print(selected_triggers)
-        await callback.message.edit_text("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
+        await callback.message.edit_text(t("seizure_form.select_severity"), reply_markup=get_severity_kb())
     await callback.answer()
 
 async def handle_triggers_by_message(message: Message, state: FSMContext, db: AsyncSession):
@@ -506,14 +512,15 @@ async def handle_triggers_by_message(message: Message, state: FSMContext, db: As
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'triggers', triggers)
-            await message.answer(f"Сохраненные триггеры обновлены: {'Список пуст' if triggers is None else triggers}")
+            triggers_value = t("seizure_form.triggers_empty") if triggers is None else triggers
+            await message.answer(t("seizure_form.triggers_updated", value=triggers_value))
             await state.clear()
             return
         await state.update_data(triggers=triggers)
         await state.set_state(SeizureForm.severity)
-        await message.answer("Оцените степень тяжести приступа от 1 до 10: ", reply_markup=get_severity_kb())
+        await message.answer(t("seizure_form.select_severity"), reply_markup=get_severity_kb())
     else:
-        await message.answer("<u>Список не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer(t("seizure_form.triggers_too_long"), parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb())
 
 
 async def handle_severity(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
@@ -526,12 +533,12 @@ async def handle_severity(callback: CallbackQuery, state: FSMContext, db: AsyncS
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'severity', severity)
-        await callback.message.answer(f"Тяжесть обновлена: {severity}")
+        await callback.message.answer(t("seizure_form.severity_updated", severity=severity))
         await callback.answer()
         await state.clear()
     else:
         await state.update_data(severity=severity)
-        await callback.message.edit_text(f"Оставьте комментарий, если это нужно", reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
+        await callback.message.edit_text(t("seizure_form.enter_comment"), reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
         await state.set_state(SeizureForm.comment)
         await callback.answer()
 
@@ -547,12 +554,12 @@ async def handle_duration_by_cb(callback: CallbackQuery, state: FSMContext, db: 
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'duration', int(duration_in_seconds))
-        await callback.message.answer(f"Продолжительность обновлена: около {get_minutes_and_seconds(duration_in_seconds)}")
+        await callback.message.answer(t("seizure_form.duration_updated", duration=get_minutes_and_seconds(duration_in_seconds)))
         await callback.answer()
         await state.clear()
         return
     await state.update_data(duration=duration_in_seconds)
-    await callback.message.edit_text("Если в рамках одного припадка было несколько приступов, выберите их количество: ", reply_markup=get_count_of_seizures_kb(action_btns_flag))
+    await callback.message.edit_text(t("seizure_form.select_count"), reply_markup=get_count_of_seizures_kb(action_btns_flag))
     await state.set_state(SeizureForm.count)
     await callback.answer()
 
@@ -568,14 +575,14 @@ async def handle_duration_by_message(message: Message, state: FSMContext, db: As
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'duration', duration * 60)
-            await message.answer(f"Продолжительность обновлена: около {get_minutes_and_seconds(duration * 60)}")
+            await message.answer(t("seizure_form.duration_updated", duration=get_minutes_and_seconds(duration * 60)))
             await state.clear()
         else:
             await state.update_data(duration=int(duration) * 60)
             await state.set_state(SeizureForm.count)
-            await message.answer("Если в рамках одного припадка было несколько приступов, выберите их количество: ", reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
+            await message.answer(t("seizure_form.select_count"), reply_markup=get_count_of_seizures_kb(action_btns=action_btns_flag))
     else:
-        await message.answer("Продолжительность приступа должна быть любым не отрицательным числом (в минутах)\nНапример: 0 или 3", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
+        await message.answer(t("seizure_form.invalid_duration"), parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
 
 async def handle_comment(message: Message, state: FSMContext, db: AsyncSession):
     action_btns_flag = await get_action_btns_flag(state)
@@ -587,14 +594,14 @@ async def handle_comment(message: Message, state: FSMContext, db: AsyncSession):
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'comment', comment)
-            await message.answer(f"Комментарий обновлён: {comment}")
+            await message.answer(t("seizure_form.comment_updated", comment=comment))
             await state.clear()
             return
         await state.update_data(comment=comment)
         await state.set_state(SeizureForm.video_tg_id)
-        await message.answer("Пришлите видео приступа. Это может быть кружок или mp4 файл в любом виде: ", reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
+        await message.answer(t("seizure_form.enter_video"), reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
     else:
-        await message.answer("<u>Комментарий не должен быть длиннее 250 символов</u>", parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
+        await message.answer(t("seizure_form.comment_too_long"), parse_mode='HTML', reply_markup=get_temporary_cancel_submit_kb(action_btns=action_btns_flag))
 
 async def handle_video(message: Message, state: FSMContext, db: AsyncSession):
     data = await state.get_data()
@@ -604,30 +611,30 @@ async def handle_video(message: Message, state: FSMContext, db: AsyncSession):
         profile_id = data["profile_id"]
         if message.video:
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.video.file_id)
-            await message.answer("Видео сохранено")
+            await message.answer(t("seizure_form.video_saved"))
         elif message.video_note:
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.video_note.file_id)
-            await message.answer("Видео сохранено")
+            await message.answer(t("seizure_form.video_saved"))
         elif message.document.mime_type == 'video/mp4':
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.document.file_id)
-            await message.answer("Видео сохранено")
+            await message.answer(t("seizure_form.video_saved"))
         else:
-            await message.answer("Пришлите видео, кружок или mp4 документ.")
+            await message.answer(t("seizure_form.video_invalid"))
         await state.clear()
         return
     if message.video:
         await state.update_data(video_tg_id=message.video.file_id)
-        await message.answer("Видео сохранено", reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer(t("seizure_form.video_saved"), reply_markup=get_temporary_cancel_submit_kb())
     elif message.video_note:
         await state.update_data(video_tg_id=message.video_note.file_id)
-        await message.answer("Видео сохранено", reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer(t("seizure_form.video_saved"), reply_markup=get_temporary_cancel_submit_kb())
     elif message.document.mime_type == 'video/mp4':
         await state.update_data(video_tg_id=message.document.file_id)
-        await message.answer("Видео сохранено", reply_markup=get_temporary_cancel_submit_kb())
+        await message.answer(t("seizure_form.video_saved"), reply_markup=get_temporary_cancel_submit_kb())
     else:
-        await message.answer("Пришлите видео, кружок или mp4 документ.")
+        await message.answer(t("seizure_form.video_invalid"))
     await state.set_state(SeizureForm.location)
-    await message.answer("Напишите, где случился приступ или пришлите вашу геолокацию (нажмите на кнопку внизу): ", reply_markup=get_geolocation_for_timezone_kb())
+    await message.answer(t("seizure_form.location_prompt"), reply_markup=get_geolocation_for_timezone_kb())
 
 async def handle_geolocation(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
     latitude = message.location.latitude
@@ -639,13 +646,13 @@ async def handle_geolocation(message: Message, state: FSMContext, db: AsyncSessi
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'location', location_coords)
-        await message.answer(f"Геолокация обновлена: ", reply_markup=ReplyKeyboardRemove())
+        await message.answer(t("seizure_form.geolocation_updated"), reply_markup=ReplyKeyboardRemove())
         await bot.send_location(chat_id=message.chat.id, latitude=latitude, longitude=longitude)
         await state.clear()
         return
     await state.update_data(location=location_coords)
-    await message.answer("Геолокация сохранена.", reply_markup=ReplyKeyboardRemove())
-    await message.answer("Нажмите на кнопку 'Завершить'.", reply_markup=get_temporary_cancel_submit_kb())
+    await message.answer(t("seizure_form.geolocation_saved"), reply_markup=ReplyKeyboardRemove())
+    await message.answer(t("seizure_form.finish_prompt"), reply_markup=get_temporary_cancel_submit_kb())
 
 async def handle_location_by_message(message: Message, state: FSMContext, db: AsyncSession):
     location = message.text
@@ -656,12 +663,12 @@ async def handle_location_by_message(message: Message, state: FSMContext, db: As
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
             await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'location', location)
-            await message.answer(f"Место приступа сохранено: {location}")
+            await message.answer(t("seizure_form.location_saved", location=location))
             await state.clear()
         else:
             await state.update_data(location_by_message=location)
             await state.set_state(SeizureForm.count)
-            await message.answer("Место приступа сохранено", reply_markup=ReplyKeyboardRemove())
-            await message.answer("Все параметры заполнены, завершите или отмените заполнение: ", reply_markup=get_final_seizure_btns())
+            await message.answer(t("seizure_form.location_saved_short"), reply_markup=ReplyKeyboardRemove())
+            await message.answer(t("seizure_form.form_complete"), reply_markup=get_final_seizure_btns())
     else:
-        await message.answer("Длина названия места не может превышать 250 символов", parse_mode='HTML')
+        await message.answer(t("seizure_form.location_too_long"), parse_mode='HTML')

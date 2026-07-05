@@ -37,8 +37,10 @@ from handlers.sos_handlers import sos_router
 from keyboards.set_menu import set_main_menu
 
 from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
+from middleware.locale import LocaleMiddleware
 
 from services.notification_queue import NotificationQueue
+from i18n import set_locale, t
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,7 +66,8 @@ async def handle_errors(event: ErrorEvent, state: FSMContext):
     )
     await state.clear()
     if event.update.message:
-        await event.update.message.answer("Что-то пошло не так. Попробуйте позже. Все сценарии отменены")
+        set_locale("ru")
+        await event.update.message.answer(t("common.generic_error"))
 
 notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 
@@ -72,6 +75,7 @@ async def main():
     await init_db()
 
     dp.update.middleware(NotificationMiddleware(notification_queue))
+    dp.update.middleware(LocaleMiddleware())
     dp.update.middleware(DatabaseSessionMiddleware(SessionLocal))
 
     dp.include_router(cancel_router)

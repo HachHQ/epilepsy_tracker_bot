@@ -8,8 +8,8 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import USER_DATA_RETENTION_DAYS
+from i18n import t
 from keyboards.account_kb import get_restore_account_kb
-from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_login
 from use_cases.users import get_deleted_account_info
 
@@ -20,31 +20,24 @@ async def cmd_start(message: Message, state: FSMContext, db: AsyncSession):
     deleted_info = await get_deleted_account_info(db, message.chat.id)
     if deleted_info and deleted_info.can_restore:
         await message.answer(
-            f"Ваш аккаунт был удалён. Данные сохранены до "
-            f"{deleted_info.retention_until}. Вы можете восстановить аккаунт "
-            f"в течение {USER_DATA_RETENTION_DAYS} дней.",
+            t(
+                "start.deleted_account",
+                retention_until=deleted_info.retention_until,
+                days=USER_DATA_RETENTION_DAYS,
+            ),
             reply_markup=get_restore_account_kb(),
         )
         return
 
     if await get_cached_login(db, message.chat.id) is not None:
-        await message.answer("Вы уже зарегистрированы. Используйте /menu для работы с ботом.")
+        await message.answer(t("start.already_registered"))
         return
 
     welcome_kb_bd = InlineKeyboardBuilder()
-    welcome_kb_bd.button(text=LEXICON_RU['to_register'], callback_data='submit_welcome_msg')
-    await message.answer(LEXICON_RU['welcome'],  parse_mode='HTML')
-    await message.answer(LEXICON_RU['policy'], reply_markup=welcome_kb_bd.as_markup(), parse_mode='HTML')
+    welcome_kb_bd.button(text=t("start.to_register"), callback_data='submit_welcome_msg')
+    await message.answer(t("start.welcome"), parse_mode='HTML')
+    await message.answer(t("start.policy"), reply_markup=welcome_kb_bd.as_markup(), parse_mode='HTML')
 
 @start_message_router.message(Command(commands="help"))
 async def help_comm(message: Message, state: FSMContext):
-    text = (
-        "У бота есть три основные команды:\n"
-        " - /menu: присылает основное меню, через которое ведется всё взаимодействие с ботом.\n"
-        " - /start: присылает привественное сообщение с руководством полльзователя.\n"
-        " - /help: присылает инструкцию по пользованию ботом.\n"
-        "Руководство по пользованию ботом:\n"
-        ""
-
-    )
-    await message.answer(text)
+    await message.answer(t("start.help"))

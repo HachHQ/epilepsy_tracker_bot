@@ -4,21 +4,25 @@ from aiogram.types import InlineKeyboardButton
 import calendar
 from datetime import datetime
 
+from i18n import t
+
+
 def get_journal_nav_kb():
     builder = InlineKeyboardBuilder()
-    builder.button(text="📖 Журнал приступов", callback_data="journal")
-    builder.button(text="📉 Статистика", callback_data="stats")
-    builder.button(text="📊 Графики", callback_data="graphs")
-    builder.button(text="↩️ Назад", callback_data="to_menu_edit")
+    builder.button(text=t("buttons.journal_list"), callback_data="journal")
+    builder.button(text=t("buttons.stats"), callback_data="stats")
+    builder.button(text=t("buttons.graphs"), callback_data="graphs")
+    builder.button(text=t("common.back"), callback_data="to_menu_edit")
     builder.adjust(1)
     return builder.as_markup()
 
+
 def get_graphs_type():
     builder = InlineKeyboardBuilder()
-    builder.button(text="📊 Продолжительность", callback_data="duration_graphs")
-    builder.button(text="📊 Частота", callback_data="frequency_graphs")
-    builder.button(text="📊 Эффективность лекарств", callback_data="efficiency_graphs")
-    builder.button(text="↩️ Назад", callback_data="seizure_data")
+    builder.button(text=t("buttons.graph_duration"), callback_data="duration_graphs")
+    builder.button(text=t("buttons.graph_frequency"), callback_data="frequency_graphs")
+    builder.button(text=t("buttons.graph_efficiency"), callback_data="efficiency_graphs")
+    builder.button(text=t("common.back"), callback_data="seizure_data")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -34,14 +38,14 @@ def get_nav_btns_for_list(seizures_count, notes_on_page: int, current_page: int,
         if current_page > 0:
             nav_buttons.append(
                 InlineKeyboardButton(
-                    text="⬅️ Назад",
+                    text=t("buttons.back"),
                     callback_data=f"{prefix}:{current_page - 1}"
                 )
             )
         if current_page < total_pages - 1:
             nav_buttons.append(
                 InlineKeyboardButton(
-                    text="Вперед ➡️",
+                    text=t("buttons.forward"),
                     callback_data=f"{prefix}:{current_page + 1}"
                 )
             )
@@ -51,10 +55,11 @@ def get_nav_btns_for_list(seizures_count, notes_on_page: int, current_page: int,
 
     return builder.as_markup()
 
+
 def get_delete_edit_kb(seizure_id):
     builder = InlineKeyboardBuilder()
-    delete_btn = InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"delete|{seizure_id}")
-    edit_btn = InlineKeyboardButton(text="✍️ Изменить", callback_data=f"edit|{seizure_id}")
+    delete_btn = InlineKeyboardButton(text=t("buttons.delete_item"), callback_data=f"delete|{seizure_id}")
+    edit_btn = InlineKeyboardButton(text=t("buttons.edit_item"), callback_data=f"edit|{seizure_id}")
     builder.button(delete_btn)
     builder.button(edit_btn)
     builder.adjust(2)
@@ -63,8 +68,8 @@ def get_delete_edit_kb(seizure_id):
 
 def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarkup:
     years_journal_bd = InlineKeyboardBuilder()
-    back_btn = InlineKeyboardButton(text="Назад", callback_data="years_journal_back")
-    forw_btn = InlineKeyboardButton(text="Вперед", callback_data="years_journal_forw")
+    back_btn = InlineKeyboardButton(text=t("buttons.back_plain"), callback_data="years_journal_back")
+    forw_btn = InlineKeyboardButton(text=t("buttons.forward_plain"), callback_data="years_journal_forw")
     years_journal_bd.adjust(rows)
 
     pass
@@ -81,12 +86,13 @@ def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -
         else:
             kb_builder.button(text=str(day), callback_data=f"day:{year}.{month}.{day}")
     kb_builder.adjust(columns)
-    back_btn = InlineKeyboardButton(text="Назад", callback_data="back")
+    back_btn = InlineKeyboardButton(text=t("buttons.back_plain"), callback_data="back")
     kb_builder.row(back_btn)
     return kb_builder.as_markup()
 
+
 def get_delete_seizure_note_kb(seizure_id: int):
     kb_builder = InlineKeyboardBuilder()
-    kb_builder.button(text="Да", callback_data=f"delete_seizure_note:yes:{seizure_id}")
-    kb_builder.button(text="Нет", callback_data=f"delete_seizure_note:no")
+    kb_builder.button(text=t("common.yes"), callback_data=f"delete_seizure_note:yes:{seizure_id}")
+    kb_builder.button(text=t("common.no"), callback_data=f"delete_seizure_note:no")
     return kb_builder.as_markup()

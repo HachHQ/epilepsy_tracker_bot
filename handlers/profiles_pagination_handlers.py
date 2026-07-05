@@ -2,6 +2,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from i18n import t
 from services.redis_cache_data import get_cached_profiles_list
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
 
@@ -19,7 +20,7 @@ async def handle_pagination(callback: CallbackQuery, db: AsyncSession):
     page = int(page)
     profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id, profile_type)
     if not profiles_redis:
-        await callback.message.answer("Ошибка: Список профилей не найден.")
+        await callback.message.answer(t("pagination.profiles_not_found"))
         await callback.answer()
         return
     new_page = max(0, page - 1) if direction == "prev" else min(len(profiles_redis) // 5, page + 1)

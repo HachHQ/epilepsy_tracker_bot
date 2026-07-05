@@ -19,7 +19,8 @@ RUN pip install --upgrade pip \
 COPY . .
 
 RUN mkdir -p temp_images \
+    && sed -i 's/\r$//' docker/entrypoint.sh \
     && chmod +x docker/entrypoint.sh
 
-ENTRYPOINT ["docker/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/app/docker/entrypoint.sh"]
 CMD ["python", "main.py"]
