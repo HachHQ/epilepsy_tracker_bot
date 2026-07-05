@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import os
 from uuid import uuid4
 import pandas as pd
@@ -5,7 +7,6 @@ import matplotlib.pyplot as plt
 import calendar
 import numpy as np
 from scipy import stats
-from aiogram.types import FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
 from datetime import datetime, timezone, timedelta, date
@@ -32,10 +33,20 @@ MONTHS_RU = [
     "Янв", "Фев", "Март", "Апр", "Май", "Июнь",
     "Июль", "Авг", "Сен", "Окт", "Ноя", "Дек"
 ]
-current_date = datetime.now(timezone.utc)
-current_year = datetime.now(timezone.utc).year
-current_month = datetime.now(timezone.utc).month
-current_month_in_russian = MONTHS_RU[current_month-1]
+
+
+@dataclass(frozen=True)
+class ChartBuildResult:
+    image_path: str | None = None
+    caption: str | None = None
+    error: str | None = None
+
+
+def get_current_utc_context() -> tuple[datetime, int, int, str]:
+    current_date = datetime.now(timezone.utc)
+    current_year = current_date.year
+    current_month = current_date.month
+    return current_date, current_year, current_month, MONTHS_RU[current_month - 1]
 
 #GRAPHS
 def make_a_gist(
@@ -55,54 +66,56 @@ def make_a_gist(
     plt.grid(visible=True, which='both', linestyle='--', linewidth=0.5)
     return plt.bar(dataX, dataY)
 
-async def get_year_gist(session: AsyncSession, message: Message):
-    current_profile = await get_cached_current_profile(session, message.chat.id)
+async def get_year_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult:
+    _, current_year, _, _ = get_current_utc_context()
+    current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return await message.answer("Выберите профиль.")
+        return ChartBuildResult(error="Выберите профиль.")
     seizure_data = await orm_get_seizures_for_a_specific_period(
         session,
         int(current_profile.split('|', 1)[0]),
-        current_year
+        current_year,
     )
     if len(seizure_data) == 0:
-        await message.answer("Данных для отображения нет.")
-        return
+        return ChartBuildResult(error="Данных для отображения нет.")
     month_arr = range(1, 13)
     count_seizures_by_month = [0] * 12
     for seizure in seizure_data:
         date = datetime.strptime(seizure.date, "%Y-%m-%d")
         if date.month in month_arr:
-            count_seizures_by_month[date.month-1] += 1
+            count_seizures_by_month[date.month - 1] += 1
     make_a_gist(
         title=f"Количество приступов по месяцам в течение {current_year} года ",
         label_x="Месяц",
         label_y="Количество приступов",
         dataX=month_arr,
         dataY=count_seizures_by_month,
-        xticks=MONTHS_RU
+        xticks=MONTHS_RU,
     )
-    path = 'temp_images/gist_year.png'
+    path = "temp_images/gist_year.png"
     plt.savefig(path)
-    file = FSInputFile(path=path)
-    await message.answer_photo(
-        photo=file,
-        caption=f"Гистограмма распределения приступов по месяцам в течение {current_year}"
-        f" года для профиля {current_profile.split('|', 1)[1]}",
+    plt.close()
+    return ChartBuildResult(
+        image_path=path,
+        caption=(
+            f"Гистограмма распределения приступов по месяцам в течение {current_year}"
+            f" года для профиля {current_profile.split('|', 1)[1]}"
+        ),
     )
-    os.remove(path)
 
-async def get_month_gist(session: AsyncSession, message: Message):
+async def get_month_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult:
+    current_date, current_year, current_month, current_month_in_russian = get_current_utc_context()
     days_range = calendar.monthrange(current_year, current_month)[1]
     days_range = [day for day in range(1, days_range + 1)]
     count_seizures_by_days = [0] * len(days_range)
-    current_profile = await get_cached_current_profile(session, message.chat.id)
+    current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return await message.answer("Выберите профиль.")
-    seizures_data = await orm_get_seizures_for_a_specific_period(session, int(current_profile.split('|')[0]), current_year, current_month)
-    print(len(seizures_data))
+        return ChartBuildResult(error="Выберите профиль.")
+    seizures_data = await orm_get_seizures_for_a_specific_period(
+        session, int(current_profile.split('|')[0]), current_year, current_month
+    )
     if len(seizures_data) == 0:
-        await message.answer("Данных для отображения нет.")
-        return
+        return ChartBuildResult(error="Данных для отображения нет.")
     for seizure in seizures_data:
         date = datetime.strptime(seizure.date, "%Y-%m-%d")
         if date.day in days_range:
@@ -113,18 +126,18 @@ async def get_month_gist(session: AsyncSession, message: Message):
         label_y="Количество приступов",
         dataX=days_range,
         dataY=count_seizures_by_days,
-        xticks=days_range
+        xticks=days_range,
     )
-    path = f"temp_images/{message.chat.id}-{current_profile.split('|', 1)[0]}-{current_date.date()}.jpg"
-    print(path)
+    path = f"temp_images/{chat_id}-{current_profile.split('|', 1)[0]}-{current_date.date()}-{uuid4().hex}.jpg"
     plt.savefig(path)
-    file = FSInputFile(path=path)
-    await message.answer_photo(
-        photo=file,
-        caption=f"Гистограмма распределения приступов по дням за {current_month_in_russian}"
-        f" для профиля {current_profile.split('|')[1]}",
+    plt.close()
+    return ChartBuildResult(
+        image_path=path,
+        caption=(
+            f"Гистограмма распределения приступов по дням за {current_month_in_russian}"
+            f" для профиля {current_profile.split('|')[1]}"
+        ),
     )
-    os.remove(path)
 
 def make_a_gist_with_courses(
     title,
@@ -187,25 +200,22 @@ def extract_course_spans(
         spans.append((start_month, end_month, color, label))
     return spans
 
-async def get_year_gist_with_courses(session: AsyncSession, message: Message):
-    current_profile = await get_cached_current_profile(session, message.chat.id)
+async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, command_text: str) -> ChartBuildResult:
+    current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return await message.answer("Выберите профиль.")
+        return ChartBuildResult(error="Выберите профиль.")
     profile_id = int(current_profile.split('|', 1)[0])
     profile_name = current_profile.split('|', 1)[1]
     try:
-        command_parts = message.text.strip().split('_')
+        command_parts = command_text.strip().split('_')
         if len(command_parts) < 3 or not command_parts[-1].isdigit():
             raise ValueError
         current_year = int(command_parts[-1])
     except ValueError:
-        return await message.answer("Некорректный формат команды. Используйте: /get_drug_efficiency_2024")
-    seizure_data = await orm_get_seizures_for_a_specific_year(
-        session, profile_id, current_year
-    )
-    print(len(seizure_data))
+        return ChartBuildResult(error="Некорректный формат команды. Используйте: /get_drug_efficiency_2024")
+    seizure_data = await orm_get_seizures_for_a_specific_year(session, profile_id, current_year)
     if len(seizure_data) == 0:
-        return await message.answer(f"Нет данных за {current_year} год.")
+        return ChartBuildResult(error=f"Нет данных за {current_year} год.")
     month_arr = range(1, 13)
     count_seizures_by_month = [0] * 12
     for seizure in seizure_data:
@@ -223,28 +233,28 @@ async def get_year_gist_with_courses(session: AsyncSession, message: Message):
         dataX=month_arr,
         dataY=count_seizures_by_month,
         xticks=MONTHS_RU,
-        medication_spans=med_spans
+        medication_spans=med_spans,
     )
-    path = f'temp_images/gist_eff_{current_year}.png'
+    path = f"temp_images/gist_eff_{current_year}.png"
     plt.savefig(path)
-    file = FSInputFile(path=path)
-    await message.answer_photo(
-        photo=file,
-        caption=f"📊 Частота приступов за {current_year} для профиля {profile_name} с выделением периодов действия препаратов"
-    )
     plt.close()
-    os.remove(path)
+    return ChartBuildResult(
+        image_path=path,
+        caption=(
+            f"📊 Частота приступов за {current_year} для профиля {profile_name} "
+            "с выделением периодов действия препаратов"
+        ),
+    )
 
-async def get_hour_distribution_plot(session: AsyncSession, message: Message):
-    profile = await get_cached_current_profile(session, message.chat.id)
+async def get_hour_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
+    profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return await message.answer("Сначала выберите профиль.")
+        return ChartBuildResult(error="Сначала выберите профиль.")
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
-    print(len(seizures))
     if not seizures:
-        return await message.answer(f"Нет данных о приступах.")
+        return ChartBuildResult(error="Нет данных о приступах.")
     hourly_distribution = [0] * 24
     for s in seizures:
         if s.time:
@@ -260,29 +270,28 @@ async def get_hour_distribution_plot(session: AsyncSession, message: Message):
     plt.xticks(ticks=range(24), labels=[f"{h}:00" for h in range(24)], rotation=45)
     plt.xlabel("Час суток")
     plt.ylabel("Количество приступов")
-    plt.title(f"Распределение приступов по времени суток", fontsize=16)
+    plt.title("Распределение приступов по времени суток", fontsize=16)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     plt.grid(True, linestyle='--', alpha=0.5)
     path = f"temp_images/seizure_hours_{uuid4()}.png"
     plt.savefig(path)
     plt.close()
-    await message.answer_photo(
-        FSInputFile(path),
-        caption=f"📊 Распределение приступов по времени суток для профиля {profile_name}"
+    return ChartBuildResult(
+        image_path=path,
+        caption=f"📊 Распределение приступов по времени суток для профиля {profile_name}",
     )
-    os.remove(path)
 
 WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
-async def get_weekday_distribution_plot(session: AsyncSession, message: Message):
-    profile = await get_cached_current_profile(session, message.chat.id)
+async def get_weekday_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
+    profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return await message.answer("Сначала выберите профиль.")
+        return ChartBuildResult(error="Сначала выберите профиль.")
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if not seizures:
-        return await message.answer("Нет данных о приступах для анализа.")
+        return ChartBuildResult(error="Нет данных о приступах для анализа.")
     weekday_counts = [0] * 7
     for s in seizures:
         try:
@@ -304,27 +313,20 @@ async def get_weekday_distribution_plot(session: AsyncSession, message: Message)
     path = f"temp_images/seizure_weekdays_{profile_id}.png"
     plt.savefig(path)
     plt.close()
-    await message.answer_photo(
-        FSInputFile(path),
-        caption=f"📊 Распределение приступов по дням недели для профиля {profile_name}"
+    return ChartBuildResult(
+        image_path=path,
+        caption=f"📊 Распределение приступов по дням недели для профиля {profile_name}",
     )
-    os.remove(path)
 
-MONTHS_RU = [
-    "Янв", "Фев", "Март", "Апр", "Май", "Июнь",
-    "Июль", "Авг", "Сен", "Окт", "Ноя", "Дек"
-]
-
-async def get_month_distribution_plot(session: AsyncSession, message: Message):
-    profile = await get_cached_current_profile(session, message.chat.id)
+async def get_month_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
+    profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return await message.answer("Сначала выберите профиль.")
-
+        return ChartBuildResult(error="Сначала выберите профиль.")
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if not seizures:
-        return await message.answer("Нет данных для анализа.")
+        return ChartBuildResult(error="Нет данных для анализа.")
     month_counts = [0] * 12
     for s in seizures:
         try:
@@ -345,79 +347,13 @@ async def get_month_distribution_plot(session: AsyncSession, message: Message):
     path = f"temp_images/seizure_months_{profile_id}.png"
     plt.savefig(path)
     plt.close()
-    await message.answer_photo(
-        FSInputFile(path),
-        caption=f"📊 Распределение приступов по месяцам для профиля {profile_name}"
+    return ChartBuildResult(
+        image_path=path,
+        caption=f"📊 Распределение приступов по месяцам для профиля {profile_name}",
     )
-    os.remove(path)
 
 #STATS
-async def get_min_max_duration_of_seizure(session: AsyncSession, message: Message) -> str:
-    current_profile = await get_cached_current_profile(session, message.chat.id)
-    if current_profile is None:
-        return await message.answer("Выберите профиль.")
-    seizures_data = await orm_get_seizures_by_profile_ascending(session, int(current_profile.split('|')[0]))
-    if len(seizures_data) == 0 or len(seizures_data) < 2:
-        return None
-    duration_list = []
-    for seizure in seizures_data:
-        if seizure.duration:
-            duration_list.append(seizure.duration)
-
-    return f"{get_minutes_and_seconds(min(duration_list))}|{get_minutes_and_seconds(max(duration_list))}"
-
-async def get_avg_duration_of_seizure_in_a_week(session: AsyncSession, message: Message) -> str:
-    current_profile = await get_cached_current_profile(session, message.chat.id)
-    local_date = await get_user_local_datetime(session, message.chat.id)
-    start_of_week = local_date - timedelta(days=(local_date.isoweekday() - 1))
-    if current_profile is None:
-        return await message.answer("Выберите профиль.")
-    seizures_data = await orm_get_seizures_for_a_specific_period(session, int(current_profile.split('|')[0]), start_of_week.year, start_of_week.month, start_of_week.day)
-    if len(seizures_data) < 2:
-        return 0
-    seizures_with_duration = 0
-    total_duration_in_sec = 0
-    for seizure in seizures_data:
-        if seizure.duration:
-            seizures_with_duration += 1
-            total_duration_in_sec += seizure.duration
-    if seizures_with_duration == 0:
-        return 0
-    return get_minutes_and_seconds(total_duration_in_sec // seizures_with_duration)
-
-async def get_avg_duration_of_seizure_in_a_month(session: AsyncSession, message: Message) -> str:
-    current_profile = await get_cached_current_profile(session, message.chat.id)
-    local_date = await get_user_local_datetime(session, message.chat.id)
-    if current_profile is None:
-        return await message.answer("Выберите профиль.")
-    seizures_data = await orm_get_seizures_for_a_specific_period(session, int(current_profile.split('|')[0]), local_date.year, local_date.month)
-    if len(seizures_data) == 0 or len(seizures_data) < 2:
-        return None
-    seizures_with_duration = 0
-    total_duration_in_sec = 0
-    for seizure in seizures_data:
-        if seizure.duration:
-            seizures_with_duration += 1
-            total_duration_in_sec += seizure.duration
-    if seizures_with_duration == 0:
-        return None
-    return get_minutes_and_seconds(total_duration_in_sec // seizures_with_duration)
-
-async def get_avg_days_without_seizures(session: AsyncSession, message: Message):
-    current_profile = await get_cached_current_profile(session, message.chat.id)
-    if current_profile is None:
-        return await message.answer("Выберите профиль.")
-    seizures_data = await orm_get_seizures_by_profile_ascending(session, int(current_profile.split('|')[0]))
-    if len(seizures_data) == 0 or len(seizures_data) < 2:
-        return None
-    date_obj = [datetime.strptime(seizure.date, "%Y-%m-%d") for seizure in seizures_data]
-    total_sum_days = sum(
-        (date_obj[i + 1] - date_obj[i]).days
-        for i in range(len(date_obj) - 1)
-    )
-    return total_sum_days // len(date_obj)
-
-def draw_avg_duration_bar_chart(data, year, profile_name) -> FSInputFile:
+def draw_avg_duration_bar_chart(data, year, profile_name) -> str:
     months = list(range(1, 13))
     avg_by_month = {month: 0 for month in months}
     for month, avg in data:
@@ -440,10 +376,10 @@ def draw_avg_duration_bar_chart(data, year, profile_name) -> FSInputFile:
     plt.tight_layout()
     plt.savefig(path)
     plt.close()
-    return FSInputFile(path)
+    return path
 
-async def compute_seizure_statistics(session: AsyncSession, message) -> dict:
-    profile = await get_cached_current_profile(session, message.chat.id)
+async def compute_seizure_statistics(session: AsyncSession, chat_id: int) -> dict:
+    profile = await get_cached_current_profile(session, chat_id)
     if not profile:
         return {"error": "Сначала выберите профиль."}
     profile_id = int(profile.split("|")[0])
@@ -453,7 +389,7 @@ async def compute_seizure_statistics(session: AsyncSession, message) -> dict:
         return {"error": "Нет данных для анализа."}
     durations = []
     dates = []
-    now = await get_user_local_datetime(session, message.chat.id)
+    now = await get_user_local_datetime(session, chat_id)
     for s in seizures:
         try:
             d = datetime.strptime(s.date, "%Y-%m-%d")

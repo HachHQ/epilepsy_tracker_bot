@@ -1,0 +1,6 @@
+"""Shared pagination sizes for list views."""
+
+JOURNAL_NOTES_PER_PAGE = 8
+NOTIFICATIONS_PER_PAGE = 6
+MEDICATIONS_PER_PAGE = 5
+TRUSTED_PERSONS_PER_PAGE = 3

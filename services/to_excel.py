@@ -1,19 +1,28 @@
-# modules/export_to_excel.py
+import logging
 import os
 import uuid
 from datetime import datetime, time as time_class
-from aiogram import Bot
-import pandas as pd
-from pathlib import Path
 from io import BytesIO
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
+
+import pandas as pd
 from sqlalchemy import select
-from aiogram.types import FSInputFile, Message
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
 
 Path("temp_tables").mkdir(exist_ok=True)
+logger = logging.getLogger(__name__)
 
-async def export_seizures_to_excel(profile_id: int, db: AsyncSession, bot: Bot, message: Message) -> BytesIO:
+EXCEL_TEMPLATE_PATH = "template_seizures.xlsx"
+
+EXPECTED_COLUMNS = [
+    "date", "time", "severity", "duration", "comment",
+    "type_of_seizure", "location", "triggers", "symptoms",
+]
+
+
+async def build_seizures_excel(profile_id: int, db: AsyncSession) -> str:
     result = await db.execute(select(Seizure).where(Seizure.profile_id == int(profile_id)))
     seizures = result.scalars().all()
     data = []
@@ -43,37 +52,24 @@ async def export_seizures_to_excel(profile_id: int, db: AsyncSession, bot: Bot, 
             "Симптомы": ", ".join(symptoms),
         })
     df = pd.DataFrame(data)
-    path = f'temp_tables/{uuid.uuid4().hex}_seizure_report.xlsx'
+    path = f"temp_tables/{uuid.uuid4().hex}_seizure_report.xlsx"
     df.to_excel(path, index=False)
-    try:
-        await bot.send_document(chat_id=message.chat.id, document=FSInputFile(path))
-    finally:
-        if os.path.exists(path):
-            os.remove(path)
-
-import pandas as pd
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from database.models import Seizure, Symptom, Trigger, SeizureSymptom, SeizureTrigger
-from datetime import datetime
+    return path
 
 
-EXPECTED_COLUMNS = [
-    "date", "time", "severity", "duration", "comment",
-    "type_of_seizure", "location", "triggers", "symptoms"
-]
+def get_excel_template_path() -> str:
+    return EXCEL_TEMPLATE_PATH
 
 
 def validate_row(row: pd.Series) -> bool:
     try:
-
         if pd.isna(row["date"]):
             return False
-        pd.to_datetime(row["date"], dayfirst=True, errors='raise')
+        pd.to_datetime(row["date"], dayfirst=True, errors="raise")
         time_value = row.get("time")
         if pd.notna(time_value):
             if isinstance(time_value, time_class):
-                pass  # уже OK
+                pass
             elif isinstance(time_value, datetime):
                 time_value = time_value.time()
             elif isinstance(time_value, float):
@@ -89,10 +85,10 @@ def validate_row(row: pd.Series) -> bool:
         if pd.notna(duration_value) and not isinstance(duration_value, (int, float)):
             return False
         return True
-
-    except Exception as e:
-        print("Ошибка:", e)
+    except Exception:
+        logger.exception("Invalid Excel row")
         return False
+
 
 async def get_or_create_symptom(db: AsyncSession, name: str, profile_id: int):
     result = await db.execute(select(Symptom).where(Symptom.symptom_name == name, Symptom.profile_id == profile_id))
@@ -104,6 +100,7 @@ async def get_or_create_symptom(db: AsyncSession, name: str, profile_id: int):
     await db.flush()
     return symptom
 
+
 async def get_or_create_trigger(db: AsyncSession, name: str, profile_id: int):
     result = await db.execute(select(Trigger).where(Trigger.trigger_name == name, Trigger.profile_id == profile_id))
     trigger = result.scalars().first()
@@ -114,27 +111,33 @@ async def get_or_create_trigger(db: AsyncSession, name: str, profile_id: int):
     await db.flush()
     return trigger
 
+
 def parse_excel_time(time_value) -> time_class | None:
     if pd.isna(time_value):
         return None
-
     if isinstance(time_value, time_class):
         return time_value
-    elif isinstance(time_value, datetime):
+    if isinstance(time_value, datetime):
         return time_value.time()
-    elif isinstance(time_value, float):
+    if isinstance(time_value, float):
         total_seconds = int(time_value * 86400)
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         return time_class(hour=hours, minute=minutes)
-    elif isinstance(time_value, str):
+    if isinstance(time_value, str):
         try:
             return datetime.strptime(time_value.strip(), "%H:%M").time()
         except ValueError:
             pass
     return None
 
-async def import_seizures_from_xlsx(file_path: str, db: AsyncSession, profile_id: int, bot: Bot, message: Message, login: str):
+
+async def import_seizures_from_xlsx(
+    file_path: str,
+    db: AsyncSession,
+    profile_id: int,
+    login: str,
+) -> tuple[int, list]:
     df = pd.read_excel(file_path)
     if set(EXPECTED_COLUMNS) - set(df.columns):
         raise ValueError("Файл не содержит все необходимые колонки")
@@ -171,13 +174,8 @@ async def import_seizures_from_xlsx(file_path: str, db: AsyncSession, profile_id
                     trigger = await get_or_create_trigger(db, name, profile_id)
                     db.add(SeizureTrigger(seizure_id=seizure.id, trigger_id=trigger.id))
             success_count += 1
-        except Exception as e:
-            print(f"Ошибка при обработке строки {index}: {e}")
+        except Exception:
+            logger.exception("Failed to import Excel row %s", index)
             await db.rollback()
             failed_rows.append(row.to_dict())
     return success_count, failed_rows
-
-async def generate_excel_template(bot: Bot, message: Message):
-    file_path = "template_seizures.xlsx"
-    text="Вот шаблон таблицы, в которую можно внести имеющиеся у вас данные. Заполняйте поля учитывая типы данных и примеры в скобках к каждому признаку."
-    await bot.send_document(chat_id=message.chat.id, document=FSInputFile(file_path), caption=text)

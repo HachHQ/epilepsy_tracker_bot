@@ -18,7 +18,7 @@ from services.validators import (
     validate_non_neg_N_num, validate_less_than_250, validate_date,
     validate_time,
 )
-from database.orm_query import orm_update_seizure
+from use_cases.seizures import update_seizure_field
 from handlers_logic.states_factories import SeizureForm
 from keyboards.seizure_kb import (
     generate_seizure_type_keyboard, get_year_date_kb, get_month_date_kb, get_day_kb,
@@ -26,6 +26,24 @@ from keyboards.seizure_kb import (
     get_count_of_seizures_kb, get_duration_kb, get_time_ranges_kb, get_stop_duration_kb, get_final_seizure_btns
 )
 from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
+
+
+async def _save_seizure_edit(
+    db: AsyncSession,
+    chat_id: int,
+    seizure_id,
+    profile_id,
+    attribute: str,
+    new_value,
+) -> None:
+    await update_seizure_field(
+        db,
+        user_id=chat_id,
+        profile_id=int(profile_id),
+        seizure_id=int(seizure_id),
+        attribute=attribute,
+        new_value=new_value,
+    )
 
 
 async def handle_skip_step(message: Message, state: FSMContext, db):
@@ -154,7 +172,7 @@ async def handle_short_date(callback: CallbackQuery, state: FSMContext, db: Asyn
         if mode == "edit":
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'date', parsed["date"])
+            await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'date', parsed["date"])
             await callback.message.answer(f"Дата обновлена: {parsed["date"]}")
             await callback.answer()
             await state.clear()
@@ -201,7 +219,7 @@ async def handle_day(callback: CallbackQuery, state: FSMContext, db: AsyncSessio
         new_date = f'{year}-{month}-{day_index}'
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'date', new_date)
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'date', new_date)
         await callback.message.answer(f"Дата обновлена: {new_date}")
         await callback.answer()
         await state.clear()
@@ -223,7 +241,7 @@ async def handle_date_by_message(message: Message, state: FSMContext, db: AsyncS
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'date', date)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'date', date)
             await message.answer(f"Дата обновлена: {date}")
             await state.clear()
         else:
@@ -248,7 +266,7 @@ async def handle_time_of_date_message(message: Message, state: FSMContext, db: A
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'time', time)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'time', time)
             await message.answer(f"Время обновлено: {time}")
             await state.clear()
             return
@@ -317,7 +335,7 @@ async def handle_time_by_btns(callback: CallbackQuery, state: FSMContext, db: As
         time = data.get("time_of_day", None)
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'time', time)
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'time', time)
         await callback.message.answer(f"Время обновлено: {time}")
         await callback.answer()
         await state.clear()
@@ -337,7 +355,7 @@ async def handle_count_of_seizures(callback: CallbackQuery, state: FSMContext, d
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'count', count_of_seizures)
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'count', count_of_seizures)
         await callback.message.answer(f"Количество обновлено: {count_of_seizures}")
         await callback.answer()
         await state.clear()
@@ -356,7 +374,7 @@ async def handle_count_by_message(message: Message, state: FSMContext, db: Async
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'count', count)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'count', count)
             await message.answer(f"Количество обновлено: {count}")
             await state.clear()
             return
@@ -382,7 +400,7 @@ async def handle_type_of_seizure_save(callback: CallbackQuery, state: FSMContext
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'type_of_seizure', LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'type_of_seizure', LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)])
         await callback.message.answer(f"Тип приступа обновлен: {LEXICON_TYPES_OF_SEIZURE[int(type_of_seizure_id)]}")
         await state.clear()
         return
@@ -456,7 +474,7 @@ async def handle_save_toggled_triggers(callback: CallbackQuery, state: FSMContex
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'triggers', ",".join(selected_triggers))
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'triggers', ",".join(selected_triggers))
         await callback.message.answer(f"Сохраненные триггеры обновлены: {'Список пуст' if len(selected_triggers) == 0 else ", ".join(selected_triggers)}")
         await callback.answer()
         await state.clear()
@@ -487,7 +505,7 @@ async def handle_triggers_by_message(message: Message, state: FSMContext, db: As
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'triggers', triggers)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'triggers', triggers)
             await message.answer(f"Сохраненные триггеры обновлены: {'Список пуст' if triggers is None else triggers}")
             await state.clear()
             return
@@ -507,7 +525,7 @@ async def handle_severity(callback: CallbackQuery, state: FSMContext, db: AsyncS
     if mode == "edit":
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'severity', severity)
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'severity', severity)
         await callback.message.answer(f"Тяжесть обновлена: {severity}")
         await callback.answer()
         await state.clear()
@@ -528,7 +546,7 @@ async def handle_duration_by_cb(callback: CallbackQuery, state: FSMContext, db: 
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'duration', int(duration_in_seconds))
+        await _save_seizure_edit(db, callback.message.chat.id, seizure_id, profile_id, 'duration', int(duration_in_seconds))
         await callback.message.answer(f"Продолжительность обновлена: около {get_minutes_and_seconds(duration_in_seconds)}")
         await callback.answer()
         await state.clear()
@@ -549,7 +567,7 @@ async def handle_duration_by_message(message: Message, state: FSMContext, db: As
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'duration', duration * 60)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'duration', duration * 60)
             await message.answer(f"Продолжительность обновлена: около {get_minutes_and_seconds(duration * 60)}")
             await state.clear()
         else:
@@ -568,7 +586,7 @@ async def handle_comment(message: Message, state: FSMContext, db: AsyncSession):
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'comment', comment)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'comment', comment)
             await message.answer(f"Комментарий обновлён: {comment}")
             await state.clear()
             return
@@ -585,13 +603,13 @@ async def handle_video(message: Message, state: FSMContext, db: AsyncSession):
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
         if message.video:
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'video_tg_id', message.video.file_id)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.video.file_id)
             await message.answer("Видео сохранено")
         elif message.video_note:
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'video_tg_id', message.video_note.file_id)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.video_note.file_id)
             await message.answer("Видео сохранено")
         elif message.document.mime_type == 'video/mp4':
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'video_tg_id', message.document.file_id)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'video_tg_id', message.document.file_id)
             await message.answer("Видео сохранено")
         else:
             await message.answer("Пришлите видео, кружок или mp4 документ.")
@@ -620,7 +638,7 @@ async def handle_geolocation(message: Message, state: FSMContext, db: AsyncSessi
     if mode == 'edit':
         seizure_id = data["seizure_id"]
         profile_id = data["profile_id"]
-        await orm_update_seizure(db, int(seizure_id), int(profile_id), 'location', location_coords)
+        await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'location', location_coords)
         await message.answer(f"Геолокация обновлена: ", reply_markup=ReplyKeyboardRemove())
         await bot.send_location(chat_id=message.chat.id, latitude=latitude, longitude=longitude)
         await state.clear()
@@ -637,7 +655,7 @@ async def handle_location_by_message(message: Message, state: FSMContext, db: As
         if mode == 'edit':
             seizure_id = data["seizure_id"]
             profile_id = data["profile_id"]
-            await orm_update_seizure(db, int(seizure_id), int(profile_id), 'location', location)
+            await _save_seizure_edit(db, message.chat.id, seizure_id, profile_id, 'location', location)
             await message.answer(f"Место приступа сохранено: {location}")
             await state.clear()
         else:

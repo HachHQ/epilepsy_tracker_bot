@@ -1,10 +1,12 @@
 import asyncio
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from config_data.config import load_config
+from config_data.config import get_config
 
-config = load_config(".env")
+config = get_config(strict=False)
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = f"postgresql+asyncpg://{config.db.db_user}:{config.db.db_password}@{config.db.db_host}:{config.db.db_port}/{config.db.db_name}"
 
@@ -14,9 +16,9 @@ SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 class Base(DeclarativeBase): pass
 
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("База данных успешно инициализирована")
+    import database.models  # noqa: F401
+
+    logger.info("Database metadata loaded; apply schema changes with Alembic migrations")
 
 if __name__ == "__main__":
     asyncio.run(init_db())

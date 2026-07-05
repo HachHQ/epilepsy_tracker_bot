@@ -5,11 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.redis_cache_data import (
     get_cached_current_profile, get_cached_login, get_cached_profiles_list, get_cached_trusted_persons_agrigated_data
 )
-from config_data.config import load_config
-
-cfg = load_config('.env')
-
-admin_ids: list[int] = cfg.tg_bot.admins
+from config_data.config import get_config
 
 class EditCommandFilter(BaseFilter):
     async def __call__(self, message: Message) -> bool:
@@ -20,11 +16,10 @@ class EditCommandFilter(BaseFilter):
         return len(parts) == 2 and parts[1].isdigit()
 
 class IsAdmin(BaseFilter):
-    def __init__(self, admin_ids: list[int]) -> None:
-        self.admin_ids = admin_ids
-
     async def __call__(self, message: Message) -> bool:
-        return message.from_user.id in self.admin_ids
+        if message.from_user is None:
+            return False
+        return message.from_user.id in get_config().tg_bot.admins
 
 class ProfileIsSetCb(BaseFilter):
     async def __call__(self, callback: CallbackQuery, db: AsyncSession) -> bool:

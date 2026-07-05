@@ -71,3 +71,8 @@ class SosForm(StatesGroup):
 
 class GetExcelTableForm(StatesGroup):
     get_xlsx_file = State()
+
+class AccountForm(StatesGroup):
+    confirm_soft_delete = State()
+    confirm_purge_forever = State()
+    restore_codeword = State()

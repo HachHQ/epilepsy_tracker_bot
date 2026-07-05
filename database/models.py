@@ -1,7 +1,6 @@
 import enum
-import uuid
 from sqlalchemy import ( Column, Integer, BigInteger, Index,
-                        String, Enum, ForeignKey, Table,
+                        String, Enum, ForeignKey,
                         DateTime, Boolean, Time, UniqueConstraint, PrimaryKeyConstraint,
                         Date
 )
@@ -31,8 +30,14 @@ class User(Base):
     keyword_hash = Column(String(60))
     current_profile = Column(Integer, default=None, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    data_retention_until = Column(DateTime(timezone=True), nullable=True)
 
     profiles = relationship("Profile", back_populates="user")
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     def to_dict(self):
         return {
@@ -60,8 +65,17 @@ class Profile(Base):
     biological_species = Column(String(30))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    seizures_retention_until = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="profiles")
+    seizures = relationship("Seizure", back_populates="profile")
+    symptoms = relationship("Symptom", back_populates="profile", cascade="all, delete-orphan")
+    triggers = relationship("Trigger", back_populates="profile", cascade="all, delete-orphan")
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     def to_dict(self):
         return {
@@ -79,7 +93,7 @@ class Seizure(Base):
     __tablename__ = 'seizures'
 
     id = Column(Integer, primary_key=True)
-    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete="CASCADE"), nullable=False)
+    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete="RESTRICT"), nullable=False)
     date = Column(String(25))
     time = Column(String(25), nullable=True)
     severity = Column(String(50), nullable=True)
@@ -95,11 +109,23 @@ class Seizure(Base):
     triggers = Column(String, nullable=True)
     location = Column(String(30), nullable=True)
     symptoms = Column(String, nullable=True)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    retention_until = Column(DateTime(timezone=True), nullable=True)
+
+    profile = relationship("Profile", back_populates="seizures")
+    symptom_links = relationship("SeizureSymptom", back_populates="seizure", cascade="all, delete-orphan")
+    trigger_links = relationship("SeizureTrigger", back_populates="seizure", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_seizures_profile_id_date", "profile_id", "date"),
+    )
 
 class SeizureSymptom(Base):
     __tablename__ = 'seizure_symptoms'
     seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
     symptom_id = Column(Integer, ForeignKey("symptoms.id", ondelete="CASCADE"))
+    seizure = relationship("Seizure", back_populates="symptom_links")
+    symptom = relationship("Symptom", back_populates="seizure_links")
     __table_args__ = (
         PrimaryKeyConstraint('seizure_id', 'symptom_id'),
     )
@@ -107,6 +133,8 @@ class SeizureTrigger(Base):
     __tablename__ = 'seizure_triggers'
     seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
     trigger_id = Column(Integer, ForeignKey("triggers.id", ondelete="CASCADE"))
+    seizure = relationship("Seizure", back_populates="trigger_links")
+    trigger = relationship("Trigger", back_populates="seizure_links")
     __table_args__ = (
         PrimaryKeyConstraint('seizure_id', 'trigger_id'),
     )
@@ -115,12 +143,16 @@ class Symptom(Base):
     id = Column(Integer, primary_key=True)
     symptom_name = Column(String(100), nullable=False)
     profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    profile = relationship("Profile", back_populates="symptoms")
+    seizure_links = relationship("SeizureSymptom", back_populates="symptom", cascade="all, delete-orphan")
     __table_args__ = (UniqueConstraint('symptom_name', 'profile_id', name='uix_symptom_name_profile'),)
 class Trigger(Base):
     __tablename__ = 'triggers'
     id = Column(Integer, primary_key=True)
     trigger_name = Column(String(100), nullable=False)
     profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    profile = relationship("Profile", back_populates="triggers")
+    seizure_links = relationship("SeizureTrigger", back_populates="trigger", cascade="all, delete-orphan")
     __table_args__ = (UniqueConstraint('trigger_name', 'profile_id', name='uix_trigger_name_profile'),)
 
 
@@ -131,6 +163,7 @@ class TrustedPersonProfiles(Base):
     trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     profile_owner_id = Column(Integer, ForeignKey("users.id"))
     profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
+    can_read = Column(Boolean, nullable=False, default=True)
     can_edit = Column(Boolean, nullable=False, default=True)
     get_notification = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -140,11 +173,16 @@ class TrustedPersonProfiles(Base):
             'trusted_person_user_id': self.trusted_person_user_id,
             'profile_owner_id': self.profile_owner_id,
             'profile_id': self.profile_id,
-            #'can_read': self.can_read,
+            'can_read': self.can_read,
             'can_edit': self.can_edit,
             'get_notification': self.get_notification,
             'created_at': self.created_at
         }
+
+    __table_args__ = (
+        Index("ix_trusted_person_profiles_trusted_user", "trusted_person_user_id"),
+        Index("ix_trusted_person_profiles_owner_profile", "profile_owner_id", "profile_id"),
+    )
 
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"

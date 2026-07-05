@@ -4,18 +4,20 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
+from config_data.pagination import JOURNAL_NOTES_PER_PAGE as NOTES_PER_PAGE
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import SeizureForm
 from handlers_logic.seizure_form_logic import ask_for_a_year
 from database.orm_query import (
-    orm_get_seizures_by_profile_descending, orm_get_seizure_info, orm_delete_seizure,
-
+    orm_get_seizures_by_profile_descending, orm_get_seizure_info,
 )
+from use_cases.seizures import delete_seizure_record
 from services.redis_cache_data import (
     get_cached_current_profile, get_cached_login, get_cached_triggers_list,
     get_cached_profile_triggers_list,
 )
-from services.notes_formatters import get_formatted_seizure_info, get_minutes_and_seconds
+from adapters.telegram.delivery import show_seizure_note
+from services.notes_formatters import get_minutes_and_seconds
 from keyboards.journal_kb import get_nav_btns_for_list, get_journal_nav_kb, get_delete_seizure_note_kb
 from keyboards.seizure_kb import (
     generate_seizure_type_keyboard, get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
@@ -23,8 +25,6 @@ from keyboards.seizure_kb import (
 )
 from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
 journal_router = Router()
-
-NOTES_PER_PAGE = 8
 
 def sort_seizures_by_datetime(seizures):
     def get_datetime(item):
@@ -108,22 +108,22 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
         await message.answer(f'Нет такой записи для профиля {current_profile.split('|', 1)[1]}.')
         return
     print(seizure.location)
-    await get_formatted_seizure_info(
-        current_profile = current_profile.split('|', 1)[1],
-        date = seizure.date,
-        time = seizure.time,
-        count = seizure.count,
-        triggers = seizure.triggers,
-        severity = seizure.severity,
-        duration = get_minutes_and_seconds(seizure.duration),
-        comment = seizure.comment,
-        symptoms = seizure.symptoms,
-        video_tg_id = seizure.video_tg_id,
-        location = seizure.location,
+    await show_seizure_note(
+        bot,
+        message,
+        current_profile=current_profile.split('|', 1)[1],
+        date=seizure.date,
+        time=seizure.time,
+        count=seizure.count,
+        triggers=seizure.triggers,
+        severity=seizure.severity,
+        duration=get_minutes_and_seconds(seizure.duration),
+        comment=seizure.comment,
+        symptoms=seizure.symptoms,
+        video_tg_id=seizure.video_tg_id,
+        location=seizure.location,
         type_of_seizure=seizure.type_of_seizure,
-        seizure_id = seizure.id,
-        bot = bot,
-        message = message
+        seizure_id=seizure.id,
     )
 
 @journal_router.message(F.text.startswith('/sjedit'))
@@ -135,23 +135,23 @@ async def show_edit_options(message: Message, state: FSMContext, db: AsyncSessio
     if not seizure:
         await message.answer('Такой записи для вашего профиля нет.')
         return
-    await get_formatted_seizure_info(
-        seizure_id = seizure.id,
-        current_profile = current_profile.split('|', 1)[1],
-        date = seizure.date,
-        time = seizure.time,
-        count = seizure.count,
-        triggers = seizure.triggers,
-        severity = seizure.severity,
-        duration = get_minutes_and_seconds(seizure.duration),
-        comment = seizure.comment,
-        symptoms = seizure.symptoms,
-        video_tg_id = seizure.video_tg_id,
-        location = seizure.location,
+    await show_seizure_note(
+        bot,
+        message,
+        seizure_id=seizure.id,
+        current_profile=current_profile.split('|', 1)[1],
+        date=seizure.date,
+        time=seizure.time,
+        count=seizure.count,
+        triggers=seizure.triggers,
+        severity=seizure.severity,
+        duration=get_minutes_and_seconds(seizure.duration),
+        comment=seizure.comment,
+        symptoms=seizure.symptoms,
+        video_tg_id=seizure.video_tg_id,
+        location=seizure.location,
         type_of_seizure=seizure.type_of_seizure,
         edit_mode=True,
-        bot = bot,
-        message = message
     )
     # await message.answer(text, parse_mode='HTML')
 
@@ -221,7 +221,13 @@ async def process_delete_seizure_note(callback: CallbackQuery, db: AsyncSession)
         await callback.message.answer("Выберите профиль.")
         return
     if answer == 'yes':
-        res = await orm_delete_seizure(db, int(seizure_id), int(current_profile.split('|', 1)[0]))
+        profile_id = int(current_profile.split('|', 1)[0])
+        res = await delete_seizure_record(
+            db,
+            user_id=callback.message.chat.id,
+            profile_id=profile_id,
+            seizure_id=int(seizure_id),
+        )
         if res:
             await callback.message.edit_text("Запись успешно удалена.")
         else:

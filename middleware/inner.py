@@ -1,3 +1,4 @@
+import logging
 from aiogram.types import TelegramObject
 from aiogram import BaseMiddleware
 from typing import Any, Awaitable, Callable, Dict
@@ -5,11 +6,7 @@ from services.notification_queue import NotificationQueue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from aiogram.types import TelegramObject
-from aiogram import BaseMiddleware
-from typing import Any, Awaitable, Callable, Dict
-from services.notification_queue import NotificationQueue
-from sqlalchemy.ext.asyncio import AsyncSession
+logger = logging.getLogger(__name__)
 
 class DatabaseSessionMiddleware(BaseMiddleware):
     def __init__(self, sessionmaker: Callable[[], AsyncSession]):
@@ -27,8 +24,10 @@ class DatabaseSessionMiddleware(BaseMiddleware):
                 result = await handler(event, data)
                 await session.commit()
                 return result
-            except Exception as e:
+            except Exception:
                 await session.rollback()
+                logger.exception("Database session was rolled back after handler failure")
+                raise
 
 # class DatabaseSessionMiddleware(BaseMiddleware):
 #     def __init__(self, sessionmaker: Callable[[], AsyncSession]):
