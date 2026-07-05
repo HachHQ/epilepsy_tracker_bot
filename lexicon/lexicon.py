@@ -1,100 +1,96 @@
-LEXICON_RU: dict[str,str] = {
-    'welcome': "Привет! Я бот, который поможет тебе удобно и быстро фиксировать данные об эпилептических приступах.\n\n<b>Доступные возможности:</b>\n- Заполнение/редактирование данных о приступах.\n- Легко делиться зафиксированными данными с доверенными лицами (ДЛ в меню).\n- Импортировать данные из exel таблицы или текстового файла.\n- Настроить регулярные уведомления о приеме лекарств.\n- Просмотр подробной статистики по зафиксированным приступам.\n\n<u>Нажмите на кнопку для регистрации в боте.</u>",
-    'to_register': "К регистрации",
-    'cancel_script': "Вы отменили сценарий заполнения.",
-    'not_in_script': "Вы не находитесь в сценарии заполнения.",
-    'enter_username': "Введите свое имя:",
-    'enter_login': "Придумайте логин, он должен быть уникальным:",
-    'incorrect_login': "Логин должен иметь длину от 6 до 25 символов, использовать буквы русского или английского алфавита, но допускаются сиволы - '.' '_' '-'",
-    'user_exist': "Вы уже зарегистрированы.",
-    'login_exist': "Пользователь с логином уже существует, попробуйте ввести другой.",
-    'yes': "Да",
-    'no': "Нет",
-    'offer_to_create_profile': "Хотите ли вы создать свой личный профиль?\nДля этого потребуется ввести данные о виде эпилепсии, лечении и еще кое о чём.\n\nБотом можно пользоваться и без профиля, но тогда вы сможете только следить за состоянием тех людей, котороые добавлены в ваш список доверенных лиц.\nА с личным профилем вы сможете заполнять собственный журнал.",
-    'info_about_profile': "Вы можете создать профиль для себя, родственника, или своего питомца. Заполните анкету его специфичными данными, именем (или кличкой), видом эпилепсии, принимаемыми препаратами и так далее.\n\n<u>Имя может содержать только заглавные и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.</u>",
-    'enter_profile_name': "Введите имя профиля:",
-    'incorrect_profile_name': "Имя может содержать только загланые и прописные буквы русского и английского алфавитов и быть от 1 до 40 символов в длину.",
-    'enter_type_of_epilepsy': "Выберите тип эпилепсии:",
-    'enter_drugs_info': "Тут вы можете перечислить все лекастра, которые принимает тот для кого составляется анкета. Напишите их названия через запятую. Например: паглюферал, леветирацетам, пексион.\n\n<u>Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел. \nСписок не может начинаться и заканчиваться на запятую и точку и не может быть длиннее 120 символов.</u>",
-    'enter_drugs': "Введите принимаемые препараты:",
-    'incorrect_drugs': "<u>Список может содержать только буквы русского и английского алфавитов, цифры от 0 до 9 и символы , . и пробел. \nСписок не может начинаться и заканчиваться на запятую и точку и не может быть длиннее 120 символов.</u>",
-    'enter_age': "Введите возраст:",
-    'incorrect_age': "<u>Возраст может содержать только число от 1 до 130 включительно.</u>\n\n",
-    'enter_sex': "Выберите пол:",
-    'timezone_info': (
-        r"Зная ваш часовой пояс бот сможет корректно обрабатывать время приступа и вовремя присылать вам уведомления о приеме лекарств\.\n\n"
-        "Введите его в UTC формате\\, например\\:\n \\+7 \\(для Новосибирска\\) или \\+3 \\(для Москвы\\)\n\n"
-        "Чтобы узнать часовой пояс в вашем городе нажмите на это сообщение \\-\\> [Ссылка на сайт с часовыми поясами](https://time-in.ru/time/russia)\n\n"
+"""Backward-compatible re-exports. Prefer i18n.t() and locale YAML files."""
 
-        "Вы так же можете воспользоваться автоматическим определением часового пояса\\, нажав на кнопку под строкой ввода\\, внизу\\.\n\n"
-        "Бот не хранит важе местоположение\\, только часовой пояс\\."
-    ),
-    'enter_timezone': "Выберите ваш часовой пояс или нажмите на кнопку снизу:",
-    'sos_notify': (
-        "⚠️ Внимание: пользователь [Имя] сообщил о приступе эпилепсии.\n"
-        "📌 Расположение (если указано): [локация]\n"
-        "🔽 Рекомендуемые действия:\n"
-        "- Свяжитесь с ним/ней, если это возможно.\n"
-        "- Убедитесь, что он/она находится в безопасном положении (на боку, подложить что-то мягкое под голову).\n"
-        "- Не удерживайте человека, не кладите предметы в рот.\n"
-        "- Если приступ длится дольше 5 минут — вызывайте скорую: 103.\n"
-        "🧠 Дополнительно: после приступа человек может быть дезориентирован. Оставайтесь с ним/ней, пока состояние не улучшится."
-    ),
-    'policy': (
-        "📄 Политика хранения и обработки данных\n"
-        "Данный Telegram-бот является учебным проектом, созданным в рамках защиты выпускной квалификационной работы бакалавра. Он предназначен исключительно для демонстрации функциональности учёта приступов и лекарственной терапии, и не предназначен для использования в реальной медицинской практике.\n\n"
-        "💡 Что нужно знать:\n"
-        " - Вся вводимая информация (например, сведения о приступах и лекарствах) сохраняется локально и обрабатывается только в рамках работы бота.\n"
-        " - Проект не передаёт данные третьим лицам и не использует их в коммерческих целях.\n"
-        " - Пользователь вводит данные добровольно и осознаёт, что бот является демонстрационной разработкой.\n"
-        " - Проект не несёт ответственности за возможное использование данных вне учебных целей.\n"
-        "🔐 Безопасность:\n"
-        " - Все данные хранятся на локальном сервере/устройстве разработчика.\n"
-        " - Проект не подключён к публичной сети и не обрабатывает реальные персональные данные пользователей без их согласия.\n\n"
-        "Нажимая на кнопку 'К регистрации' вы подтверждаете, что ознакомилены и согласны с вышеописанными данными."
-
-    )
-}
-
-LEXICON_EPILEPSY_TRIGGERS: list[str] = [
-    'Неизвестно', 'Гипертермия', 'Яркие вспышки', 'Гормональные колебания', 'Смена лекарства',
-    'Пропущенный прием лекарства', 'Стресс', 'Лихорадка', 'Недостаток сна',
-    'Употребление наркотиков', 'Менструальный цикл', 'Обезвоживание'
-]
-
-LEXICON_EPILEPSY_SYMPTOMS : list[str] = [
-    'Оцепенение', 'Подергивания рук и ног', 'Потеря сознания', 'Затрудненное дыхание',
-    'Недержание кишечника', 'Недержание мочевого пузыря','Затуманенное сознание',
-    'Кивания головой', 'Быстрое моргание глазами',
-]
-
-LEXICON_TYPES_OF_SEIZURE: dict[str] = {
-    1: 'Неуточнённый',
-    2: "Фокальный с сохранением сознания",
-    3: "Фокальный с нарушением сознания",
-    4: "Фокальный с эволюцией в генерализованный",
-    5: "Тонико-клонический",
-    6: "Абсанс",
-    7: "Миоклонический",
-    8: "Атонический",
-    9: "Тонический",
-    10: "Клонический",
-    11: "Эпилептический спазм"
-}
+from i18n import get_epilepsy_symptoms, get_epilepsy_triggers, get_seizure_types, t
 
 
-LEXICON_BUTTONS: dict[str,str] = {
-    'focal_type': "Фокальная",
-    'generalized_type': "Генерализованная",
-    'combied_type': "Комбинированная",
-    'unidentified_type': "Неуточнённая",
-    'male': "♂️ Мужской",
-    'female': "♀️ Женский",
-    'send_geolocation': "Отправить геолокацию",
-    'submit': "✅ Подтвердить",
-    'cancel': "❌ Отменить заполнение",
-}
+class _LexiconMapping:
+    _KEY_MAP = {
+        "welcome": "start.welcome",
+        "to_register": "start.to_register",
+        "policy": "start.policy",
+        "cancel_script": "common.cancel_script",
+        "not_in_script": "common.not_in_script",
+        "enter_username": "user.enter_username",
+        "enter_login": "user.enter_login",
+        "incorrect_login": "user.incorrect_login",
+        "user_exist": "user.user_exist",
+        "login_exist": "user.login_exist",
+        "yes": "common.yes",
+        "no": "common.no",
+        "offer_to_create_profile": "user.offer_to_create_profile",
+        "info_about_profile": "profile.info_about_profile",
+        "enter_profile_name": "profile.enter_profile_name",
+        "incorrect_profile_name": "profile.incorrect_profile_name",
+        "enter_type_of_epilepsy": "profile.enter_type_of_epilepsy",
+        "enter_drugs_info": "profile.enter_drugs_info",
+        "enter_drugs": "profile.enter_drugs",
+        "incorrect_drugs": "profile.incorrect_drugs",
+        "enter_age": "profile.enter_age",
+        "incorrect_age": "profile.incorrect_age",
+        "enter_sex": "profile.enter_sex",
+        "timezone_info": "user.timezone_info",
+        "enter_timezone": "user.enter_timezone",
+        "sos_notify": "sos.notify_template",
+    }
 
-LEXICON_COMMANDS: dict[str,str] = {
+    def __getitem__(self, key: str) -> str:
+        mapped = self._KEY_MAP.get(key, key)
+        return t(mapped)
 
-}
+
+class _ButtonMapping:
+    _KEY_MAP = {
+        "focal_type": "buttons.focal_type",
+        "generalized_type": "buttons.generalized_type",
+        "combied_type": "buttons.combied_type",
+        "unidentified_type": "buttons.unidentified_type",
+        "male": "buttons.male",
+        "female": "buttons.female",
+        "send_geolocation": "buttons.send_geolocation",
+        "submit": "buttons.submit",
+        "cancel": "buttons.cancel",
+    }
+
+    def __getitem__(self, key: str) -> str:
+        return t(self._KEY_MAP[key])
+
+
+class _LazyList:
+    def __iter__(self):
+        return iter(get_epilepsy_triggers())
+
+    def __getitem__(self, index: int) -> str:
+        return get_epilepsy_triggers()[index]
+
+    def __len__(self) -> int:
+        return len(get_epilepsy_triggers())
+
+
+class _LazySymptomList:
+    def __iter__(self):
+        return iter(get_epilepsy_symptoms())
+
+    def __getitem__(self, index: int) -> str:
+        return get_epilepsy_symptoms()[index]
+
+    def __len__(self) -> int:
+        return len(get_epilepsy_symptoms())
+
+
+class _LazySeizureTypes:
+    def items(self):
+        return get_seizure_types().items()
+
+    def __getitem__(self, key: int) -> str:
+        return get_seizure_types()[int(key)]
+
+    def __iter__(self):
+        return iter(get_seizure_types())
+
+
+LEXICON_RU = _LexiconMapping()
+LEXICON_BUTTONS = _ButtonMapping()
+LEXICON_EPILEPSY_TRIGGERS = _LazyList()
+LEXICON_EPILEPSY_SYMPTOMS = _LazySymptomList()
+LEXICON_TYPES_OF_SEIZURE = _LazySeizureTypes()
+LEXICON_COMMANDS: dict[str, str] = {}

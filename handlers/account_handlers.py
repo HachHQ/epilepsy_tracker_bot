@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import SEIZURE_RETENTION_DAYS, USER_DATA_RETENTION_DAYS
 from handlers_logic.states_factories import AccountForm
+from i18n import t
 from keyboards.account_kb import (
     get_account_settings_kb,
     get_confirm_purge_forever_kb,
@@ -32,11 +33,7 @@ account_router = Router()
 @account_router.callback_query(F.data == "account_settings")
 async def show_account_settings(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
-        "Управление аккаунтом:\n\n"
-        f"• «Удалить аккаунт» — скрывает данные на {USER_DATA_RETENTION_DAYS} дней, "
-        "после чего их можно восстановить через /start.\n"
-        "• «Удалить все данные навсегда» — безвозвратное удаление профилей, "
-        "приступов и аккаунта.",
+        t("account.settings", user_retention_days=USER_DATA_RETENTION_DAYS),
         reply_markup=get_account_settings_kb(),
     )
     await callback.answer()
@@ -45,9 +42,7 @@ async def show_account_settings(callback: CallbackQuery) -> None:
 @account_router.callback_query(F.data == "account_soft_delete")
 async def confirm_soft_delete(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
-        f"Аккаунт будет скрыт на {USER_DATA_RETENTION_DAYS} дней. "
-        "Профили будут помечены удалёнными, записи о приступах сохранятся. "
-        "Вы сможете восстановить аккаунт через /start.\n\nПродолжить?",
+        t("account.soft_delete_confirm", days=USER_DATA_RETENTION_DAYS),
         reply_markup=get_confirm_soft_delete_kb(),
     )
     await callback.answer()
@@ -58,20 +53,18 @@ async def process_soft_delete(callback: CallbackQuery, db: AsyncSession) -> None
     result = await soft_delete_account(db, chat_id=callback.message.chat.id)
     if result.deleted:
         await callback.message.edit_text(
-            f"Аккаунт удалён. Данные сохранены {result.retention_days} дней. "
-            "Для восстановления нажмите /start."
+            t("account.soft_delete_success", days=result.retention_days)
         )
     else:
-        await callback.message.edit_text("Не удалось удалить аккаунт.")
+        await callback.message.edit_text(t("account.soft_delete_failed"))
     await callback.answer()
 
 
 @account_router.callback_query(F.data == "account_purge_forever")
 async def confirm_purge_forever(callback: CallbackQuery, state: FSMContext) -> None:
+    phrase = t("account.purge_phrase")
     await callback.message.edit_text(
-        "Это действие необратимо: все профили, приступы и данные аккаунта "
-        "будут удалены без возможности восстановления.\n\n"
-        "Отправьте сообщение «УДАЛИТЬ НАВСЕГДА» для подтверждения.",
+        t("account.purge_confirm", phrase=phrase),
         reply_markup=get_confirm_purge_forever_kb(),
     )
     await state.set_state(AccountForm.confirm_purge_forever)
@@ -81,7 +74,7 @@ async def confirm_purge_forever(callback: CallbackQuery, state: FSMContext) -> N
 @account_router.callback_query(F.data == "account_purge_forever:yes")
 async def process_purge_forever_button(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.answer(
-        "Отправьте сообщение «УДАЛИТЬ НАВСЕГДА» для подтверждения.",
+        t("account.purge_prompt", phrase=t("account.purge_phrase")),
         reply_markup=get_cancel_kb(),
     )
     await state.set_state(AccountForm.confirm_purge_forever)
@@ -90,17 +83,17 @@ async def process_purge_forever_button(callback: CallbackQuery, state: FSMContex
 
 @account_router.message(StateFilter(AccountForm.confirm_purge_forever))
 async def process_purge_forever_text(message: Message, state: FSMContext, db: AsyncSession) -> None:
-    if message.text != "УДАЛИТЬ НАВСЕГДА":
-        await message.answer("Подтверждение не совпало. Операция отменена.")
+    if message.text != t("account.purge_phrase"):
+        await message.answer(t("account.purge_mismatch"))
         await state.clear()
         return
 
     result = await purge_account_forever(db, chat_id=message.chat.id)
     await state.clear()
     if result.purged:
-        await message.answer("Все данные аккаунта безвозвратно удалены.")
+        await message.answer(t("account.purge_success"))
     else:
-        await message.answer("Не удалось удалить данные аккаунта.")
+        await message.answer(t("account.purge_failed"))
 
 
 @account_router.callback_query(F.data == "prof_restore_list")
@@ -108,15 +101,14 @@ async def list_restorable_profiles_handler(callback: CallbackQuery, db: AsyncSes
     profiles = await list_restorable_profile_records(db, callback.message.chat.id)
     if not profiles:
         await callback.message.edit_text(
-            f"Нет профилей для восстановления. Удалённые профили доступны "
-            f"{SEIZURE_RETENTION_DAYS} дней после удаления.",
+            t("account.restore_list_empty", days=SEIZURE_RETENTION_DAYS),
             reply_markup=get_account_settings_kb(),
         )
         await callback.answer()
         return
 
     await callback.message.edit_text(
-        "Выберите профиль для восстановления:",
+        t("account.restore_list_prompt"),
         reply_markup=get_restorable_profiles_kb(profiles),
     )
     await callback.answer()
@@ -130,12 +122,10 @@ async def restore_profile_handler(callback: CallbackQuery, db: AsyncSession) -> 
     )
     if result.restored:
         await callback.message.edit_text(
-            f"Профиль «{result.profile_name}» восстановлен."
+            t("account.restore_profile_success", profile_name=result.profile_name)
         )
     else:
-        await callback.message.edit_text(
-            "Не удалось восстановить профиль. Возможно, истёк срок хранения."
-        )
+        await callback.message.edit_text(t("account.restore_profile_failed"))
     await callback.answer()
 
 
@@ -146,17 +136,16 @@ async def purge_profile_forever_handler(callback: CallbackQuery, db: AsyncSessio
         db, chat_id=callback.message.chat.id, profile_id=profile_id,
     )
     if result.purged:
-        await callback.message.edit_text("Профиль и все связанные данные удалены навсегда.")
+        await callback.message.edit_text(t("account.purge_profile_success"))
     else:
-        await callback.message.edit_text("Не удалось удалить профиль.")
+        await callback.message.edit_text(t("account.purge_profile_failed"))
     await callback.answer()
 
 
 @account_router.callback_query(F.data == "account_restore_start")
 async def start_account_restore(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.answer(
-        "Введите новое ключевое слово для восстановления аккаунта "
-        "(от 8 до 25 символов):",
+        t("account.restore_codeword_prompt"),
         reply_markup=get_cancel_kb(),
     )
     await state.set_state(AccountForm.restore_codeword)
@@ -171,7 +160,7 @@ async def process_restore_codeword(
 ) -> None:
     if not validate_codeword(message.text):
         await message.answer(
-            "Ключевое слово должно быть от 8 до 25 символов.",
+            t("account.restore_codeword_invalid"),
             reply_markup=get_cancel_kb(),
         )
         return
@@ -187,7 +176,7 @@ async def process_restore_codeword(
     await state.clear()
     if result.restored:
         await message.answer(
-            f"Аккаунт восстановлен. Восстановлено профилей: {result.profiles_restored}."
+            t("account.restore_success", profiles_restored=result.profiles_restored)
         )
     else:
-        await message.answer("Не удалось восстановить аккаунт. Возможно, истёк срок хранения.")
+        await message.answer(t("account.restore_failed"))

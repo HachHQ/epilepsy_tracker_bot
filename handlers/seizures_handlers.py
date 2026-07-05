@@ -21,15 +21,17 @@ from keyboards.seizure_kb import get_seizure_timing
 from adapters.telegram.delivery import show_seizure_note
 from services.redis_cache_data import get_cached_current_profile, get_cached_login
 from use_cases.seizures import create_seizure_from_state
+from i18n import t
 seizures_router = Router()
 
 def get_seizure_info_dict(seizure_data: dict):
     seizure_data_dict = {}
+    not_filled = t("seizure.not_filled")
     default_values = {
-        "date_short": "Не заполнено",
-        "year": "Не заполнено",
-        "month": "Не заполнено",
-        "day": "Не заполнено",
+        "date_short": not_filled,
+        "year": not_filled,
+        "month": not_filled,
+        "day": not_filled,
         "time_of_day": None,
         "type_of_seizure": None,
         "selected_triggers": None,

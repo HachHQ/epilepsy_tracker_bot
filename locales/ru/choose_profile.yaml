@@ -1,0 +1,5 @@
+choose_profile:
+  select_type: "Выберите тип профиля для назначения по умолчанию:"
+  select_profile: "Выберите профиль:"
+  profile_not_found: "Такой профиль не существует."
+  profile_selected: "Профиль {profile_name} выбран."

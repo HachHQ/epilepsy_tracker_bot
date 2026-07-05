@@ -1,0 +1,48 @@
+notification:
+  time_prompt: |
+    Напишите время в которое хотие получить уведомление. Система округлит его до ближайшей четверти часа, учтите это.
+
+    {hint}
+  time_invalid: "Время должно иметь формат - 12:23 (час:минуты)."
+  time_updated: "Время уведомления обновлено: {value}"
+  note_prompt: |
+    Введите текст уведомления:
+
+    Текст не может быть длиннее 100 символов.
+  note_too_long: "Текст не может быть длиннее 100 символов."
+  note_updated: "Текст уведомления обновлен: {value}"
+  pattern_prompt: "Выберите частоту уведмления:"
+  restart: "Начните заполнение заново."
+  pattern_updated_daily: "Режим уведомления обновлен: Каждый день"
+  pattern_updated_once: "Режим уведомления обновлен: Единожды"
+  pattern_daily: "Каждый день"
+  pattern_once: "Единожды"
+  created: |
+    Уведомление создано
+
+    Время: {time}
+    Заметка: {note}
+    Режим: {pattern}
+  no_notifications: "У вас нет сохраненных уведомлений."
+  list_header: "Ваши уведомления (Всего {count})\n\n"
+  settings_header: "Настройки уведомления\n\n"
+  settings_view: |
+    Настройки уведомления
+
+    ⏱️ Время: {time} - /ntupdate_time_{id}
+    🗒️ Заметка: {note} - /ntupdate_note_{id}
+    🔰 Режим: {pattern} - /ntupdate_pattern_{id}
+    📣 Активно: {enabled} - /ntupdate_enabled_{id}
+    📌 Создано: {created_at}
+    🗑️ Удалить уведомление: - /ntdelete_{id}
+  record_not_found: "Нет такой записи."
+  disable_confirm: "Вы хотите отключить уведмление?"
+  enable_confirm: "Вы хотите включить уведмление?"
+  unknown_command: "Нет такой команды."
+  enabled: "Уведомление включено."
+  disabled: "Уведомление отключено."
+  toggle_cancelled: "Изменение настроек уведомлений отменено."
+  delete_confirm: "Вы действительно хотите удалить уведомление?"
+  delete_success: "Уведомление успешно удалено."
+  delete_cancelled: "Удаление уведомления отменено."
+  viewed: "Уведомление просмотрено ✅"
