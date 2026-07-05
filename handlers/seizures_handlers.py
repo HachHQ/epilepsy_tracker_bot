@@ -55,14 +55,10 @@ async def process_skip_step(callback: CallbackQuery, state: FSMContext, db: Asyn
 
 @seizures_router.callback_query(F.data ==  "fix_seizure")
 async def process_right_now_or_passed(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    text = (
-        "Приступ происходит прямо сейчас или вы хотите зафиксировать его постфактум?\n\n"
-
-        "Если выбрать фиксацию в реальном времени, начнётся автоматический отсчёт продолжительности приступа, и дата с временем будут установлены автоматически.\n"
-
-        "Если же вы фиксируете приступ задним числом, вы сможете вручную указать все данные.\n"
+    await callback.message.edit_text(
+        t("seizure_form.fix_seizure_prompt"),
+        reply_markup=get_seizure_timing(),
     )
-    await callback.message.edit_text(text, reply_markup=get_seizure_timing())
 
 @seizures_router.callback_query(F.data == "check_input_seizure_data")
 async def process_save_and_display_seizure_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):

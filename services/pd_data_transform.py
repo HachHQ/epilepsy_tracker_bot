@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
+from i18n import t
 from database.orm_query import orm_get_seizures_by_profile_ascending
 from database.redis_query import get_redis_cached_current_profile
 
@@ -24,9 +25,9 @@ async def pd_get_min_max_year_in_seizures(session: AsyncSession, chat_id: int):
                 uniq_years.append(year)
 
     except ValueError:
-        return "Ошибка: Неверный формат даты."
+        return t("common.invalid_date_format")
     if not years:
-        return "Нет данных"
+        return t("common.no_data")
 
     min_year = min(years)
     max_year = max(years)

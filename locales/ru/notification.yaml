@@ -46,3 +46,5 @@ notification:
   delete_success: "Уведомление успешно удалено."
   delete_cancelled: "Удаление уведомления отменено."
   viewed: "Уведомление просмотрено ✅"
+  trusted_request_confirm: "Подтвердите запрос доверенного лица - {login}"
+  medication_reminder: "Напоминание: {note}"

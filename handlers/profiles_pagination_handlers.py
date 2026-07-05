@@ -25,7 +25,7 @@ async def handle_pagination(callback: CallbackQuery, db: AsyncSession):
         return
     new_page = max(0, page - 1) if direction == "prev" else min(len(profiles_redis) // 5, page + 1)
     await callback.message.edit_text(
-        "Выберите профиль:",
+        t("choose_profile.select_profile"),
         reply_markup=get_paginated_profiles_kb(
             profiles=profiles_redis,
             page=new_page,

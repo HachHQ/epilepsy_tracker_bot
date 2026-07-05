@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.redis_cache_data import get_cached_login, get_cached_current_profile
+from i18n import t
 from keyboards.menu_kb import get_main_menu_keyboard
 
 main_menu_router = Router()
@@ -13,9 +14,10 @@ main_menu_router = Router()
 async def get_main_menu_text(session: AsyncSession, message: Message):
     lg = await get_cached_login(session, message.chat.id)
     curr_prof = await get_cached_current_profile(session, message.chat.id)
-    text = (
-        f"🆔 Логин\\: `{lg if lg is not None else "Не зарегистрирован"}`\n\n"
-        f"👤 Текущий профиль\\: `{curr_prof.split('|', 1)[1] if curr_prof is not None else "Не выбран"}`"
+    text = t(
+        "menu.main_status",
+        login=lg if lg is not None else t("menu.login_not_registered"),
+        profile=curr_prof.split('|', 1)[1] if curr_prof is not None else t("menu.profile_not_selected"),
     )
     return text
 

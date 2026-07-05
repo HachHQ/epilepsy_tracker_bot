@@ -105,6 +105,14 @@ def get_month_names() -> list[str]:
     return _lookup_list("domain.month_names")
 
 
+def get_month_abbreviations() -> list[str]:
+    return _lookup_list("domain.month_abbreviations")
+
+
+def get_weekday_abbreviations() -> list[str]:
+    return _lookup_list("domain.weekday_abbreviations")
+
+
 def get_epilepsy_triggers() -> list[str]:
     return _lookup_list("domain.epilepsy_triggers")
 

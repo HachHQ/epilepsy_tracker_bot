@@ -31,7 +31,7 @@ def get_sos_notify_message_with_args(tg_name, tg_username, location=None):
         "sos.notify_template",
         tg_name=tg_name,
         username=username,
-        location=location if location else "Неизвестно",
+        location=location if location else t("sos.unknown_location"),
     )
 
 
@@ -53,7 +53,7 @@ async def process_send_sos_notify_to_trusted_persons(
     notification_queue: NotificationQueue,
 ):
     first_name = callback.from_user.full_name
-    username = callback.from_user.username if callback.from_user.username else "нет username"
+    username = callback.from_user.username if callback.from_user.username else t("sos.no_username")
     text = get_sos_notify_message_with_args(first_name, username)
     trusted_persons = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
     unique = {}

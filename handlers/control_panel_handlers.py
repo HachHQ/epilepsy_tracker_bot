@@ -454,10 +454,7 @@ async def process_import_excel_data_by_profile(callback: CallbackQuery, state: F
         bot,
         callback.message.chat.id,
         get_excel_template_path(),
-        caption=(
-            "Вот шаблон таблицы, в которую можно внести имеющиеся у вас данные. "
-            "Заполняйте поля учитывая типы данных и примеры в скобках к каждому признаку."
-        ),
+        caption=t("import.template_caption"),
         remove_after=False,
     )
     await callback.message.answer(t("import.download_template"))
@@ -479,7 +476,7 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
             valid_count, failed_rows = await import_seizures_from_xlsx(
                 file_path, db=db, profile_id=int(prof.split('|')[0]), login=login,
             )
-            text = f"✅ Импорт завершён:\n\n✅ Успешных записей: {valid_count}\n❌ Ошибок: {len(failed_rows)}"
+            text = t("import.import_complete", valid_count=valid_count, failed_count=len(failed_rows))
             await message.answer(text)
             if failed_rows:
                 import pandas as pd
@@ -489,12 +486,12 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
 
                 await message.answer_document(
                     document=FSInputFile(failed_file_path),
-                    caption="⚠️ Следующие строки не были импортированы из-за ошибок:"
+                    caption=t("import.failed_rows_caption"),
                 )
                 os.remove(failed_file_path)
 
         except Exception as e:
-            await message.answer(f"Произошла ошибка при обработке файла: {str(e)}")
+            await message.answer(t("import.file_processing_error", error=str(e)))
         finally:
             await state.clear()
             if os.path.exists(file_path):

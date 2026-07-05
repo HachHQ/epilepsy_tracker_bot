@@ -1,4 +1,7 @@
 menu:
+  main_status: "🆔 Логин\\: `{login}`\n\n👤 Текущий профиль\\: `{profile}`"
+  login_not_registered: "Не зарегистрирован"
+  profile_not_selected: "Не выбран"
   control_profiles: |
     Выберите действие:
     - Редактировать профиль

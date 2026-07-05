@@ -1,0 +1,77 @@
+analytics:
+  choose_graph_type: |
+    Выберите интересующий вас тип графиков:
+     - Продолжительность приступов
+     - Частота приступов
+     - Эффективность лекарств
+  duration_graphs_intro: |
+    Средняя продолжительность приступов по годам (вы можете построить график по интересующему вас году, добавив его в конец команды).
+
+  duration_year_line: "   - За {year} год /get_duration_{year}"
+  frequency_graphs_intro: |
+    Распределение частоты приступов.
+       - В течение дня - /get_hour_distribution
+
+       - В течение недели - /get_week_distribution
+
+       - В течение года - /get_month_distribution
+
+    Частота приступов по году/месяцу (вы можете построить график по интересующему вас году/месяцу, добавив его в конец команды).
+  efficiency_graphs_intro: |
+    Частота приступов в контексте курсов лекарств: (вы можете построить график по интересующему вас году, добавив его в конец команды)
+  efficiency_year_line: "   - За {year} год /get_drug_efficiency_{year}"
+  no_duration_data: "Нет данных о продолжительности приступов за {year} год."
+  duration_chart_caption: "📊 Средняя продолжительность приступов по месяцам за {year} год для профиля <b>{profile_name}</b>"
+  select_profile: "Выберите профиль."
+  select_profile_first: "Сначала выберите профиль."
+  no_chart_data: "Данных для отображения нет."
+  invalid_command_format: "Некорректный формат команды. Используйте: /get_drug_efficiency_2024"
+  no_data_for_year: "Нет данных за {year} год."
+  no_seizure_data: "Нет данных о приступах."
+  no_seizure_data_analysis: "Нет данных о приступах для анализа."
+  no_analysis_data: "Нет данных для анализа."
+  chart_axis_month: "Месяц"
+  chart_axis_day: "День"
+  chart_axis_hour: "Час суток"
+  chart_axis_weekday: "День недели"
+  chart_axis_seizure_count: "Количество приступов"
+  chart_axis_avg_duration_sec: "Средняя продолжительность (сек.)"
+  chart_seizures_by_month_year: "Количество приступов по месяцам в течение {year} года"
+  chart_seizures_for_month: "Количество приступов за {month}"
+  chart_seizures_frequency_year: "Частота приступов в {year} году"
+  chart_seizures_by_hour: "Распределение приступов по времени суток"
+  chart_seizures_by_weekday: "Распределение приступов по дням недели"
+  chart_seizures_by_month_all_years: "Распределение приступов по месяцам (все годы)"
+  chart_avg_duration_by_month: "Средняя продолжительность приступов по месяцам в {year} году"
+  caption_year_gist: "Гистограмма распределения приступов по месяцам в течение {year} года для профиля {profile_name}"
+  caption_month_gist: "Гистограмма распределения приступов по дням за {month} для профиля {profile_name}"
+  caption_drug_efficiency: "📊 Частота приступов за {year} для профиля {profile_name} с выделением периодов действия препаратов"
+  caption_hour_distribution: "📊 Распределение приступов по времени суток для профиля {profile_name}"
+  caption_weekday_distribution: "📊 Распределение приступов по дням недели для профиля {profile_name}"
+  caption_month_distribution: "📊 Распределение приступов по месяцам для профиля {profile_name}"
+  stats_header: "📊 Статистика по профилю <b>{profile_name}</b>:\n\n"
+  stats_total: "• Всего приступов: <b>{count}</b>\n"
+  stats_period: "• Период наблюдения: <b>{months}</b> мес\n"
+  stats_days_without: "• Дней без приступов: <b>{days}</b>\n"
+  stats_avg_interval: "• Средний интервал между приступами: <b>{days}</b> дней\n\n"
+  stats_frequency_ci: |
+    📈 Частота:
+    • <b>{freq:.2f}</b> приступа/мес
+    • ДИ: <b>[{ci_low:.2f} – {ci_high:.2f}]</b>
+
+  stats_frequency: "📈 Частота: <b>{freq:.2f}</b> приступа/мес\n\n"
+  stats_avg_duration: "⏱️ Средняя продолжительность: <b>{duration}</b>\n"
+  stats_duration_ci: "• ДИ: <b>{low} – {high}</b>\n"
+  stats_duration_min_max: "• Мин: {min_duration} | Макс: {max_duration}\n\n"
+  stats_avg_week: "📅 Ср. продолжительность (неделя): {duration}\n"
+  stats_avg_month: "📅 Ср. продолжительность (месяц): {duration}\n"
+  features_header: "🧾 Часто встречающиеся признаки для профиля <b>{profile_name}</b>:\n\n"
+  features_symptoms_header: "🔹 <b>Топ-5 симптомов:</b>\n"
+  features_symptoms_item: "{index}. {name} — <b>{count}</b> раз(а)\n"
+  features_symptoms_empty: "🔹 Симптомы не найдены.\n"
+  features_triggers_header: "🔸 <b>Топ-5 триггеров:</b>\n"
+  features_triggers_item: "{index}. {name} — <b>{count}</b> раз(а)\n"
+  features_triggers_empty: "🔸 Триггеры не найдены.\n"
+  features_types_header: "⚡️ <b>Топ-5 типов приступов:</b>\n"
+  features_types_item: "{index}. {name} — <b>{count}</b> раз(а)\n"
+  features_types_empty: "⚡️ Типы приступов не найдены."

@@ -17,6 +17,7 @@ from database.models import MedicationCourse, Seizure
 
 Path("temp_images").mkdir(exist_ok=True)
 
+from i18n import get_month_abbreviations, get_weekday_abbreviations, t
 from services.notes_formatters import get_minutes_and_seconds
 from database.orm_query import (
     orm_get_profile_medications_list,
@@ -29,10 +30,14 @@ from services.redis_cache_data import (
     get_user_local_datetime
 )
 
-MONTHS_RU = [
-    "Янв", "Фев", "Март", "Апр", "Май", "Июнь",
-    "Июль", "Авг", "Сен", "Окт", "Ноя", "Дек"
-]
+MONTHS_RU = get_month_abbreviations()
+WEEKDAYS_RU = get_weekday_abbreviations()
+
+
+def _refresh_chart_labels() -> None:
+    global MONTHS_RU, WEEKDAYS_RU
+    MONTHS_RU = get_month_abbreviations()
+    WEEKDAYS_RU = get_weekday_abbreviations()
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,7 @@ class ChartBuildResult:
 
 
 def get_current_utc_context() -> tuple[datetime, int, int, str]:
+    _refresh_chart_labels()
     current_date = datetime.now(timezone.utc)
     current_year = current_date.year
     current_month = current_date.month
@@ -70,14 +76,14 @@ async def get_year_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult
     _, current_year, _, _ = get_current_utc_context()
     current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return ChartBuildResult(error="Выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile"))
     seizure_data = await orm_get_seizures_for_a_specific_period(
         session,
         int(current_profile.split('|', 1)[0]),
         current_year,
     )
     if len(seizure_data) == 0:
-        return ChartBuildResult(error="Данных для отображения нет.")
+        return ChartBuildResult(error=t("analytics.no_chart_data"))
     month_arr = range(1, 13)
     count_seizures_by_month = [0] * 12
     for seizure in seizure_data:
@@ -85,9 +91,9 @@ async def get_year_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult
         if date.month in month_arr:
             count_seizures_by_month[date.month - 1] += 1
     make_a_gist(
-        title=f"Количество приступов по месяцам в течение {current_year} года ",
-        label_x="Месяц",
-        label_y="Количество приступов",
+        title=t("analytics.chart_seizures_by_month_year", year=current_year),
+        label_x=t("analytics.chart_axis_month"),
+        label_y=t("analytics.chart_axis_seizure_count"),
         dataX=month_arr,
         dataY=count_seizures_by_month,
         xticks=MONTHS_RU,
@@ -97,9 +103,10 @@ async def get_year_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=(
-            f"Гистограмма распределения приступов по месяцам в течение {current_year}"
-            f" года для профиля {current_profile.split('|', 1)[1]}"
+        caption=t(
+            "analytics.caption_year_gist",
+            year=current_year,
+            profile_name=current_profile.split('|', 1)[1],
         ),
     )
 
@@ -110,20 +117,20 @@ async def get_month_gist(session: AsyncSession, chat_id: int) -> ChartBuildResul
     count_seizures_by_days = [0] * len(days_range)
     current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return ChartBuildResult(error="Выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile"))
     seizures_data = await orm_get_seizures_for_a_specific_period(
         session, int(current_profile.split('|')[0]), current_year, current_month
     )
     if len(seizures_data) == 0:
-        return ChartBuildResult(error="Данных для отображения нет.")
+        return ChartBuildResult(error=t("analytics.no_chart_data"))
     for seizure in seizures_data:
         date = datetime.strptime(seizure.date, "%Y-%m-%d")
         if date.day in days_range:
             count_seizures_by_days[date.day - 1] += 1
     make_a_gist(
-        title=f"Количество приступов за {current_month_in_russian}",
-        label_x="День",
-        label_y="Количество приступов",
+        title=t("analytics.chart_seizures_for_month", month=current_month_in_russian),
+        label_x=t("analytics.chart_axis_day"),
+        label_y=t("analytics.chart_axis_seizure_count"),
         dataX=days_range,
         dataY=count_seizures_by_days,
         xticks=days_range,
@@ -133,9 +140,10 @@ async def get_month_gist(session: AsyncSession, chat_id: int) -> ChartBuildResul
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=(
-            f"Гистограмма распределения приступов по дням за {current_month_in_russian}"
-            f" для профиля {current_profile.split('|')[1]}"
+        caption=t(
+            "analytics.caption_month_gist",
+            month=current_month_in_russian,
+            profile_name=current_profile.split('|')[1],
         ),
     )
 
@@ -203,7 +211,7 @@ def extract_course_spans(
 async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, command_text: str) -> ChartBuildResult:
     current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
-        return ChartBuildResult(error="Выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile"))
     profile_id = int(current_profile.split('|', 1)[0])
     profile_name = current_profile.split('|', 1)[1]
     try:
@@ -212,10 +220,10 @@ async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, comman
             raise ValueError
         current_year = int(command_parts[-1])
     except ValueError:
-        return ChartBuildResult(error="Некорректный формат команды. Используйте: /get_drug_efficiency_2024")
+        return ChartBuildResult(error=t("analytics.invalid_command_format"))
     seizure_data = await orm_get_seizures_for_a_specific_year(session, profile_id, current_year)
     if len(seizure_data) == 0:
-        return ChartBuildResult(error=f"Нет данных за {current_year} год.")
+        return ChartBuildResult(error=t("analytics.no_data_for_year", year=current_year))
     month_arr = range(1, 13)
     count_seizures_by_month = [0] * 12
     for seizure in seizure_data:
@@ -227,9 +235,9 @@ async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, comman
     course_list = await orm_get_profile_medications_list(session, profile_id)
     med_spans = extract_course_spans(course_list, current_year, seizure_data)
     make_a_gist_with_courses(
-        title=f"Частота приступов в {current_year} году",
-        label_x="Месяц",
-        label_y="Количество приступов",
+        title=t("analytics.chart_seizures_frequency_year", year=current_year),
+        label_x=t("analytics.chart_axis_month"),
+        label_y=t("analytics.chart_axis_seizure_count"),
         dataX=month_arr,
         dataY=count_seizures_by_month,
         xticks=MONTHS_RU,
@@ -240,21 +248,22 @@ async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, comman
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=(
-            f"📊 Частота приступов за {current_year} для профиля {profile_name} "
-            "с выделением периодов действия препаратов"
+        caption=t(
+            "analytics.caption_drug_efficiency",
+            year=current_year,
+            profile_name=profile_name,
         ),
     )
 
 async def get_hour_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
     profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return ChartBuildResult(error="Сначала выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if not seizures:
-        return ChartBuildResult(error="Нет данных о приступах.")
+        return ChartBuildResult(error=t("analytics.no_seizure_data"))
     hourly_distribution = [0] * 24
     for s in seizures:
         if s.time:
@@ -268,9 +277,9 @@ async def get_hour_distribution_plot(session: AsyncSession, chat_id: int) -> Cha
     ax = plt.gca()
     ax.plot(range(24), hourly_distribution, marker='o', color='#3498DB', linewidth=2)
     plt.xticks(ticks=range(24), labels=[f"{h}:00" for h in range(24)], rotation=45)
-    plt.xlabel("Час суток")
-    plt.ylabel("Количество приступов")
-    plt.title("Распределение приступов по времени суток", fontsize=16)
+    plt.xlabel(t("analytics.chart_axis_hour"))
+    plt.ylabel(t("analytics.chart_axis_seizure_count"))
+    plt.title(t("analytics.chart_seizures_by_hour"), fontsize=16)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     plt.grid(True, linestyle='--', alpha=0.5)
     path = f"temp_images/seizure_hours_{uuid4()}.png"
@@ -278,20 +287,19 @@ async def get_hour_distribution_plot(session: AsyncSession, chat_id: int) -> Cha
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=f"📊 Распределение приступов по времени суток для профиля {profile_name}",
+        caption=t("analytics.caption_hour_distribution", profile_name=profile_name),
     )
 
-WEEKDAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 async def get_weekday_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
     profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return ChartBuildResult(error="Сначала выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if not seizures:
-        return ChartBuildResult(error="Нет данных о приступах для анализа.")
+        return ChartBuildResult(error=t("analytics.no_seizure_data_analysis"))
     weekday_counts = [0] * 7
     for s in seizures:
         try:
@@ -305,9 +313,9 @@ async def get_weekday_distribution_plot(session: AsyncSession, chat_id: int) -> 
     ax = plt.gca()
     ax.plot(range(7), weekday_counts, marker='o', color='#17A589', linewidth=2)
     plt.xticks(ticks=range(7), labels=WEEKDAYS_RU)
-    plt.xlabel("День недели")
-    plt.ylabel("Количество приступов")
-    plt.title("Распределение приступов по дням недели", fontsize=16)
+    plt.xlabel(t("analytics.chart_axis_weekday"))
+    plt.ylabel(t("analytics.chart_axis_seizure_count"))
+    plt.title(t("analytics.chart_seizures_by_weekday"), fontsize=16)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     plt.grid(True, linestyle='--', alpha=0.5)
     path = f"temp_images/seizure_weekdays_{profile_id}.png"
@@ -315,18 +323,18 @@ async def get_weekday_distribution_plot(session: AsyncSession, chat_id: int) -> 
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=f"📊 Распределение приступов по дням недели для профиля {profile_name}",
+        caption=t("analytics.caption_weekday_distribution", profile_name=profile_name),
     )
 
 async def get_month_distribution_plot(session: AsyncSession, chat_id: int) -> ChartBuildResult:
     profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return ChartBuildResult(error="Сначала выберите профиль.")
+        return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if not seizures:
-        return ChartBuildResult(error="Нет данных для анализа.")
+        return ChartBuildResult(error=t("analytics.no_analysis_data"))
     month_counts = [0] * 12
     for s in seizures:
         try:
@@ -339,9 +347,9 @@ async def get_month_distribution_plot(session: AsyncSession, chat_id: int) -> Ch
     ax = plt.gca()
     ax.plot(range(12), month_counts, marker='o', color='#884EA0', linewidth=2)
     plt.xticks(ticks=range(12), labels=MONTHS_RU)
-    plt.xlabel("Месяц")
-    plt.ylabel("Количество приступов")
-    plt.title("Распределение приступов по месяцам (все годы)", fontsize=16)
+    plt.xlabel(t("analytics.chart_axis_month"))
+    plt.ylabel(t("analytics.chart_axis_seizure_count"))
+    plt.title(t("analytics.chart_seizures_by_month_all_years"), fontsize=16)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     plt.grid(True, linestyle='--', alpha=0.5)
     path = f"temp_images/seizure_months_{profile_id}.png"
@@ -349,7 +357,7 @@ async def get_month_distribution_plot(session: AsyncSession, chat_id: int) -> Ch
     plt.close()
     return ChartBuildResult(
         image_path=path,
-        caption=f"📊 Распределение приступов по месяцам для профиля {profile_name}",
+        caption=t("analytics.caption_month_distribution", profile_name=profile_name),
     )
 
 #STATS
@@ -362,9 +370,9 @@ def draw_avg_duration_bar_chart(data, year, profile_name) -> str:
     plt.figure(figsize=(10, 6))
     bars = plt.bar(months, values, color="skyblue")
     plt.xticks(months, MONTHS_RU)
-    plt.title(f"Средняя продолжительность приступов по месяцам в {year} году", fontsize=14)
-    plt.ylabel("Средняя продолжительность (сек.)")
-    plt.xlabel("Месяц")
+    plt.title(t("analytics.chart_avg_duration_by_month", year=year), fontsize=14)
+    plt.ylabel(t("analytics.chart_axis_avg_duration_sec"))
+    plt.xlabel(t("analytics.chart_axis_month"))
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.ylim(0, max(values) + 10)
     for bar in bars:
@@ -381,12 +389,12 @@ def draw_avg_duration_bar_chart(data, year, profile_name) -> str:
 async def compute_seizure_statistics(session: AsyncSession, chat_id: int) -> dict:
     profile = await get_cached_current_profile(session, chat_id)
     if not profile:
-        return {"error": "Сначала выберите профиль."}
+        return {"error": t("analytics.select_profile_first")}
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
     seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
     if len(seizures) < 1:
-        return {"error": "Нет данных для анализа."}
+        return {"error": t("analytics.no_analysis_data")}
     durations = []
     dates = []
     now = await get_user_local_datetime(session, chat_id)
@@ -448,56 +456,63 @@ async def compute_seizure_statistics(session: AsyncSession, chat_id: int) -> dic
     }
 
 def format_seizure_statistics(stats: dict) -> str:
-    text = f"📊 Статистика по профилю <b>{stats['profile_name']}</b>:\n\n"
-    text += f"• Всего приступов: <b>{stats['total_count']}</b>\n"
-    text += f"• Период наблюдения: <b>{stats['total_months']}</b> мес\n"
-    text += f"• Дней без приступов: <b>{stats['days_without_seizures']}</b>\n"
-    text += f"• Средний интервал между приступами: <b>{stats['avg_days_without_seizures']}</b> дней\n\n"
+    text = t("analytics.stats_header", profile_name=stats['profile_name'])
+    text += t("analytics.stats_total", count=stats['total_count'])
+    text += t("analytics.stats_period", months=stats['total_months'])
+    text += t("analytics.stats_days_without", days=stats['days_without_seizures'])
+    text += t("analytics.stats_avg_interval", days=stats['avg_days_without_seizures'])
     if stats['freq_ci']:
-        text += (
-            f"📈 Частота:\n"
-            f"• <b>{stats['freq']:.2f}</b> приступа/мес\n"
-            f"• ДИ: <b>[{stats['freq_ci'][0]:.2f} – {stats['freq_ci'][1]:.2f}]</b>\n\n"
-        )
+        text += t(
+            "analytics.stats_frequency_ci",
+            freq=stats['freq'],
+            ci_low=stats['freq_ci'][0],
+            ci_high=stats['freq_ci'][1],
+        ) + "\n\n"
     else:
-        text += f"📈 Частота: <b>{stats['freq']:.2f}</b> приступа/мес\n\n"
+        text += t("analytics.stats_frequency", freq=stats['freq'])
     if stats['duration_mean']:
-        text += f"⏱️ Средняя продолжительность: <b>{get_minutes_and_seconds(int(stats['duration_mean']))}</b>\n"
+        text += t(
+            "analytics.stats_avg_duration",
+            duration=get_minutes_and_seconds(int(stats['duration_mean'])),
+        )
         if stats['duration_ci']:
-            text += (
-                f"• ДИ: <b>{get_minutes_and_seconds(int(stats['duration_ci'][0]))} – "
-                f"{get_minutes_and_seconds(int(stats['duration_ci'][1]))}</b>\n"
+            text += t(
+                "analytics.stats_duration_ci",
+                low=get_minutes_and_seconds(int(stats['duration_ci'][0])),
+                high=get_minutes_and_seconds(int(stats['duration_ci'][1])),
             )
-        text += (
-            f"• Мин: {get_minutes_and_seconds(stats['min_duration'])} | "
-            f"Макс: {get_minutes_and_seconds(stats['max_duration'])}\n\n"
+        text += t(
+            "analytics.stats_duration_min_max",
+            min_duration=get_minutes_and_seconds(stats['min_duration']),
+            max_duration=get_minutes_and_seconds(stats['max_duration']),
         )
     if stats['avg_week'] is not None:
-        text += f"📅 Ср. продолжительность (неделя): {get_minutes_and_seconds(stats['avg_week'])}\n"
+        text += t("analytics.stats_avg_week", duration=get_minutes_and_seconds(stats['avg_week']))
     if stats['avg_month'] is not None:
-        text += f"📅 Ср. продолжительность (месяц): {get_minutes_and_seconds(stats['avg_month'])}\n"
+        text += t("analytics.stats_avg_month", duration=get_minutes_and_seconds(stats['avg_month']))
     return text
 
+
 def format_top_features(profile_name: str, top_symptoms: list, top_triggers: list, top_types: list) -> str:
-    text = f"🧾 Часто встречающиеся признаки для профиля <b>{profile_name}</b>:\n\n"
+    text = t("analytics.features_header", profile_name=profile_name)
     if top_symptoms:
-        text += "🔹 <b>Топ-5 симптомов:</b>\n"
+        text += t("analytics.features_symptoms_header")
         for i, item in enumerate(top_symptoms, start=1):
-            text += f"{i}. {item['name']} — <b>{item['count']}</b> раз(а)\n"
+            text += t("analytics.features_symptoms_item", index=i, name=item['name'], count=item['count'])
     else:
-        text += "🔹 Симптомы не найдены.\n"
+        text += t("analytics.features_symptoms_empty")
     text += "\n"
     if top_triggers:
-        text += "🔸 <b>Топ-5 триггеров:</b>\n"
+        text += t("analytics.features_triggers_header")
         for i, item in enumerate(top_triggers, start=1):
-            text += f"{i}. {item['name']} — <b>{item['count']}</b> раз(а)\n"
+            text += t("analytics.features_triggers_item", index=i, name=item['name'], count=item['count'])
     else:
-        text += "🔸 Триггеры не найдены.\n"
+        text += t("analytics.features_triggers_empty")
     text += "\n"
     if top_types:
-        text += "⚡️ <b>Топ-5 типов приступов:</b>\n"
+        text += t("analytics.features_types_header")
         for i, item in enumerate(top_types, start=1):
-            text += f"{i}. {item['name']} — <b>{item['count']}</b> раз(а)\n"
+            text += t("analytics.features_types_item", index=i, name=item['name'], count=item['count'])
     else:
-        text += "⚡️ Типы приступов не найдены."
+        text += t("analytics.features_types_empty")
     return text
