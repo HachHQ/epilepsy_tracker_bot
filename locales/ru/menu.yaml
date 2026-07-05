@@ -2,6 +2,13 @@ menu:
   main_status: "🆔 Логин\\: `{login}`\n\n👤 Текущий профиль\\: `{profile}`"
   login_not_registered: "Не зарегистрирован"
   profile_not_selected: "Не выбран"
+  main_sos: "🆘 Экстренное уведомление"
+  main_fix_seizure: "✏️ Зафиксировать приступ"
+  main_journal: "🗂️ Данные о приступах"
+  main_choose_profile: "👤 Выбрать профиль"
+  main_control: "⚙️ Управление"
+  main_notifications: "🔔 Уведомления"
+  main_medication: "💊 Медицина"
   control_profiles: |
     Выберите действие:
     - Редактировать профиль
