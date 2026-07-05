@@ -15,8 +15,8 @@ from handlers_logic.states_factories import GetExcelTableForm, TrustedPersonForm
 from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
 from database.redis_query import (
     set_redis_cached_profiles_list, set_redis_sending_timeout_ten_min, get_redis_sending_timeout_ten_min,
-    delete_redis_trusted_persons
 )
+from services.cache_invalidation import invalidate_trusted_persons
 from database.orm_query import (
     orm_update_list_of_trusted_profiles, orm_get_user_by_login, orm_get_trusted_users_with_full_info,
     orm_switch_trusted_profile_notify_edit_state, orm_delete_tursted_person
@@ -24,7 +24,12 @@ from database.orm_query import (
 from lexicon.lexicon import LEXICON_RU
 from services.redis_cache_data import get_cached_current_profile, get_cached_profiles_list, get_cached_login, get_cached_trusted_persons_agrigated_data
 from services.notification_queue import NotificationQueue, TrustedContactRequest
-from services.to_excel import export_seizures_to_excel, generate_excel_template, import_seizures_from_xlsx
+from adapters.telegram.delivery import send_document_file
+from services.to_excel import (
+    build_seizures_excel,
+    get_excel_template_path,
+    import_seizures_from_xlsx,
+)
 from services.validators import validate_login_of_user_form
 from services.hmac_encrypt import unpack_callback_data
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
@@ -37,7 +42,7 @@ from keyboards.journal_kb import get_nav_btns_for_list
 
 control_panel_router = Router()
 
-NOTES_PER_PAGE = 3
+from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 
 def display_trusted_profiles(trusted_profiles, current_page):
     current_page = int(current_page)
@@ -230,7 +235,7 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         profiles = await orm_update_list_of_trusted_profiles(db, callback.message.chat.id)
 
         await set_redis_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
-        await delete_redis_trusted_persons(callback.message.chat.id)
+        await invalidate_trusted_persons(callback.message.chat.id)
 
         await callback.message.answer("Запрос подтвержден")
 
@@ -331,7 +336,7 @@ async def process_commit_changing_editing_permission(callback: CallbackQuery, st
     if answer == "yes":
         await orm_switch_trusted_profile_notify_edit_state(db, int(tpp_id), switch_edit=True)
         await callback.message.edit_text("Изменения прав сохранены.")
-        await delete_redis_trusted_persons(callback.message.chat.id)
+        await invalidate_trusted_persons(callback.message.chat.id)
     else:
         await callback.message.edit_text("Изменения прав отменено.")
     await callback.answer()
@@ -359,7 +364,7 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
     if answer == "yes":
         await orm_switch_trusted_profile_notify_edit_state(db, int(tpp_id), getting_notify=True)
         await callback.message.edit_text("Изменения прав сохранены.")
-        await delete_redis_trusted_persons(callback.message.chat.id)
+        await invalidate_trusted_persons(callback.message.chat.id)
     else:
         await callback.message.edit_text("Изменения прав отменено.")
     await callback.answer()
@@ -385,7 +390,7 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
             res = await orm_delete_tursted_person(db, int(tpp_id))
             if res:
                 await callback.message.edit_text("Доверенное лицо успешно удалено.")
-                await delete_redis_trusted_persons(callback.message.chat.id)
+                await invalidate_trusted_persons(callback.message.chat.id)
             else:
                 await callback.message.edit_text("Нет такой записи.")
     else:
@@ -395,13 +400,22 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
 @control_panel_router.callback_query(F.data == 'export_data')
 async def process_export_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
     prof = await get_cached_current_profile(db, callback.message.chat.id)
-    await export_seizures_to_excel(int(prof.split('|')[0]), db, bot, callback.message)
+    file_path = await build_seizures_excel(int(prof.split('|')[0]), db)
+    await send_document_file(bot, callback.message.chat.id, file_path)
     await callback.answer()
 
 @control_panel_router.callback_query(F.data == 'import_data')
-async def process_export_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
-    prof = await get_cached_current_profile(db, callback.message.chat.id)
-    await generate_excel_template(bot, callback.message)
+async def process_import_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
+    await send_document_file(
+        bot,
+        callback.message.chat.id,
+        get_excel_template_path(),
+        caption=(
+            "Вот шаблон таблицы, в которую можно внести имеющиеся у вас данные. "
+            "Заполняйте поля учитывая типы данных и примеры в скобках к каждому признаку."
+        ),
+        remove_after=False,
+    )
     await callback.message.answer("Скачайте таблицу, вставьте данные и пришлите ее обратно.")
     await state.set_state(GetExcelTableForm.get_xlsx_file)
     await callback.answer()
@@ -418,7 +432,9 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
             document = message.document
             file = await bot.get_file(document.file_id)
             await bot.download_file(file.file_path, destination=file_path)
-            valid_count, failed_rows = await import_seizures_from_xlsx(file_path, db=db, profile_id=int(prof.split('|')[0]), bot=bot, message=message, login=login )
+            valid_count, failed_rows = await import_seizures_from_xlsx(
+                file_path, db=db, profile_id=int(prof.split('|')[0]), login=login,
+            )
             text = f"✅ Импорт завершён:\n\n✅ Успешных записей: {valid_count}\n❌ Ошибок: {len(failed_rows)}"
             await message.answer(text)
             if failed_rows:

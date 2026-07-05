@@ -1,17 +1,11 @@
-from ast import Call
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
-from sqlalchemy import AsyncAdaptedQueuePool
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import ProfileForm
-from database.redis_query import delete_redis_cached_current_profile, delete_redis_cached_profiles_list, set_redis_cached_profiles_list
-from database.models import Profile
-from database.orm_query import orm_delete_profile, orm_get_user_own_profiles_list, orm_get_user, orm_get_profile_info, orm_update_profile_settings
 from lexicon.lexicon import LEXICON_RU
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import (
@@ -25,6 +19,13 @@ from services.validators import (
 from services.redis_cache_data import (
     get_cached_current_profile, get_cached_login, get_cached_trusted_persons_agrigated_data, get_cached_profiles_list,
     get_cached_triggers_list
+)
+from config_data.retention import SEIZURE_RETENTION_DAYS
+from use_cases.profiles import (
+    create_profile_from_form,
+    delete_profile_record,
+    get_profile,
+    update_profile_field,
 )
 
 profile_form_router = Router()
@@ -97,7 +98,10 @@ async def process_diagnosis(message: Message, state: FSMContext, db: AsyncSessio
             print('хоба')
             profile_id=data['profile_id']
             print(profile_id)
-            await orm_update_profile_settings(db, int(profile_id), 'type_of_epilepsy', message.text)
+            await update_profile_field(
+                db, chat_id=message.chat.id, profile_id=int(profile_id),
+                attribute='type_of_epilepsy', new_value=message.text,
+            )
             await message.answer(f"Диагноз обновлен: {message.text}")
             await state.clear()
             return
@@ -115,7 +119,10 @@ async def process_age(message: Message, state: FSMContext, db: AsyncSession):
         mode = data.get("profmode", "create")
         if mode == 'prof_edit_mode':
             profile_id=data['profile_id']
-            await orm_update_profile_settings(db, int(profile_id), 'age', int(message.text))
+            await update_profile_field(
+                db, chat_id=message.chat.id, profile_id=int(profile_id),
+                attribute='age', new_value=int(message.text),
+            )
             await message.answer(f"Возраст обновлен: {message.text}")
             await state.clear()
             return
@@ -132,7 +139,10 @@ async def process_sex(callback: CallbackQuery, state: FSMContext, db: AsyncSessi
     mode = data.get("profmode", "create")
     if mode == 'prof_edit_mode':
         profile_id=data['profile_id']
-        await orm_update_profile_settings(db, int(profile_id), 'sex', callback.data)
+        await update_profile_field(
+            db, chat_id=callback.message.chat.id, profile_id=int(profile_id),
+            attribute='sex', new_value=callback.data,
+        )
         await callback.message.answer(f"Пол обновлен: {'Мужской' if callback.data == 'sex_male' else "Женский"}")
         await callback.answer()
         await state.clear()
@@ -149,44 +159,19 @@ async def process_sex(callback: CallbackQuery, state: FSMContext, db: AsyncSessi
 @profile_form_router.callback_query(F.data == "submit_profile_settings", StateFilter(ProfileForm.check_form))
 async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     data = await state.get_data()
-    print(f"Полученные данные: {data}")
     if not data:
         await callback.message.answer("Начните регистрацию заново")
         await state.clear()
         await callback.answer()
         return
-    try:
-        user = await orm_get_user(db, callback.message.chat.id)
+    result = await create_profile_from_form(db, chat_id=callback.message.chat.id, form_data=data)
+    if not result.created:
+        await callback.message.answer("Ошибка, пользователь не найден")
+        await state.clear()
+        await callback.answer()
+        return
 
-        if not user:
-            await callback.message.answer("Ошибка, пользователь не найден")
-            await state.clear()
-            return
-
-        new_profile = Profile(
-            user_id=user.id,
-            profile_name=data["profile_name"],
-            type_of_epilepsy=data.get("type_of_epilepsy", None),
-            age=int(data["age"]),
-            sex=data["sex"],
-            biological_species = data.get("animal_species", None),
-            created_at=datetime.now(timezone.utc)
-        )
-
-        print(f"Создается профиль: {new_profile}")
-        db.add(new_profile)
-
-        profiles = await orm_get_user_own_profiles_list(db, callback.message.chat.id)
-
-        await set_redis_cached_profiles_list(callback.message.chat.id, "user_own", profiles)
-
-        await db.commit()
-        print("Профиль успешно создан.")
-    except Exception as e:
-        print(f"Неизвестная ошибка при создании профиля: {e}")
-        await db.rollback()
-
-    await callback.message.answer(f"Профиль - {data['profile_name']} создан!")
+    await callback.message.answer(f"Профиль - {result.profile_name} создан!")
     await state.clear()
     await callback.answer()
 
@@ -214,7 +199,7 @@ async def process_editing_profile_data(callback: CallbackQuery, state: FSMContex
     trusted_profiles = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
     profiles = [f"{tr['profile']['id']}:{tr['permissions']['can_edit']}:{tr['permissions']['get_notification']}" for tr in trusted_profiles]
     print(profiles)
-    profile_info = await orm_get_profile_info(db, int(curr_profile.split("|")[0]))
+    profile_info = await get_profile(db, int(curr_profile.split("|")[0]))
     text = (
         f"Профиль {curr_profile.split("|")[1]}\n\n"
         f"Был создан: {profile_info.created_at.date()}\n"
@@ -234,7 +219,7 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
     curr_prof = await get_cached_current_profile(db, message.chat.id)
     if curr_prof is None:
         await message.answer('Выберите профиль.')
-    prof_info = await orm_get_profile_info(db, int(curr_prof.split('|')[0]))
+    prof_info = await get_profile(db, int(curr_prof.split('|')[0]))
     if prof_info is None:
         await message.answer('Нет такой записи.')
         return
@@ -268,7 +253,9 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
         print('зашли0')
 
         text = (
-            "Вы действительно хотите удалить профиль? Это повлечет за собой удаление всех данных о приступах и лекарствах!"
+            "Вы действительно хотите удалить профиль?\n\n"
+            "Профиль и данные о лекарствах будут скрыты. "
+            f"Записи о приступах сохранятся {SEIZURE_RETENTION_DAYS} дней для возможного восстановления."
         )
         print(int(curr_prof.split('|')[0]))
         await message.answer(text, reply_markup=get_commit_deleting_profile_kb(int(curr_prof.split('|')[0])))
@@ -285,11 +272,14 @@ async def process_deleting_profile(callback: CallbackQuery, db: AsyncSession):
         await callback.answer()
         return
     if answer == 'yes':
-        res_del_prof = await orm_delete_profile(db, int(prof_id))
-        if res_del_prof:
-            await delete_redis_cached_current_profile(callback.message.chat.id)
-            await delete_redis_cached_profiles_list(callback.message.chat.id, 'user_own')
-            await callback.message.answer("Профиль удален.")
+        result = await delete_profile_record(
+            db, chat_id=callback.message.chat.id, profile_id=int(prof_id),
+        )
+        if result.deleted:
+            await callback.message.answer(
+                f"Профиль удалён. Сохранено записей о приступах: {result.seizures_preserved}. "
+                f"Они будут доступны для восстановления {result.retention_days} дней."
+            )
         else:
             await callback.message.answer("Нет такой записи.")
     else:

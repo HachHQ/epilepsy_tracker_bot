@@ -9,7 +9,7 @@ control_profiles_router = Router()
 @control_profiles_router.callback_query(F.data == 'control_profiles')
 async def process_choosing_profile(callback: CallbackQuery):
     await callback.message.edit_text(
-        "Выберите действие: \n- Редактировать профиль\n- Панель управления доверенными лицами\n- Добавить доверенное лицо\n- Импортировать/экспортировать данные",
+        "Выберите действие: \n- Редактировать профиль\n- Панель управления доверенными лицами\n- Добавить доверенное лицо\n- Импортировать/экспортировать данные\n- Восстановить удалённый профиль\n- Управление аккаунтом",
         reply_markup=get_profile_submenu_kb()
     )
     await callback.answer()

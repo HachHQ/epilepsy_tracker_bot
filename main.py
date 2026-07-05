@@ -1,5 +1,9 @@
 import asyncio
+import logging
+import os
+
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
@@ -8,12 +12,12 @@ from database.db_init import init_db
 from database.redis_client import redis
 from database.db_init import SessionLocal
 
-from services.medication_reminders import schedule_notification_slots, scheduler, start_workers
+from services.medication_reminders import schedule_notification_slots, scheduler
+from services.retention_purge import schedule_retention_purge
 
-from config_data.config import load_config
+from config_data.config import get_config, load_config
 
-from test_scripts.test1 import test_create_user
-
+from handlers.account_handlers import account_router
 from handlers.analytics_handlers import analytics_router
 from handlers.journal_handlers import journal_router
 from handlers.choose_profile_handlers import choose_profile_router
@@ -36,18 +40,31 @@ from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 
 from services.notification_queue import NotificationQueue
 
-config = load_config(".env")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+config = get_config()
 
 storage = RedisStorage(redis=redis)
 # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
-bot = Bot(config.tg_bot.token)
+telegram_proxy = os.getenv("TELEGRAM_PROXY")
+if telegram_proxy:
+    logger.info("Telegram API proxy enabled: %s", telegram_proxy)
+    bot = Bot(config.tg_bot.token, session=AiohttpSession(proxy=telegram_proxy))
+else:
+    bot = Bot(config.tg_bot.token)
 dp = Dispatcher(storage=storage)
 
 @dp.error()
 async def handle_errors(event: ErrorEvent, state: FSMContext):
-    print(f"Произошла ошибка: {event.exception}")
+    logger.error(
+        "Unhandled update error: %s",
+        event.exception,
+        exc_info=(type(event.exception), event.exception, event.exception.__traceback__),
+    )
     await state.clear()
-    await event.update.message.answer("Что-то пошло не так. Попробуйте позже. Все сценарии отменены")
+    if event.update.message:
+        await event.update.message.answer("Что-то пошло не так. Попробуйте позже. Все сценарии отменены")
 
 notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 
@@ -68,20 +85,25 @@ async def main():
     dp.include_router(seizures_router)
     dp.include_router(journal_router)
     dp.include_router(control_profiles_router)
+    dp.include_router(account_router)
     dp.include_router(user_form_router)
     dp.include_router(profile_form_router)
     dp.include_router(medication_router)
     dp.include_router(notification_router)
 
-    schedule_notification_slots()
+    schedule_notification_slots(notification_queue)
+    schedule_retention_purge()
     scheduler.start()
-    await start_workers(bot)
 
-    await notification_queue.start()
-    await set_main_menu(bot)
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-    await notification_queue.stop()
+    try:
+        await notification_queue.start()
+        await set_main_menu(bot)
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot)
+    finally:
+        scheduler.shutdown(wait=False)
+        await notification_queue.stop()
+        await bot.session.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,17 +1,12 @@
-from ast import Call
-from asyncio import eager_task_factory
-from faulthandler import is_enabled
-from mailbox import Message
-import nt
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.filters import StateFilter
 from datetime import datetime
 
+from config_data.pagination import NOTIFICATIONS_PER_PAGE as NOTES_PER_PAGE
 from database.orm_query import orm_create_new_notification, orm_delete_notification, orm_get_all_user_notifications, orm_get_notification_by_id, orm_update_notification_settings
-from handlers.journal_handlers import NOTES_PER_PAGE
 from services.redis_cache_data import get_cached_user_id_from_db
 from services.validators import validate_time,validate_less_than_100
 from handlers_logic.states_factories import NotificationForm
@@ -20,8 +15,6 @@ from keyboards.journal_kb import get_nav_btns_for_list
 from services.medication_reminders import get_nearest_slot
 
 notification_router = Router()
-
-NOTES_PER_PAGE = 6
 
 @notification_router.callback_query(F.data == 'notifications_control')
 async def process_choosing_profile(callback: CallbackQuery):

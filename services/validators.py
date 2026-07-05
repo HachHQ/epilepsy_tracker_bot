@@ -28,7 +28,6 @@ def validate_date(date_str: str) -> bool:
     date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>0[1-9]|1[0-2])-(?P<day>0[1-9]|[12][0-9]|3[01])$")
     if not date_pattern.match(date_str):
         return False
-    print('smthng')
     try:
         datetime.strptime(date_str, "%Y-%m-%d")
         return True

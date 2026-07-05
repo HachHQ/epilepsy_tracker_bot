@@ -1,9 +1,11 @@
 import base64
 import hmac, hashlib
+import logging
 
 from config_data.config import load_config
 
 cfg = load_config('.env')
+logger = logging.getLogger(__name__)
 
 SECRET_KEY = cfg.tg_bot.hmac_secret_key.encode('utf-8')
 
@@ -22,7 +24,7 @@ def unpack_callback_data(encoded_data: str) -> str:
     raw_data = b"|".join(data_parts)
     expected_signature = hmac.new(SECRET_KEY, raw_data, hashlib.sha256).digest()[:8]
     if not hmac.compare_digest(signature, expected_signature):
-        print(f"Цифровые подписи не сходятся.")
+        logger.warning("Callback signature mismatch")
         return
     cb_data = b''.join(data_parts)
     cb_data = cb_data.decode("utf-8")

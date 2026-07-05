@@ -22,7 +22,7 @@ from services.validators import validate_less_than_40, validate_less_than_60, va
 
 medication_router = Router()
 
-NOTES_PER_PAGE = 5
+from config_data.pagination import MEDICATIONS_PER_PAGE as NOTES_PER_PAGE
 
 @medication_router.callback_query(F.data == 'medication')
 async def process_choosing_profile(callback: CallbackQuery):

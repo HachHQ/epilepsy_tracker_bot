@@ -6,7 +6,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.redis_query import delete_redis_profile_triggers_list
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import SeizureForm
 from handlers_logic.seizure_form_logic import (
@@ -18,10 +17,10 @@ from handlers_logic.seizure_form_logic import (
     handle_duration_by_cb, handle_geolocation, handle_video, handle_location_by_message,
     handle_type_of_seizure_page, handle_type_of_seizure_save
 )
-from database.orm_query import orm_add_new_seizure, create_seizure
 from keyboards.seizure_kb import get_seizure_timing
+from adapters.telegram.delivery import show_seizure_note
 from services.redis_cache_data import get_cached_current_profile, get_cached_login
-from services.notes_formatters import get_formatted_seizure_info, get_minutes_and_seconds
+from use_cases.seizures import create_seizure_from_state
 seizures_router = Router()
 
 def get_seizure_info_dict(seizure_data: dict):
@@ -72,79 +71,34 @@ async def process_save_and_display_seizure_data(callback: CallbackQuery, state: 
         await callback.answer()
         return
     current_profile = await get_cached_current_profile(db, callback.message.chat.id)
-    if 'date_short' in seizure_data:
-        date = seizure_data['date_short']
-    else:
-        date = f"{seizure_data.get('year', 'Не заполнено')}-{seizure_data.get('month', 'Не заполнено')}-{seizure_data.get('day', 'Не заполнено')}"
-
-    time_of_day = seizure_data.get('time_of_day', None)
-    list_of_triggers = seizure_data.get('selected_triggers', [])
-    count = seizure_data.get('count', None)
-    type_of_seizure = seizure_data.get('type_of_seizure', None)
-    triggers = seizure_data.get('triggers', None)
-    severity = seizure_data.get('severity', None)
-    duration = seizure_data.get('duration', None)
-    comment = seizure_data.get('comment', None)
-    symptoms = seizure_data.get('symptoms', None)
-    video_tg_id = seizure_data.get('video_tg_id', None)
-    location = seizure_data.get('location', None)
-    location_by_message = seizure_data.get('location_by_message', None)
-    print(type_of_seizure)
     if current_profile == None:
         await callback.message.answer("Выберите профиль в основном меню.")
-    if triggers is not None:
-        triggers = triggers.split(',')
-        for i in range(0, len(triggers)):
-            list_of_triggers.append(triggers[i].strip())
-    await get_formatted_seizure_info(
-        seizure_id = 0,
-        current_profile = current_profile.split('|', 1)[1],
-        date = date,
-        time = time_of_day,
-        count = count,
-        triggers = ", ".join(list_of_triggers),
-        severity = severity,
-        duration = get_minutes_and_seconds(duration),
-        comment = comment,
-        symptoms = symptoms,
-        type_of_seizure=type_of_seizure,
-        video_tg_id = video_tg_id,
-        location = f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
-        bot = bot,
-        message = callback.message
-    )
-    await create_seizure(
+        await callback.answer()
+        return
+    preview = await create_seizure_from_state(
         db,
-        int(current_profile.split("|")[0]),
-        date,
-        time_of_day,
-        severity,
-        duration,
-        comment,
-        count,
-        video_tg_id,
-        list_of_triggers,
-        symptoms,
-        f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
-        login,
-        type_of_seizure
+        user_id=callback.message.chat.id,
+        current_profile=current_profile,
+        creator_login=login,
+        state_data=seizure_data,
     )
-    await delete_redis_profile_triggers_list(callback.message.chat.id, int(current_profile.split("|")[0]))
-    # await orm_add_new_seizure(
-    #     db,
-    #     int(current_profile.split("|")[0]),
-    #     date,
-    #     time_of_day,
-    #     severity,
-    #     duration,
-    #     comment,
-    #     count,
-    #     video_tg_id,
-    #     triggers,
-    #     f"{location if location is not None else ''}"+f"{location_by_message if location_by_message is not None else ''}",
-    #     symptoms,
-    #     creator_login = login
-    # )
+    await show_seizure_note(
+        bot,
+        callback.message,
+        seizure_id=0,
+        current_profile=preview.profile_name,
+        date=preview.date,
+        time=preview.time,
+        count=preview.count,
+        triggers=preview.triggers,
+        severity=preview.severity,
+        duration=preview.duration,
+        comment=preview.comment,
+        symptoms=preview.symptoms,
+        type_of_seizure=preview.type_of_seizure,
+        video_tg_id=preview.video_tg_id,
+        location=preview.location,
+    )
     await callback.answer()
     await state.clear()
 

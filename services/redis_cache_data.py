@@ -1,6 +1,4 @@
-from contextlib import AsyncContextDecorator
-import profile
-from matplotlib.style import use
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone, timedelta
 from database.orm_query import (
@@ -46,12 +44,14 @@ from database.redis_query import (
     delete_redis_trusted_persons
 )
 
+logger = logging.getLogger(__name__)
+
 # Get operations
 async def get_cached_login(session: AsyncSession, user_id: int) -> str:
     login = await get_redis_cached_login(user_id)
 
     if login:
-        print('get login from redis')
+        logger.debug("Get login from Redis")
         return login
 
     user = await orm_get_user(session, user_id)
@@ -59,7 +59,7 @@ async def get_cached_login(session: AsyncSession, user_id: int) -> str:
         return None
     login = user.login
     await set_redis_cached_login(user_id, login)
-    print("from db")
+    logger.debug("Get login from DB")
 
     return login
 
@@ -67,7 +67,7 @@ async def get_cached_user_id_from_db(session: AsyncSession, user_id: int) -> int
     user_db_id = await get_redis_cached_user_id_from_db(user_id)
 
     if user_db_id:
-        print("get user_db_id from redis")
+        logger.debug("Get user_db_id from Redis")
         return user_db_id
 
     user = await orm_get_user(session, user_id)
@@ -75,28 +75,28 @@ async def get_cached_user_id_from_db(session: AsyncSession, user_id: int) -> int
         return None
     user_db_id = user.id
     await set_redis_cached_user_id_from_db(user_id, user_db_id)
-    print("from db")
+    logger.debug("Get user_db_id from DB")
 
     return user_db_id
 
 async def get_cached_current_profile(session: AsyncSession, user_id: int) -> str:
     current_profile = await get_redis_cached_current_profile(user_id)
     if current_profile:
-        print("get current_profile from redis")
+        logger.debug("Get current profile from Redis")
         return current_profile
     user = await orm_get_user(session, user_id)
     profile = await orm_get_current_profile_data(session, user_id)
     if profile is None:
         return None
     await set_redis_cached_current_profile(user_id, user.current_profile, profile.profile_name)
-    print("get current profile from db")
+    logger.debug("Get current profile from DB")
 
     return f"{user.current_profile}|{profile.profile_name}"
 
 async def get_cached_profiles_list(session: AsyncSession, user_id: int, profile_type: str = "user_own") -> list[str]:
     cached_profiles = await get_redis_cached_profiles_list(user_id, profile_type)
     if cached_profiles:
-        print("get cached profiles list from redis")
+        logger.debug("Get profiles list from Redis")
         return cached_profiles
     profiles = []
     if profile_type == "trusted":
@@ -105,20 +105,20 @@ async def get_cached_profiles_list(session: AsyncSession, user_id: int, profile_
         profiles = await orm_get_user_own_profiles_list(session, user_id)
     if not profiles:
         return None
-    print("get profiles list from db")
+    logger.debug("Get profiles list from DB")
     await set_redis_cached_profiles_list(user_id=user_id, profile_type=profile_type, profiles=profiles)
     return profiles
 
 async def get_cached_user_timezone(session: AsyncSession, user_id: int):
     user_timezone = await get_redis_user_timezone(user_id)
     if user_timezone:
-        print("Get user timezone from redis")
+        logger.debug("Get user timezone from Redis")
         return user_timezone
     user = await orm_get_user(session, user_id)
     if user is None:
         return None
     await set_redis_user_timezone(user_id, user.timezone)
-    print("Get user timezone from DB")
+    logger.debug("Get user timezone from DB")
     return user.timezone
 
 async def get_user_local_datetime(session: AsyncSession, user_id: int):
@@ -129,7 +129,7 @@ async def get_user_local_datetime(session: AsyncSession, user_id: int):
 async def get_cached_trusted_persons_agrigated_data(session: AsyncSession, user_id: int):
     trusted_persons_redis = await get_redis_trusted_persons(user_id)
     if trusted_persons_redis:
-        print("Get trusted persons agrigated data from redis")
+        logger.debug("Get trusted persons aggregated data from Redis")
         return trusted_persons_redis
 
     trusted_persons_db = await orm_get_trusted_users_with_full_info(session, user_id)
@@ -137,49 +137,49 @@ async def get_cached_trusted_persons_agrigated_data(session: AsyncSession, user_
         return None
 
     await set_redis_trusted_persons(user_id, trusted_persons_db)
-    print("Get trusted persons agrigated data from DB")
+    logger.debug("Get trusted persons aggregated data from DB")
     return trusted_persons_db
 
 
 async def get_cached_symptoms_list(session: AsyncSession, user_id: int):
     redis_symptoms = await get_redis_global_symptoms_list(user_id)
     if redis_symptoms:
-        print("Get globalsymptoms from redis")
+        logger.debug("Get global symptoms from Redis")
         return redis_symptoms
     symptoms_db = await orm_get_global_symptoms(session)
     await set_redis_global_symptoms_list(user_id, symptoms_db)
-    print("Get symptoms from DB")
+    logger.debug("Get global symptoms from DB")
     return symptoms_db
 
 async def get_cached_triggers_list(session: AsyncSession, user_id: int):
     redis_triggers = await get_redis_global_triggers_list(user_id)
     if redis_triggers:
-        print("Get global triggers from redis")
+        logger.debug("Get global triggers from Redis")
         return redis_triggers
     triggers_db = await orm_get_global_triggers(session)
     await set_redis_global_triggers_list(user_id, triggers_db)
-    print("Get triggers from DB")
+    logger.debug("Get global triggers from DB")
     return triggers_db
 
 async def get_cached_profile_symptoms_list(session: AsyncSession, user_id: int, profile_id: int):
     redis_profile_symptoms = await get_redis_symptoms_list_by_profile(user_id, profile_id)
     if redis_profile_symptoms:
-        print("Get profile symptoms from redis")
+        logger.debug("Get profile symptoms from Redis")
         return redis_profile_symptoms
     profile_symptoms_db = await orm_get_symptoms_by_profile(session, profile_id)
     if profile_symptoms_db is None:
         return []
     await set_redis_symptoms_list_by_profile(user_id, profile_id, profile_symptoms_db)
-    print("Get profile symptoms from DB")
+    logger.debug("Get profile symptoms from DB")
     return profile_symptoms_db
 async def get_cached_profile_triggers_list(session: AsyncSession, user_id: int, profile_id: int):
     redis_profile_triggers = await get_redis_triggers_list_by_profile(user_id, profile_id)
     if redis_profile_triggers:
-        print("Get profile triggers from redis")
+        logger.debug("Get profile triggers from Redis")
         return redis_profile_triggers
     profile_triggers_db = await orm_get_triggers_by_profile(session, profile_id)
     if profile_triggers_db is None:
         return []
     await set_redis_triggers_list_by_profile(user_id, profile_id, profile_triggers_db)
-    print("Get profile triggers from DB")
+    logger.debug("Get profile triggers from DB")
     return profile_triggers_db
