@@ -4,7 +4,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime, timezone, timedelta
 
 from services.redis_cache_data import get_user_local_datetime
-from i18n import get_seizure_types, t
+from i18n import get_month_names, get_seizure_types, t
+
+
+def _cancel_only_btn() -> InlineKeyboardButton:
+    return InlineKeyboardButton(text="❌", callback_data="cancel_fsm_script")
 def _main_btns():
     return [
         InlineKeyboardButton(text="❌", callback_data="cancel_fsm_script"),
@@ -43,22 +47,22 @@ def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1, action_b
         years_date_kb_bd.button(text=f"{year}", callback_data=f"year:{year}")
     years_date_kb_bd.adjust(5)
 
-    two_day_btn = InlineKeyboardButton(text="Позавчера", callback_data=f"year:two_d_ago/{t_d_ago_date.date()}")
-    one_day_ago_btn = InlineKeyboardButton(text="Вчера", callback_data=f"year:one_d_ago/{o_d_ago_date.date()}")
-    today_btn = InlineKeyboardButton(text="Сегодня", callback_data=f"year:today/{current_datetime.date()}")
+    two_day_btn = InlineKeyboardButton(text=t("buttons.day_before_yesterday"), callback_data=f"year:two_d_ago/{t_d_ago_date.date()}")
+    one_day_ago_btn = InlineKeyboardButton(text=t("buttons.yesterday"), callback_data=f"year:one_d_ago/{o_d_ago_date.date()}")
+    today_btn = InlineKeyboardButton(text=t("buttons.today"), callback_data=f"year:today/{current_datetime.date()}")
     years_date_kb_bd.row(two_day_btn, one_day_ago_btn, today_btn)
     if action_btns:
-        years_date_kb_bd.row(cancel_seizure_menu_btn)
+        years_date_kb_bd.row(_cancel_only_btn())
     return years_date_kb_bd.as_markup()
 
 def get_month_date_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     month_kb_bd = InlineKeyboardBuilder()
-    month_in_russian = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    month_in_russian = get_month_names()
     for i in range(1, 13):
         month_kb_bd.button(text=month_in_russian[i-1], callback_data=f"month:{i}:{month_in_russian[i-1]}")
     month_kb_bd.adjust(3)
     if action_btns:
-        month_kb_bd.row(cancel_seizure_menu_btn)
+        month_kb_bd.row(_cancel_only_btn())
     return month_kb_bd.as_markup()
 
 def get_day_kb(year: int, month: int, action_btns: bool = True) -> InlineKeyboardMarkup:
@@ -69,18 +73,18 @@ def get_day_kb(year: int, month: int, action_btns: bool = True) -> InlineKeyboar
     kb_builder.adjust(7)
     print(action_btns)
     if action_btns:
-        kb_builder.row(cancel_seizure_menu_btn)
+        kb_builder.row(_cancel_only_btn())
     return kb_builder.as_markup()
 
 def get_time_ranges_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     time_ranges = {
-        '2 часа назад':'2h_ago',
-        '1.5 часа назад':'1p5h_ago',
-        '1 час назад':'1h_ago',
-        '30 мин назад':'30m_ago',
-        '15 мин назад':'15m_ago',
-        '5 мин назад':'5m_ago',
-        'Сейчас':'now'
+        t('buttons.time_2h_ago'): '2h_ago',
+        t('buttons.time_1p5h_ago'): '1p5h_ago',
+        t('buttons.time_1h_ago'): '1h_ago',
+        t('buttons.time_30m_ago'): '30m_ago',
+        t('buttons.time_15m_ago'): '15m_ago',
+        t('buttons.time_5m_ago'): '5m_ago',
+        t('buttons.time_now'): 'now',
     }
     builder = InlineKeyboardBuilder()
     for key, value in time_ranges.items():
@@ -102,11 +106,11 @@ def get_severity_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
 def get_duration_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
     duration_bd = InlineKeyboardBuilder()
     duration_btns = [
-        InlineKeyboardButton(text="< 30 сек", callback_data=f"seizure_duration:<-{30}-s"),
-        InlineKeyboardButton(text="< 1 мин", callback_data=f"seizure_duration:<-{60}-s"),
-        InlineKeyboardButton(text="1 - 2 мин", callback_data=f"seizure_duration:<-{90}-s"),
-        InlineKeyboardButton(text="2 - 5 мин", callback_data=f"seizure_duration:<-{200}-s"),
-        InlineKeyboardButton(text="Более 5 мин", callback_data=f"seizure_duration:>-{300}-s"),
+        InlineKeyboardButton(text=t("buttons.duration_lt_30s"), callback_data=f"seizure_duration:<-{30}-s"),
+        InlineKeyboardButton(text=t("buttons.duration_lt_1m"), callback_data=f"seizure_duration:<-{60}-s"),
+        InlineKeyboardButton(text=t("buttons.duration_1_2m"), callback_data=f"seizure_duration:<-{90}-s"),
+        InlineKeyboardButton(text=t("buttons.duration_2_5m"), callback_data=f"seizure_duration:<-{200}-s"),
+        InlineKeyboardButton(text=t("buttons.more_than_5_min"), callback_data=f"seizure_duration:>-{300}-s"),
     ]
     duration_bd.row(*duration_btns)
     duration_bd.adjust(3)
@@ -131,7 +135,7 @@ def generate_features_keyboard(features_list: list, selected_features: list, cur
         if current_page > 0:
             nav_btns.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page:{current_page-1}"))
         if current_page < total_pages - 1:
-            nav_btns.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"page:{current_page+1}"))
+            nav_btns.append(InlineKeyboardButton(text=t("buttons.forward"), callback_data=f"page:{current_page+1}"))
         if nav_btns:
             builder.row(*nav_btns)
     if action_btns:
@@ -164,7 +168,7 @@ def generate_seizure_type_keyboard(current_page: int, page_size: int = 5, action
         ))
     if current_page < total_pages - 1:
         nav_buttons.append(InlineKeyboardButton(
-            text="Вперед ➡️",
+            text=t("buttons.forward"),
             callback_data=f"seizure_type_page:{current_page + 1}"
         ))
     if nav_buttons:
@@ -184,23 +188,23 @@ def get_count_of_seizures_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
 
 def get_seizure_timing():
     builder = InlineKeyboardBuilder()
-    builder.button(text="⚠️ Приступ происходит сейчас", callback_data="seizure_right_now")
-    builder.button(text="🕓 Приступ уже прошёл", callback_data="seizure_passed")
-    builder.button(text="↩️ Назад", callback_data="to_menu_edit")
+    builder.button(text=t("buttons.seizure_now"), callback_data="seizure_right_now")
+    builder.button(text=t("buttons.seizure_passed"), callback_data="seizure_passed")
+    builder.button(text=t("common.back"), callback_data="to_menu_edit")
     builder.adjust(1)
     return builder.as_markup()
 
 def get_stop_duration_kb():
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔴 Стоп", callback_data="stop_track_duration")
-    builder.row(*[cancel_seizure_menu_btn, confirm_seizure_data_btn])
+    builder.button(text=t("buttons.stop"), callback_data="stop_track_duration")
+    builder.row(*_main_btns()[:2])
     return builder.as_markup()
 
 def build_statistics_navigation_keyboard(current_page: str = "stats") -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     if current_page != "stats":
-        kb.button(text="📊 Статистика", callback_data="stats_edit")
+        kb.button(text=t("buttons.stats_nav"), callback_data="stats_edit")
     if current_page != "features":
-        kb.button(text="🧾 Частые признаки", callback_data="view:features")
+        kb.button(text=t("buttons.features_nav"), callback_data="view:features")
     kb.adjust(1)
     return kb.as_markup()

@@ -101,6 +101,10 @@ def _lookup_int_map(key: str) -> dict[int, str]:
     return {int(raw_key): str(label) for raw_key, label in value.items()}
 
 
+def get_month_names() -> list[str]:
+    return _lookup_list("domain.month_names")
+
+
 def get_epilepsy_triggers() -> list[str]:
     return _lookup_list("domain.epilepsy_triggers")
 
