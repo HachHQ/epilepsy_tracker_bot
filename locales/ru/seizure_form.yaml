@@ -56,6 +56,3 @@ seizure_form:
   enter_duration_minutes: "Введите примерную продолжительность в минутах:"
   year_selected: "Выбран {year} год.\nВыберите месяц:"
   month_selected: "Выбран месяц {month_name}"
-
-seizure:
-  not_filled: "Не заполнено"

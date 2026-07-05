@@ -38,4 +38,4 @@ async def clear_redis_cache(message: Message, db: AsyncSession):
     profile_id = int(prof.split("|")[0]) if prof else None
     await invalidate_user_debug_cache(message.chat.id, profile_id)
 
-    await message.answer("Redis cache cleared for current user.")
+    await message.answer(t("admin.redis_cleared"))

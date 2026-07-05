@@ -16,7 +16,7 @@ def _main_btns():
 def _final_seizure_btns():
     return [
         InlineKeyboardButton(text=t("buttons.cancel"), callback_data="cancel_fsm_script"),
-        InlineKeyboardButton(text="Завершить заполнение", callback_data="check_input_seizure_data"),
+        InlineKeyboardButton(text=t("buttons.finish_seizure"), callback_data="check_input_seizure_data"),
     ]
 
 def get_final_seizure_btns():

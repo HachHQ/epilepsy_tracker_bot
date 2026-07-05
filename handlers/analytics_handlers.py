@@ -11,6 +11,7 @@ from database.orm_query import get_avg_duration_by_month, get_top_seizure_featur
 from filters.correct_commands import ProfileIsSetCb, ProfileIsSetMsg
 from keyboards.journal_kb import get_graphs_type
 from keyboards.seizure_kb import build_statistics_navigation_keyboard
+from i18n import t
 from services.graph_stat_builder import (
     ChartBuildResult,
     compute_seizure_statistics,
@@ -82,7 +83,7 @@ async def process_graphs_cmd(callback: CallbackQuery, db: AsyncSession):
 async def switch_to_features(callback: CallbackQuery, db: AsyncSession):
     profile = await get_cached_current_profile(db, callback.message.chat.id)
     if not profile:
-        return await callback.message.edit_text("Сначала выберите профиль.")
+        return await callback.message.edit_text(t("analytics.select_profile_first"))
 
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]

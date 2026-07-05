@@ -69,12 +69,12 @@ async def process_save_and_display_seizure_data(callback: CallbackQuery, state: 
     seizure_data = await state.get_data()
     login = await get_cached_login(db, callback.message.chat.id)
     if not seizure_data:
-        await callback.message.answer("Начните заполнение данных о приступе заново.")
+        await callback.message.answer(t("seizure.restart_form"))
         await callback.answer()
         return
     current_profile = await get_cached_current_profile(db, callback.message.chat.id)
     if current_profile == None:
-        await callback.message.answer("Выберите профиль в основном меню.")
+        await callback.message.answer(t("seizure.select_profile_first"))
         await callback.answer()
         return
     preview = await create_seizure_from_state(

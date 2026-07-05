@@ -460,7 +460,7 @@ async def process_import_excel_data_by_profile(callback: CallbackQuery, state: F
         ),
         remove_after=False,
     )
-    await callback.message.answer("Скачайте таблицу, вставьте данные и пришлите ее обратно.")
+    await callback.message.answer(t("import.download_template"))
     await state.set_state(GetExcelTableForm.get_xlsx_file)
     await callback.answer()
 
@@ -500,4 +500,4 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
             if os.path.exists(file_path):
                 os.remove(file_path)
     else:
-        await message.answer("Требуется xlsx тип документа.")
+        await message.answer(t("import.xlsx_required"))

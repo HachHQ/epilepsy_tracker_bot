@@ -54,3 +54,6 @@ sos:
 
 seizure:
   type_updated: "Тип приступа обновлен: {seizure_type}"
+  not_filled: "Не заполнено"
+  restart_form: "Начните заполнение данных о приступе заново."
+  select_profile_first: "Выберите профиль в основном меню."

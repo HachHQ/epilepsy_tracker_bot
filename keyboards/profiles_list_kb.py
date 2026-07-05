@@ -2,6 +2,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.types import InlineKeyboardButton
 
+from i18n import t
 
 def get_paginated_profiles_kb(
     profiles: list,
@@ -27,17 +28,17 @@ def get_paginated_profiles_kb(
     if total_profiles > page_size:
         nav_buttons = []
         if page > 0:
-            nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад",callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"))
+            nav_buttons.append(InlineKeyboardButton(text=t("buttons.back"), callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"))
         if page < total_pages - 1:
-            nav_buttons.append(InlineKeyboardButton(text="Вперед ➡️",callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"))
+            nav_buttons.append(InlineKeyboardButton(text=t("buttons.forward"), callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"))
         if nav_buttons:
             builder.row(*nav_buttons)
     return builder.as_markup()
 
 def get_choosing_type_of_profiles_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="Собственные профили", callback_data="profile_type:user_own")
-    builder.button(text="Профили доверенных лиц", callback_data="profile_type:trusted")
+    builder.button(text=t("buttons.own_profiles"), callback_data="profile_type:user_own")
+    builder.button(text=t("buttons.trusted_profiles"), callback_data="profile_type:trusted")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -50,6 +51,6 @@ def get_profile_submenu_kb() -> InlineKeyboardMarkup:
     builder.button(text="📤 Экспорт данных",callback_data="export_data")
     builder.button(text="🔄 Восстановить профиль", callback_data="prof_restore_list")
     builder.button(text="🗑️ Аккаунт", callback_data="account_settings")
-    builder.button(text="↩️ Назад", callback_data="to_menu_edit")
+    builder.button(text=t("common.back"), callback_data="to_menu_edit")
     builder.adjust(1)
     return builder.as_markup()

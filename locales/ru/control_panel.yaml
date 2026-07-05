@@ -69,3 +69,11 @@ export:
 
 import:
   send_file: "Пришлите файл для импорта."
+  download_template: "Скачайте таблицу, вставьте данные и пришлите ее обратно."
+  xlsx_required: "Требуется xlsx тип документа."
+
+pagination:
+  profiles_not_found: "Ошибка: Список профилей не найден."
+
+analytics:
+  select_profile_first: "Сначала выберите профиль."

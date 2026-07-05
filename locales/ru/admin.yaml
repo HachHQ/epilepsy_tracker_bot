@@ -1,0 +1,7 @@
+bot_commands:
+  menu: "Вызвать основное меню"
+  help: "Узнать о возможностях бота"
+  start: "Начать работу с ботом"
+
+admin:
+  redis_cleared: "Redis cache cleared for current user."
