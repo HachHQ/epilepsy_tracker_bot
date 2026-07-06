@@ -54,6 +54,11 @@ async def invalidate_trusted_persons(chat_id: int) -> None:
     await delete_redis_trusted_persons(chat_id)
 
 
+async def invalidate_after_trusted_person_mutate(chat_id: int) -> None:
+    await invalidate_trusted_persons(chat_id)
+    await invalidate_profile_lists(chat_id, "trusted")
+
+
 async def invalidate_user_debug_cache(chat_id: int, profile_id: int | None = None) -> None:
     """Clear cached session data for admin debug command."""
     await invalidate_profile_lists(chat_id, "user_own")

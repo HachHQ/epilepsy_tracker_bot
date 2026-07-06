@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import RequestStatus, TrustedPersonProfiles, TrustedPersonRequest, User
+from database.redis_query import set_redis_cached_profiles_list
 from database.repositories.trusted_persons import (
     accept_trusted_person_request,
     can_trusted_person_edit,
@@ -20,6 +21,7 @@ from database.repositories.trusted_persons import (
     toggle_trusted_notify_permission,
 )
 from database.repositories.users import get_user_by_login
+from services.cache_invalidation import invalidate_after_trusted_person_mutate
 
 
 @dataclass(frozen=True)
@@ -84,18 +86,39 @@ async def user_can_edit_profile(
     return await can_trusted_person_edit(session, trusted_person_id, profile_owner_id, profile_id)
 
 
-async def delete_trusted_person(session: AsyncSession, tpp_id: int) -> DeleteTrustedPersonResult:
+async def delete_trusted_person(
+    session: AsyncSession,
+    tpp_id: int,
+    *,
+    owner_chat_id: int | None = None,
+) -> DeleteTrustedPersonResult:
     deleted = await delete_trusted_link(session, tpp_id)
+    if deleted and owner_chat_id is not None:
+        await invalidate_after_trusted_person_mutate(owner_chat_id)
     return DeleteTrustedPersonResult(deleted=deleted)
 
 
-async def toggle_edit_permission(session: AsyncSession, tpp_id: int) -> TogglePermissionResult:
+async def toggle_edit_permission(
+    session: AsyncSession,
+    tpp_id: int,
+    *,
+    owner_chat_id: int | None = None,
+) -> TogglePermissionResult:
     link = await toggle_trusted_edit_permission(session, tpp_id)
+    if link is not None and owner_chat_id is not None:
+        await invalidate_after_trusted_person_mutate(owner_chat_id)
     return TogglePermissionResult(updated=link is not None, link=link)
 
 
-async def toggle_notify_permission(session: AsyncSession, tpp_id: int) -> TogglePermissionResult:
+async def toggle_notify_permission(
+    session: AsyncSession,
+    tpp_id: int,
+    *,
+    owner_chat_id: int | None = None,
+) -> TogglePermissionResult:
     link = await toggle_trusted_notify_permission(session, tpp_id)
+    if link is not None and owner_chat_id is not None:
+        await invalidate_after_trusted_person_mutate(owner_chat_id)
     return TogglePermissionResult(updated=link is not None, link=link)
 
 
@@ -137,6 +160,7 @@ async def accept_trusted_request(
     request_id: str,
     sender_id: int,
     recipient_id: int,
+    recipient_chat_id: int | None = None,
     now: datetime | None = None,
 ) -> AcceptTrustedRequestResult:
     from datetime import UTC, datetime as dt
@@ -159,6 +183,10 @@ async def accept_trusted_request(
         return AcceptTrustedRequestResult(accepted=False, reason="expired")
 
     link = await accept_trusted_person_request(session, request)
+    if recipient_chat_id is not None:
+        profiles = await list_trusted_profiles_for_guest(session, recipient_chat_id)
+        await set_redis_cached_profiles_list(recipient_chat_id, "trusted", profiles)
+        await invalidate_after_trusted_person_mutate(recipient_chat_id)
     return AcceptTrustedRequestResult(accepted=True, link=link)
 
 

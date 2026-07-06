@@ -157,6 +157,24 @@ async def test_invalidate_user_debug_cache_with_profile() -> None:
 
 
 @pytest.mark.asyncio
+async def test_invalidate_after_trusted_person_mutate() -> None:
+    with (
+        patch(
+            "services.cache_invalidation.invalidate_trusted_persons",
+            new=AsyncMock(),
+        ) as trusted,
+        patch(
+            "services.cache_invalidation.invalidate_profile_lists",
+            new=AsyncMock(),
+        ) as profiles,
+    ):
+        await cache_invalidation.invalidate_after_trusted_person_mutate(77)
+
+    trusted.assert_awaited_once_with(77)
+    profiles.assert_awaited_once_with(77, "trusted")
+
+
+@pytest.mark.asyncio
 async def test_invalidate_after_profile_deleted() -> None:
     with (
         patch(

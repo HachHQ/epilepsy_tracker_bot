@@ -6,6 +6,25 @@ from use_cases import trusted_persons as trusted_use_cases
 
 
 @pytest.mark.asyncio
+async def test_delete_trusted_person_invalidates_cache() -> None:
+    with (
+        patch(
+            "use_cases.trusted_persons.delete_trusted_link",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "use_cases.trusted_persons.invalidate_after_trusted_person_mutate",
+            new=AsyncMock(),
+        ) as invalidate_mock,
+    ):
+        await trusted_use_cases.delete_trusted_person(
+            AsyncMock(), 7, owner_chat_id=42
+        )
+
+    invalidate_mock.assert_awaited_once_with(42)
+
+
+@pytest.mark.asyncio
 async def test_delete_trusted_person_returns_deleted_flag() -> None:
     with patch(
         "use_cases.trusted_persons.delete_trusted_link",

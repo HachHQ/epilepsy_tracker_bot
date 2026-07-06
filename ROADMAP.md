@@ -24,8 +24,8 @@ i18n + locales/   — все пользовательские тексты
 |---------|--------|-----------------|
 | Retention (soft delete, purge) | ✅ | — |
 | i18n foundation (`locales/ru`) | ✅ | `locales/en`, user locale setting |
-| use_cases | users, profiles, seizures, retention, medications, notifications, trusted, analytics | — |
-| repositories | users, profiles, seizures, retention, medications, notifications, trusted, analytics, symptoms_triggers | import_export |
+| use_cases | users, profiles, seizures, retention, medications, notifications, trusted, analytics, import_export | — |
+| repositories | users, profiles, seizures, retention, medications, notifications, trusted, analytics, symptoms_triggers, import_export | — |
 | `orm_query.py` | ✅ удалён | — |
 | CI (GitHub Actions) | ✅ | ruff на весь проект |
 | Толстые handlers | — | control_panel, medication, notification |
@@ -181,6 +181,11 @@ docker build -t diplomathesis-bot:local .
 
 12. ✅ Трек 5 — расширить invalidation tests
 13. ✅ Трек 4 — adapters vs services cleanup (импорты из `adapters/telegram`)
+
+### Итерация E
+
+14. ✅ Трек 1 — import/export repository и use case
+15. ✅ Трек 5 — инвалидация кэша trusted persons из use cases
 
 ---
 
