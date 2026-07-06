@@ -3,8 +3,23 @@ from services import cache_keys
 
 def test_invalidation_contract_documents_seizure_create() -> None:
     groups = cache_keys.INVALIDATION_CONTRACT["seizure.create"]
-    assert "profile_triggers" in groups
-    assert "global_symptoms" in groups
+    assert groups == (
+        "profile_triggers",
+        "profile_symptoms",
+        "global_triggers",
+        "global_symptoms",
+    )
+
+
+def test_invalidation_contract_documents_seizure_partial_updates() -> None:
+    assert cache_keys.INVALIDATION_CONTRACT["seizure.update.triggers"] == (
+        "profile_triggers",
+        "global_triggers",
+    )
+    assert cache_keys.INVALIDATION_CONTRACT["seizure.update.symptoms"] == (
+        "profile_symptoms",
+        "global_symptoms",
+    )
 
 
 def test_invalidation_contract_documents_trusted_person_mutations() -> None:

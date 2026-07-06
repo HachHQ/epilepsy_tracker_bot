@@ -29,7 +29,7 @@ from keyboards.trusted_user_kb import (
 )
 from services.cache_invalidation import invalidate_trusted_persons
 from services.hmac_encrypt import unpack_callback_data
-from services.notification_queue import NotificationQueue, TrustedContactRequest
+from adapters.telegram.notification_queue import NotificationQueue, TrustedContactRequest
 from services.redis_cache_data import (
     get_cached_login,
     get_cached_profiles_list,

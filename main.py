@@ -12,7 +12,7 @@ from database.db_init import init_db
 from database.redis_client import redis
 from database.db_init import SessionLocal
 
-from services.medication_reminders import schedule_notification_slots, scheduler
+from adapters.telegram.medication_reminders import schedule_notification_slots, scheduler
 from services.retention_purge import schedule_retention_purge
 
 from config_data.config import get_config, load_config
@@ -40,7 +40,7 @@ from keyboards.set_menu import set_main_menu
 from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 from middleware.locale import LocaleMiddleware
 
-from services.notification_queue import NotificationQueue
+from adapters.telegram.notification_queue import NotificationQueue
 from i18n import set_locale, t
 
 logging.basicConfig(level=logging.INFO)

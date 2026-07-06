@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from handlers_logic.states_factories import SosForm
 from i18n import t
 from keyboards.notification_kb import get_choose_sos_notify_mode_kb
-from services.notification_queue import NotificationQueue, SosMassNotification
+from adapters.telegram.notification_queue import NotificationQueue, SosMassNotification
 from services.redis_cache_data import get_cached_trusted_persons_agrigated_data
 
 sos_router = Router()
