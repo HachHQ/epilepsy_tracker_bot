@@ -4,7 +4,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from database.models import Profile, RequestStatus, TrustedPersonProfiles, TrustedPersonRequest, User
+from database.models import (
+    Profile,
+    RequestStatus,
+    TrustedPersonProfiles,
+    TrustedPersonRequest,
+    User,
+)
 
 
 async def list_trusted_profiles_for_guest(

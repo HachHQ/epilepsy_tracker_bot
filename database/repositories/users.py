@@ -11,7 +11,7 @@ from database.models import (
     User,
     UserNotifications,
 )
-from database.repositories.profiles import get_active_profile_by_id, soft_delete_profile
+from database.repositories.profiles import soft_delete_profile
 
 
 async def get_user_by_chat_id(

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +13,7 @@ from handlers_logic.seizure_form.helpers import (
 from handlers_logic.states_factories import SeizureForm
 from i18n import t
 from keyboards.seizure_kb import (
+    get_count_of_seizures_kb,
     get_day_kb,
     get_duration_kb,
     get_month_date_kb,
@@ -38,7 +38,6 @@ async def ask_for_a_year(message: Message, state):
 async def handle_short_date(callback: CallbackQuery, state, db: AsyncSession):
     parsed = parse_callback_data(callback.data)
     action_btns_flag = await get_action_btns_flag(state)
-    data = await state.get_data()
 
     if parsed.get("value") in {"two_d_ago", "one_d_ago", "today"}:
         if await is_edit_mode(state):

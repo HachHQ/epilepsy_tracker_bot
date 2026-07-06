@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from datetime import date, datetime
 
-from sqlalchemy import asc, cast, Date, delete, desc, func, select
+from sqlalchemy import Date, asc, cast, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger

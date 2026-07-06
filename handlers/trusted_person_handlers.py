@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.notification_queue import NotificationQueue, TrustedContactRequest
 from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 from database.models import User
 from database.redis_query import (
@@ -27,7 +28,6 @@ from keyboards.trusted_user_kb import (
     get_y_or_n_buttons_to_finish_process,
 )
 from services.hmac_encrypt import unpack_callback_data
-from adapters.telegram.notification_queue import NotificationQueue, TrustedContactRequest
 from services.redis_cache_data import (
     get_cached_login,
     get_cached_profiles_list,
@@ -392,7 +392,7 @@ async def process_change_getting_notification_permission(message: Message, state
         )
 
 @trusted_person_router.callback_query(F.data.startswith("tpchangegettingnotify"))
-async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_commit_changing_notify_permission(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
         await trusted_use_cases.toggle_notify_permission(
@@ -417,7 +417,7 @@ async def process_deleting_trusted_person(message: Message, state: FSMContext, d
     await message.answer(t("trusted.delete_confirm"), reply_markup=get_commiting_deleting_trusted_person_kb(tpp_id))
 
 @trusted_person_router.callback_query(F.data.startswith("tpdeleting"))
-async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_commit_deleting_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
         result = await trusted_use_cases.delete_trusted_person(

@@ -1,8 +1,8 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
-from aiogram.types import InlineKeyboardButton
 import calendar
 from datetime import datetime
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
 
@@ -67,14 +67,9 @@ def get_delete_edit_kb(seizure_id):
 
 
 def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarkup:
-    years_journal_bd = InlineKeyboardBuilder()
-    back_btn = InlineKeyboardButton(text=t("buttons.back_plain"), callback_data="years_journal_back")
-    forw_btn = InlineKeyboardButton(text=t("buttons.forward_plain"), callback_data="years_journal_forw")
-    years_journal_bd.adjust(rows)
-
-    pass
-
-
+    builder = InlineKeyboardBuilder()
+    builder.adjust(rows)
+    return builder.as_markup()
 
 def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -> InlineKeyboardMarkup:
     date_set = {(date.year, date.month, date.day) for date in dates}
@@ -94,5 +89,5 @@ def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -
 def get_delete_seizure_note_kb(seizure_id: int):
     kb_builder = InlineKeyboardBuilder()
     kb_builder.button(text=t("common.yes"), callback_data=f"delete_seizure_note:yes:{seizure_id}")
-    kb_builder.button(text=t("common.no"), callback_data=f"delete_seizure_note:no")
+    kb_builder.button(text=t("common.no"), callback_data="delete_seizure_note:no")
     return kb_builder.as_markup()

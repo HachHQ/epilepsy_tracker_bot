@@ -1,10 +1,10 @@
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from i18n import t
-from services.redis_cache_data import get_cached_profiles_list
 from keyboards.profiles_list_kb import get_paginated_profiles_kb
+from services.redis_cache_data import get_cached_profiles_list
 
 pagination_router = Router()
 

@@ -1,10 +1,11 @@
-import pandas as pd
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
-from i18n import t
-from database.repositories.seizures import list_profile_seizures
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.redis_query import get_redis_cached_current_profile
+from database.repositories.seizures import list_profile_seizures
+from i18n import t
+
 
 def format_orm_data_obj_to_dict(orm_table):
     data = [atr.__dict__ for atr in orm_table]

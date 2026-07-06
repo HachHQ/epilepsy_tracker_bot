@@ -6,10 +6,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
-from i18n import t
 from adapters.telegram.notification_queue import MedicationReminderNotification, NotificationQueue
 from database.db_init import SessionLocal
 from database.models import User, UserNotifications
+from i18n import t
 from services.medication_slots import convert_utc_to_user_time, get_nearest_slot
 
 logger = logging.getLogger(__name__)

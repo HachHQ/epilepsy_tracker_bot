@@ -122,7 +122,7 @@ i18n + locales/   — все пользовательские тексты
 - [x] `print` → `logging` / удаление debug-print в handlers
 - [x] healthcheck для `bot` в `docker-compose.yml`
 - [x] badge CI в `README.md`
-- [ ] `ruff check .` на весь проект (сейчас только `tests/` и `scripts/`)
+- [x] `ruff check .` на весь проект
 
 ### Локальная проверка
 
@@ -185,7 +185,9 @@ docker build -t diplomathesis-bot:local .
 ### Итерация E
 
 14. ✅ Трек 1 — import/export repository и use case
-15. ✅ Трек 5 — инвалидация кэша trusted persons из use cases
+### Итерация F
+
+16. ✅ Трек 6 — `ruff check .` на весь проект
 
 ---
 

@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config_data.pagination import MEDICATIONS_PER_PAGE as NOTES_PER_PAGE
 from handlers_logic.states_factories import MedicationCourse
 from i18n import t
 from keyboards.journal_kb import get_nav_btns_for_list
@@ -21,8 +22,6 @@ from services.validators import validate_date, validate_less_than_40, validate_l
 from use_cases import medications as medication_use_cases
 
 medication_router = Router()
-
-from config_data.pagination import MEDICATIONS_PER_PAGE as NOTES_PER_PAGE
 
 
 def _profile_id_from_cached(profile_key: str | None) -> int | None:

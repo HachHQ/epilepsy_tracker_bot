@@ -1,18 +1,13 @@
 import logging
 
-from aiogram import Router, F
-from aiogram.types import Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters import StateFilter
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import default_state
 from matplotlib.cbook import CallbackRegistry
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from handlers_logic.states_factories import SosForm
+from adapters.telegram.notification_queue import NotificationQueue, SosMassNotification
 from i18n import t
 from keyboards.notification_kb import get_choose_sos_notify_mode_kb
-from adapters.telegram.notification_queue import NotificationQueue, SosMassNotification
 from services.redis_cache_data import get_cached_trusted_persons_agrigated_data
 
 sos_router = Router()

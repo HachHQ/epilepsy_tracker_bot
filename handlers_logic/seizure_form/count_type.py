@@ -12,7 +12,6 @@ from i18n import get_seizure_types, t
 from keyboards.seizure_kb import (
     generate_features_keyboard,
     generate_seizure_type_keyboard,
-    get_count_of_seizures_kb,
     get_temporary_cancel_submit_kb,
 )
 from services.validators import validate_non_neg_N_num

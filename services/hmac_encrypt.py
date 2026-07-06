@@ -1,5 +1,6 @@
 import base64
-import hmac, hashlib
+import hashlib
+import hmac
 import logging
 
 from config_data.config import load_config
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 SECRET_KEY = cfg.tg_bot.hmac_secret_key.encode('utf-8')
 
 def pack_callback_data(uuid, profile_id, sender_id) -> str:
-    cb_data_bytes = f"{uuid}|{profile_id}|{sender_id}".encode('utf-8')
+    cb_data_bytes = f"{uuid}|{profile_id}|{sender_id}".encode()
     signature = hmac.new(SECRET_KEY, cb_data_bytes, hashlib.sha256).digest()
     signature = signature[:8]
     final_payload = cb_data_bytes + b"|" + signature

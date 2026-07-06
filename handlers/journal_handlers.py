@@ -10,7 +10,11 @@ from config_data.pagination import JOURNAL_NOTES_PER_PAGE as NOTES_PER_PAGE
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.seizure_form import start_seizure_field_edit
 from i18n import t
-from keyboards.journal_kb import get_delete_seizure_note_kb, get_journal_nav_kb, get_nav_btns_for_list
+from keyboards.journal_kb import (
+    get_delete_seizure_note_kb,
+    get_journal_nav_kb,
+    get_nav_btns_for_list,
+)
 from services.redis_cache_data import get_cached_current_profile, get_cached_login
 from use_cases.seizures import (
     delete_seizure_record,

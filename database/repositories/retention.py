@@ -6,7 +6,15 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import MedicationCourse, Profile, Seizure, TrustedPersonProfiles, TrustedPersonRequest, User, UserNotifications
+from database.models import (
+    MedicationCourse,
+    Profile,
+    Seizure,
+    TrustedPersonProfiles,
+    TrustedPersonRequest,
+    User,
+    UserNotifications,
+)
 from database.repositories.seizures import delete_all_seizures_for_profile, delete_expired_seizures
 
 
