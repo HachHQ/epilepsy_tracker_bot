@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from database.models import Profile, User
+from database.models import User
 from database.repositories.profiles import get_active_profile_by_id
 from use_cases.profiles import (
     create_profile_from_form,

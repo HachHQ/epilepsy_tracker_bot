@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from config_data.config import get_config, load_config
+from config_data.config import get_config
 
 
 def test_get_config_uses_cached_instance() -> None:

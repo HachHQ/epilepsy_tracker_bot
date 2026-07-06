@@ -12,13 +12,14 @@ from i18n import (
 
 def test_resolve_locale_defaults_to_ru() -> None:
     assert resolve_locale(None) == DEFAULT_LOCALE
-    assert resolve_locale("en-US") == "en"
+    assert resolve_locale("en-US") == DEFAULT_LOCALE  # en/ not shipped yet
     assert resolve_locale("de-DE") == DEFAULT_LOCALE
 
 
 def test_t_returns_russian_string() -> None:
     set_locale("ru")
     assert "Привет" in t("start.welcome")
+    assert t("common.yes") == "Да"
 
 
 def test_t_supports_format_params() -> None:

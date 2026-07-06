@@ -3,10 +3,9 @@ import uuid
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from config_data.config import load_config
-from database.models import Profile, Seizure, User
+from database.models import Profile, User
 from services.keyword_hasher import KeywordHasher
 
 
