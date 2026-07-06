@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
 from i18n import t
-from database.orm_query import orm_get_seizures_by_profile_ascending
+from database.repositories.seizures import list_profile_seizures
 from database.redis_query import get_redis_cached_current_profile
 
 def format_orm_data_obj_to_dict(orm_table):
@@ -16,7 +16,7 @@ async def pd_get_min_max_year_in_seizures(session: AsyncSession, chat_id: int):
     current_profile = await get_redis_cached_current_profile(chat_id)
     if not current_profile:
         return None
-    seizures = await orm_get_seizures_by_profile_ascending(session, int(current_profile.split('|', 1)[0]))
+    seizures = await list_profile_seizures(session, int(current_profile.split("|", 1)[0]), descending=False)
     uniq_years = []
     try:
         years = [int(datetime.strptime(seizure.date, '%Y-%m-%d').year) for seizure in seizures if seizure.date]

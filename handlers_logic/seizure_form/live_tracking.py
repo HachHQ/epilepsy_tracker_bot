@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.orm_query import orm_get_user
+from database.repositories.users import get_user_by_chat_id
 from handlers_logic.states_factories import SeizureForm
 from i18n import t
 from keyboards.seizure_kb import get_count_of_seizures_kb, get_stop_duration_kb
@@ -13,7 +13,7 @@ from services.user_timezone import get_local_time_from_offset
 
 async def handle_seizre_right_now(message: Message, state, db: AsyncSession):
     await state.clear()
-    user = await orm_get_user(db, message.chat.id)
+    user = await get_user_by_chat_id(db, message.chat.id)
     local_user_tz = get_local_time_from_offset(int(user.timezone))
     await state.update_data(exact_duration=str(datetime.now(timezone.utc)))
     await state.update_data(date_short=str(local_user_tz.date()))

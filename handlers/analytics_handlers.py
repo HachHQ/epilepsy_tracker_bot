@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 
 from adapters.telegram.delivery import send_chart_photo
-from database.orm_query import get_avg_duration_by_month, get_top_seizure_features
+from use_cases import analytics as analytics_use_cases
 from filters.correct_commands import ProfileIsSetCb, ProfileIsSetMsg
 from keyboards.journal_kb import get_graphs_type
 from keyboards.seizure_kb import build_statistics_navigation_keyboard
@@ -86,7 +86,7 @@ async def switch_to_features(callback: CallbackQuery, db: AsyncSession):
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
 
-    result = await get_top_seizure_features(db, profile_id)
+    result = await analytics_use_cases.get_profile_feature_stats(db, profile_id)
     text = format_top_features(profile_name, result["top_symptoms"], result["top_triggers"], result["top_types"])
     await callback.message.edit_text(
         text,
@@ -117,7 +117,7 @@ async def get_duration_graph(message: Message, db: AsyncSession):
     profile = await get_cached_current_profile(db, message.chat.id)
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
-    data = await get_avg_duration_by_month(db, profile_id, year)
+    data = await analytics_use_cases.get_monthly_avg_duration(db, profile_id, year)
     if not data:
         return await message.answer(t("analytics.no_duration_data", year=year))
     chart_file = draw_avg_duration_bar_chart(data, year, profile_name)

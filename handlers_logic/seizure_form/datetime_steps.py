@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.orm_query import orm_get_user
+from database.repositories.users import get_user_by_chat_id
 from handlers_logic.seizure_form.helpers import (
     format_small_date_numbers,
     get_action_btns_flag,
@@ -145,7 +145,7 @@ async def handle_time_of_date_message(message: Message, state, db: AsyncSession)
 async def handle_time_by_btns(callback: CallbackQuery, state, db: AsyncSession):
     action_btns_flag = await get_action_btns_flag(state)
     time_range = callback.data.split(":", 1)[1]
-    user = await orm_get_user(db, callback.message.chat.id)
+    user = await get_user_by_chat_id(db, callback.message.chat.id)
     local_user_tz = get_local_time_from_offset(int(user.timezone))
     time_offsets = {
         "now": 0,
