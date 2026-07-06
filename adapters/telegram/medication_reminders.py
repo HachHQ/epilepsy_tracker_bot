@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
+from i18n import t
 from adapters.telegram.notification_queue import MedicationReminderNotification, NotificationQueue
 from database.db_init import SessionLocal
 from database.models import User, UserNotifications
@@ -37,7 +38,7 @@ async def process_slot_notifications(notification_queue: NotificationQueue) -> N
                 await notification_queue.enqueue(
                     MedicationReminderNotification(
                         user.telegram_id,
-                        f"Напоминание: {notification.note}",
+                        t("notification.medication_reminder", note=notification.note),
                     )
                 )
 

@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from i18n import t
 from keyboards.notification_kb import get_confirm_of_notification_message
 from services.hmac_encrypt import pack_callback_data
 
@@ -52,12 +53,12 @@ class TrustedContactRequest(NotificationBase):
         base64_payload = pack_callback_data(
             self.request_uuid, self.transmitted_profile_id, self.sender_id
         )
-        keyboard.button(text="Да", callback_data=f"p_conf|{base64_payload}")
-        keyboard.button(text="Нет", callback_data=f"n_conf|{base64_payload}")
+        keyboard.button(text=t("common.yes"), callback_data=f"p_conf|{base64_payload}")
+        keyboard.button(text=t("common.no"), callback_data=f"n_conf|{base64_payload}")
         try:
             await bot.send_message(
                 self.chat_id,
-                f"Подтвердите запрос доверенного лица - {self.sender_login}",
+                t("notification.trusted_request_confirm", login=self.sender_login),
                 reply_markup=keyboard.as_markup(),
             )
             logger.info("Trusted contact request sent to chat %s", self.chat_id)

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.redis_cache_data import (
     get_cached_current_profile, get_cached_login, get_cached_profiles_list, get_cached_trusted_persons_agrigated_data
 )
+from i18n import t
 from config_data.config import get_config
 
 class EditCommandFilter(BaseFilter):
@@ -27,7 +28,7 @@ class ProfileIsSetCb(BaseFilter):
         if curr_profile is not None:
             return True
         else:
-            await callback.message.answer("Выберите профиль.")
+            await callback.message.answer(t("filters.select_profile"))
             await callback.answer()
             return False
 
@@ -37,7 +38,7 @@ class ProfileIsSetMsg(BaseFilter):
         if curr_profile is not None:
             return True
         else:
-            await message.answer("Выберите профиль.")
+            await message.answer(t("filters.select_profile"))
             return False
 
 class UserOwnProfilesListExist(BaseFilter):
@@ -46,7 +47,7 @@ class UserOwnProfilesListExist(BaseFilter):
         if profiles_redis is not None:
             return True
         else:
-            await callback.message.answer("У вас не собственных профилей, которыми вы можете поделиться.")
+            await callback.message.answer(t("filters.no_own_profiles_to_share"))
             await callback.answer()
             return False
 
@@ -57,7 +58,7 @@ class UserOwnProfilesListExist(BaseFilter):
 #         if profiles_redis is not None:
 #             return True
 #         else:
-#             await callback.message.answer("У вас не собственных профилей, которыми вы можете поделиться.")
+#             await callback.message.answer(t("filters.no_own_profiles_to_share"))
 #             await callback.answer()
 #             return False
 
