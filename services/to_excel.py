@@ -1,11 +1,12 @@
 import logging
 import uuid
-from datetime import datetime, time as time_class
+from datetime import datetime
+from datetime import time as time_class
 from pathlib import Path
 
 import pandas as pd
 
-from i18n import get_excel_export_headers, t
+from i18n import get_excel_export_headers
 
 Path("temp_tables").mkdir(exist_ok=True)
 logger = logging.getLogger(__name__)

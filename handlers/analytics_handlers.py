@@ -1,17 +1,16 @@
 import os
+from datetime import UTC, datetime
 
-from aiogram import Router, F
-from aiogram.types import FSInputFile, Message, CallbackQuery
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
 from adapters.telegram.delivery import send_chart_photo
-from use_cases import analytics as analytics_use_cases
 from filters.correct_commands import ProfileIsSetCb, ProfileIsSetMsg
+from i18n import t
 from keyboards.journal_kb import get_graphs_type
 from keyboards.seizure_kb import build_statistics_navigation_keyboard
-from i18n import t
 from services.graph_stat_builder import (
     ChartBuildResult,
     compute_seizure_statistics,
@@ -20,18 +19,19 @@ from services.graph_stat_builder import (
     format_top_features,
     get_hour_distribution_plot,
     get_month_distribution_plot,
+    get_month_gist,
     get_weekday_distribution_plot,
     get_year_gist,
-    get_month_gist,
     get_year_gist_with_courses,
 )
 from services.redis_cache_data import get_cached_current_profile
+from use_cases import analytics as analytics_use_cases
 
 analytics_router = Router()
 
 
 def _year_lines(prefix: str, template_key: str) -> str:
-    current_year = datetime.now(timezone.utc).year
+    current_year = datetime.now(UTC).year
     lines = []
     for year in (current_year, current_year - 1, current_year - 2):
         lines.append(t(template_key, year=year) + "\n\n")

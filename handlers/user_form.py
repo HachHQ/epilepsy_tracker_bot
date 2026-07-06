@@ -1,21 +1,27 @@
-import pytz
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter
 from datetime import datetime
+
+import pytz
+from aiogram import F, Router
+from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 from timezonefinder import TimezoneFinder
 
 from handlers_logic.states_factories import UserForm
 from i18n import t
-from services.validators import validate_login_of_user_form, validate_name_of_user_form, validate_timezone, validate_codeword
-from services.redis_cache_data import get_cached_login
-from services.keyword_hasher import KeywordHasher
-from use_cases.users import register_user_from_form
 from keyboards.menu_kb import get_cancel_kb
-from keyboards.profile_form_kb import get_timezone_kb, get_geolocation_for_timezone_kb
+from keyboards.profile_form_kb import get_geolocation_for_timezone_kb, get_timezone_kb
+from services.keyword_hasher import KeywordHasher
+from services.redis_cache_data import get_cached_login
+from services.validators import (
+    validate_codeword,
+    validate_login_of_user_form,
+    validate_name_of_user_form,
+    validate_timezone,
+)
+from use_cases.users import register_user_from_form
 
 user_form_router = Router()
 

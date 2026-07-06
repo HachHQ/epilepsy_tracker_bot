@@ -5,43 +5,36 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.context import FSMContext
-from aiogram.types import ErrorEvent
 from aiogram.fsm.storage.redis import RedisStorage
-
-from database.db_init import init_db
-from database.redis_client import redis
-from database.db_init import SessionLocal
+from aiogram.types import ErrorEvent
 
 from adapters.telegram.medication_reminders import schedule_notification_slots, scheduler
-from services.retention_purge import schedule_retention_purge
-
-from config_data.config import get_config, load_config
-
+from adapters.telegram.notification_queue import NotificationQueue
+from config_data.config import get_config
+from database.db_init import SessionLocal, init_db
+from database.redis_client import redis
 from handlers.account_handlers import account_router
 from handlers.analytics_handlers import analytics_router
-from handlers.journal_handlers import journal_router
-from handlers.choose_profile_handlers import choose_profile_router
-from handlers.import_export_handlers import import_export_router
-from handlers.trusted_person_handlers import trusted_person_router
-from handlers.profiles_pagination_handlers import pagination_router
 from handlers.cancel_handlers import cancel_router
-from handlers.start_message import start_message_router
-from handlers.user_form import user_form_router
-from handlers.profile_form import profile_form_router
-from handlers.main_menu import main_menu_router
-from handlers.seizures_handlers import seizures_router
+from handlers.choose_profile_handlers import choose_profile_router
 from handlers.control_profiles_handlers import control_profiles_router
+from handlers.import_export_handlers import import_export_router
+from handlers.journal_handlers import journal_router
+from handlers.main_menu import main_menu_router
 from handlers.medication_handlers import medication_router
 from handlers.notification_handlers import notification_router
+from handlers.profile_form import profile_form_router
+from handlers.profiles_pagination_handlers import pagination_router
+from handlers.seizures_handlers import seizures_router
 from handlers.sos_handlers import sos_router
-
-from keyboards.set_menu import set_main_menu
-
-from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
-from middleware.locale import LocaleMiddleware
-
-from adapters.telegram.notification_queue import NotificationQueue
+from handlers.start_message import start_message_router
+from handlers.trusted_person_handlers import trusted_person_router
+from handlers.user_form import user_form_router
 from i18n import set_locale, t
+from keyboards.set_menu import set_main_menu
+from middleware.inner import DatabaseSessionMiddleware, NotificationMiddleware
+from middleware.locale import LocaleMiddleware
+from services.retention_purge import schedule_retention_purge
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

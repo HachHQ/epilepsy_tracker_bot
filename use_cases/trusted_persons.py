@@ -163,7 +163,8 @@ async def accept_trusted_request(
     recipient_chat_id: int | None = None,
     now: datetime | None = None,
 ) -> AcceptTrustedRequestResult:
-    from datetime import UTC, datetime as dt
+    from datetime import UTC
+    from datetime import datetime as dt
 
     request = await get_trusted_person_request(
         session,

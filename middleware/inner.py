@@ -1,10 +1,12 @@
 import logging
-from aiogram.types import TelegramObject
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from aiogram import BaseMiddleware
-from typing import Any, Awaitable, Callable, Dict
-from adapters.telegram.notification_queue import NotificationQueue
+from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.notification_queue import NotificationQueue
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +16,9 @@ class DatabaseSessionMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> Any:
         async with self.sessionmaker() as session:
             data["db"] = session
@@ -64,9 +66,9 @@ class NotificationMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> Any:
         data["notification_queue"] = self.notification_queue
         return await handler(event, data)

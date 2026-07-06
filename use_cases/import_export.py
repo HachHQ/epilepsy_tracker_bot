@@ -40,7 +40,7 @@ async def import_seizures_from_excel(
 
     failed_rows: list[dict] = []
     success_count = 0
-    for index, row in df.iterrows():
+    for _index, row in df.iterrows():
         if not validate_row(row):
             failed_rows.append(row.to_dict())
             continue

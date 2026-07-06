@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config_data.config import get_config
@@ -13,7 +14,8 @@ DATABASE_URL = f"postgresql+asyncpg://{config.db.db_user}:{config.db.db_password
 engine = create_async_engine(DATABASE_URL)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-class Base(DeclarativeBase): pass
+class Base(DeclarativeBase):
+    pass
 
 async def init_db():
     import database.models  # noqa: F401

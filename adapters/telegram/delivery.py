@@ -4,7 +4,12 @@ from aiogram import Bot
 from aiogram.types import FSInputFile, Message
 
 from database.models import Seizure
-from services.notes_formatters import SeizureDisplayPayload, build_seizure_display, get_minutes_and_seconds, parse_location_coords
+from services.notes_formatters import (
+    SeizureDisplayPayload,
+    build_seizure_display,
+    get_minutes_and_seconds,
+    parse_location_coords,
+)
 from use_cases.seizures import SeizurePreview
 
 

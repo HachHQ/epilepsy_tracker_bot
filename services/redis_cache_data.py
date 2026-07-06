@@ -1,9 +1,29 @@
 import logging
+from datetime import UTC, datetime, timedelta, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone, timedelta
-from database.repositories.trusted_persons import (
-    list_trusted_persons_for_owner,
-    list_trusted_profiles_for_guest,
+
+from database.redis_query import (
+    get_redis_cached_current_profile,
+    get_redis_cached_login,
+    get_redis_cached_profiles_list,
+    get_redis_cached_user_id_from_db,
+    get_redis_global_symptoms_list,
+    get_redis_global_triggers_list,
+    get_redis_symptoms_list_by_profile,
+    get_redis_triggers_list_by_profile,
+    get_redis_trusted_persons,
+    get_redis_user_timezone,
+    set_redis_cached_current_profile,
+    set_redis_cached_login,
+    set_redis_cached_profiles_list,
+    set_redis_cached_user_id_from_db,
+    set_redis_global_symptoms_list,
+    set_redis_global_triggers_list,
+    set_redis_symptoms_list_by_profile,
+    set_redis_triggers_list_by_profile,
+    set_redis_trusted_persons,
+    set_redis_user_timezone,
 )
 from database.repositories.profiles import get_user_current_active_profile, list_user_profiles
 from database.repositories.symptoms_triggers import (
@@ -12,38 +32,11 @@ from database.repositories.symptoms_triggers import (
     list_profile_symptoms,
     list_profile_triggers,
 )
-from database.repositories.users import get_user_by_chat_id
-
-from database.redis_query import (
-    get_redis_cached_current_profile,
-    get_redis_cached_login,
-    get_redis_cached_profiles_list,
-    get_redis_cached_user_id_from_db,
-    get_redis_user_timezone,
-    get_redis_trusted_persons,
-    get_redis_global_triggers_list,
-    get_redis_global_symptoms_list,
-    get_redis_triggers_list_by_profile,
-    get_redis_symptoms_list_by_profile,
-
-    set_redis_trusted_persons,
-    set_redis_cached_current_profile,
-    set_redis_cached_login,
-    set_redis_cached_profiles_list,
-    set_redis_cached_user_id_from_db,
-    set_redis_trusted_persons,
-    set_redis_global_symptoms_list,
-    set_redis_global_triggers_list,
-    set_redis_symptoms_list_by_profile,
-    set_redis_triggers_list_by_profile,
-    set_redis_user_timezone,
-
-    delete_redis_cached_current_profile,
-    delete_redis_cached_login,
-    delete_redis_cached_profiles_list,
-    delete_redis_cached_user_id_from_db,
-    delete_redis_trusted_persons
+from database.repositories.trusted_persons import (
+    list_trusted_persons_for_owner,
+    list_trusted_profiles_for_guest,
 )
+from database.repositories.users import get_user_by_chat_id
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +118,7 @@ async def get_cached_user_timezone(session: AsyncSession, user_id: int):
 async def get_user_local_datetime(session: AsyncSession, user_id: int):
     user_timezone = await get_cached_user_timezone(session, user_id)
     offset = timezone(timedelta(hours=int(user_timezone)))
-    return datetime.now(timezone.utc).astimezone(offset)
+    return datetime.now(UTC).astimezone(offset)
 
 async def get_cached_trusted_persons_agrigated_data(session: AsyncSession, user_id: int):
     trusted_persons_redis = await get_redis_trusted_persons(user_id)

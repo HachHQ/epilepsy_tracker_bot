@@ -2,7 +2,11 @@ from aiogram import Bot
 from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from handlers_logic.seizure_form.helpers import get_action_btns_flag, is_edit_mode, save_seizure_edit
+from handlers_logic.seizure_form.helpers import (
+    get_action_btns_flag,
+    is_edit_mode,
+    save_seizure_edit,
+)
 from handlers_logic.states_factories import SeizureForm
 from i18n import t
 from keyboards.profile_form_kb import get_geolocation_for_timezone_kb

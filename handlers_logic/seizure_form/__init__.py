@@ -15,8 +15,8 @@ from handlers_logic.seizure_form.datetime_steps import (
     handle_time_by_btns,
     handle_time_of_date_message,
 )
-from handlers_logic.seizure_form.helpers import format_small_date_numbers, parse_callback_data
 from handlers_logic.seizure_form.edit_flow import start_seizure_field_edit
+from handlers_logic.seizure_form.helpers import format_small_date_numbers, parse_callback_data
 from handlers_logic.seizure_form.live_tracking import (
     handle_seizre_right_now,
     handle_stop_tracking_duration,

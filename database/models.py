@@ -1,14 +1,25 @@
 import enum
-from sqlalchemy import ( Column, Integer, BigInteger, Index,
-                        String, Enum, ForeignKey,
-                        DateTime, Boolean, Time, UniqueConstraint, PrimaryKeyConstraint,
-                        Date
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    Time,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from sqlalchemy.sql import text
+from sqlalchemy.sql import func, text
 
 from database.db_init import Base
+
 
 class RequestStatus(enum.Enum):
     PENDING = "pending"

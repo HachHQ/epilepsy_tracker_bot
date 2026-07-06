@@ -1,8 +1,8 @@
-from aiogram import Router, F
+from aiogram import F, Router
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
-from aiogram.filters import Command, StateFilter
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from filters.correct_commands import IsAdmin
@@ -28,7 +28,7 @@ async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @cancel_router.callback_query(F.data == "cancel_fsm_script", StateFilter(default_state))
-async def cancel_fsm_script(callback: CallbackQuery, state: FSMContext):
+async def cancel_fsm_script_outside_fsm(callback: CallbackQuery):
     await callback.message.answer(t("common.not_in_script"), reply_markup=ReplyKeyboardRemove())
     await callback.answer()
 
