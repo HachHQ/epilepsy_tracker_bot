@@ -1,11 +1,11 @@
 import logging
 from sqlalchemy import select, update, delete, asc, desc, cast, Date, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import selectinload
 from datetime import datetime, date
 
-from database.models import (MedicationCourse, User, Profile, RequestStatus, TrustedPersonProfiles,
-                              TrustedPersonRequest, Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger)
+from database.models import (MedicationCourse, User, Profile,
+                              Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger)
 from database.repositories.medications import (
     create_medication_course as _create_medication_course,
     delete_medication as _delete_medication,
@@ -21,6 +21,15 @@ from database.repositories.notifications import (
     update_notification_attribute as _update_notification_attribute,
 )
 from database.repositories.profiles import get_active_profile_by_id, get_profile_by_id, list_user_profiles
+from database.repositories.trusted_persons import (
+    can_trusted_person_edit as _can_trusted_person_edit,
+    can_trusted_person_read as _can_trusted_person_read,
+    delete_trusted_link as _delete_trusted_link,
+    list_trusted_persons_for_owner as _list_trusted_persons_for_owner,
+    list_trusted_profiles_for_guest as _list_trusted_profiles_for_guest,
+    toggle_trusted_edit_permission as _toggle_trusted_edit_permission,
+    toggle_trusted_notify_permission as _toggle_trusted_notify_permission,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +68,7 @@ async def orm_get_profile_by_id(session: AsyncSession, profile_id: int):
     return await get_active_profile_by_id(session, profile_id)
 
 async def orm_get_trusted_profiles_list(session: AsyncSession, chat_id: int):
-    query = (
-            select(Profile)
-            .join(TrustedPersonProfiles, Profile.id == TrustedPersonProfiles.profile_id)
-            .join(User, TrustedPersonProfiles.trusted_person_user_id == User.id)
-            .where(User.telegram_id == chat_id, Profile.deleted_at.is_(None))
-        )
-    profiles_result = await session.execute(query)
-    profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
-    return profiles
+    return await _list_trusted_profiles_for_guest(session, chat_id)
 
 async def orm_get_user_own_profiles_list(session: AsyncSession, chat_id: int):
     return await list_user_profiles(session, chat_id)
@@ -169,28 +170,12 @@ async def orm_get_can_trusted_person_read(
         profile_owner_id: int,
         profile_id: int
     ) -> bool:
-    query = (
-        select(TrustedPersonProfiles)
-        .where(
-            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
-            & (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
-            & (TrustedPersonProfiles.profile_id == int(profile_id))
-        )
-    )
-    result = await session.execute(query)
-    tr_person = result.scalars().first()
-    return bool(tr_person and tr_person.can_read)
+    return await _can_trusted_person_read(session, trusted_person_id, profile_owner_id, profile_id)
+
 
 async def orm_delete_tursted_person(session: AsyncSession, tpp_id: int):
-    query = (
-        delete(TrustedPersonProfiles)
-        .where(
-            TrustedPersonProfiles.id == int(tpp_id)
-        )
-    )
-    del_res = await session.execute(query)
-    deleted_count = del_res.rowcount
-    return deleted_count > 0
+    return await _delete_trusted_link(session, tpp_id)
+
 
 async def orm_get_can_trusted_person_edit(
         session: AsyncSession,
@@ -198,17 +183,8 @@ async def orm_get_can_trusted_person_edit(
         profile_owner_id: int,
         profile_id: int
     ) -> bool:
-    query = (
-        select(TrustedPersonProfiles)
-        .where(
-            (TrustedPersonProfiles.trusted_person_user_id == int(trusted_person_id))
-            & (TrustedPersonProfiles.profile_owner_id == int(profile_owner_id))
-            & (TrustedPersonProfiles.profile_id == int(profile_id))
-        )
-    )
-    result = await session.execute(query)
-    tr_person = result.scalars().first()
-    return bool(tr_person and tr_person.can_edit)
+    return await _can_trusted_person_edit(session, trusted_person_id, profile_owner_id, profile_id)
+
 
 async def orm_switch_trusted_profile_notify_edit_state(
         session: AsyncSession,
@@ -216,72 +192,19 @@ async def orm_switch_trusted_profile_notify_edit_state(
         getting_notify: bool = False,
         switch_edit: bool = False,
     ):
-    query = (
-        select(TrustedPersonProfiles)
-        .where(
-            TrustedPersonProfiles.id == int(tpp_id)
-        )
-    )
     if switch_edit:
-        result = await session.execute(query)
-        tr_person = result.scalars().first()
-        if tr_person is None:
-            return None
-
-        if tr_person.can_edit:
-            tr_person.can_edit = False
-        elif not tr_person.can_edit:
-            tr_person.can_edit = True
-        return tr_person
+        return await _toggle_trusted_edit_permission(session, tpp_id)
     if getting_notify:
-        result = await session.execute(query)
-        tr_person = result.scalars().first()
-        if tr_person is None:
-            return None
+        return await _toggle_trusted_notify_permission(session, tpp_id)
+    return None
 
-        if tr_person.get_notification:
-            tr_person.get_notification = False
-        elif not tr_person.get_notification:
-            tr_person.get_notification = True
-        return tr_person
 
 async def orm_update_list_of_trusted_profiles(session: AsyncSession, chat_id: int):
-    query = (
-            select(Profile)
-            .join(TrustedPersonProfiles, Profile.id == TrustedPersonProfiles.profile_id)
-            .join(User, TrustedPersonProfiles.trusted_person_user_id == User.id)
-            .where(User.telegram_id == chat_id)
-        )
-    profiles_result = await session.execute(query)
-    profiles = [profile.to_dict() for profile in profiles_result.scalars().all()]
-    return profiles
+    return await _list_trusted_profiles_for_guest(session, chat_id)
+
 
 async def orm_get_trusted_users_with_full_info(session: AsyncSession, chat_id: int):
-    owner_alias = aliased(User)
-    query = (
-        select(User, TrustedPersonProfiles, Profile, owner_alias)
-        .join(TrustedPersonProfiles, User.id == TrustedPersonProfiles.trusted_person_user_id)
-        .join(owner_alias, TrustedPersonProfiles.profile_owner_id == owner_alias.id)
-        .join(Profile, TrustedPersonProfiles.profile_id == Profile.id)
-        .where(owner_alias.telegram_id == chat_id)
-    )
-    result = await session.execute(query)
-    trusted_data = []
-    for trusted_user, trusted_profile, profile, owner in result.all():
-        trusted_data.append({
-            'trusted_user': trusted_user.to_dict(),
-            'profile_owner': owner.to_dict(),
-            'profile': profile.to_dict(),
-            'permissions': {
-                'id': trusted_profile.id,
-                'can_read': trusted_profile.can_read,
-                'can_edit': trusted_profile.can_edit,
-                'created_at': trusted_profile.created_at,
-                'get_notification': trusted_profile.get_notification
-            }
-        })
-
-    return trusted_data
+    return await _list_trusted_persons_for_owner(session, chat_id)
 
 async def orm_create_profile(
         session: AsyncSession,
