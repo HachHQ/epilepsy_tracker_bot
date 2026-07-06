@@ -24,8 +24,8 @@ i18n + locales/   — все пользовательские тексты
 |---------|--------|-----------------|
 | Retention (soft delete, purge) | ✅ | — |
 | i18n foundation (`locales/ru`) | ✅ | `locales/en`, user locale setting |
-| use_cases | users, profiles, seizures, retention | medication, notifications, trusted |
-| repositories | users, profiles, seizures, retention | остальные домены |
+| use_cases | users, profiles, seizures, retention, medications | notifications, trusted |
+| repositories | users, profiles, seizures, retention, medications | остальные домены |
 | `orm_query.py` (~560 строк) | частично заменён | вычистить |
 | CI (GitHub Actions) | ✅ | ruff на весь проект |
 | Толстые handlers | — | control_panel, medication, notification |
@@ -161,12 +161,13 @@ docker build -t diplomathesis-bot:local .
 1. ✅ i18n foundation (PR #2)
 2. ✅ **Трек 6 — CI** (PR #3)
 3. ✅ Трек 3 — Excel + i18n guard
-4. Трек 1 — medication + notifications use cases
+4. ✅ Трек 1 — medication use cases
+5. Трек 1 — notifications use cases
 
 ### Итерация B
 
-5. Трек 1 — вычистка `control_panel_handlers`
-6. Трек 2 — FSM приступа (начало)
+6. Трек 1 — вычистка `control_panel_handlers`
+7. Трек 2 — FSM приступа (начало)
 
 ### Итерация C
 

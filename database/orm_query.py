@@ -370,86 +370,53 @@ async def orm_delete_profile(session: AsyncSession, profile_id: int):
 
     return await delete_profile_by_id(session, profile_id)
 
+from database.repositories.medications import (
+    create_medication_course as _create_medication_course,
+    delete_medication as _delete_medication,
+    get_medication_by_id as _get_medication_by_id,
+    list_profile_medications as _list_profile_medications,
+    update_medication_attribute as _update_medication_attribute,
+)
+
 #MEDICATIONS
 async def orm_get_profile_medications_list(session: AsyncSession, current_profile_id: int):
-    res = await session.execute(
-        select(MedicationCourse)
-        .where(
-            MedicationCourse.profile_id == int(current_profile_id)
-        )
-    )
-    med_courses = res.scalars().all()
-    if len(med_courses) == 0:
+    courses = await _list_profile_medications(session, current_profile_id)
+    if not courses:
         return None
-    return med_courses
+    return courses
+
 
 async def orm_delete_profile_medication(session: AsyncSession, current_profile_id: int, medication_id: int):
-    query = (
-        delete(MedicationCourse)
-        .where(
-            (MedicationCourse.id == int(medication_id)),
-            (MedicationCourse.profile_id == int(current_profile_id))
-        )
-    )
-    del_res = await session.execute(query)
-    deleted_count = del_res.rowcount
-    return deleted_count > 0
+    return await _delete_medication(session, current_profile_id, medication_id)
+
 
 async def orm_get_profile_medication_by_id(session: AsyncSession, current_profile_id: int, medication_id: int):
-    query = (
-        select(MedicationCourse)
-        .where(
-            (MedicationCourse.profile_id == int(current_profile_id)),
-            (MedicationCourse.id == int(medication_id))
-        )
-    )
-    res = await session.execute(query)
-    mdc = res.scalars().first()
-    if mdc is None:
-        return None
-    return mdc
+    return await _get_medication_by_id(session, current_profile_id, medication_id)
 
-async def orm_update_medication_attribute(session: AsyncSession, current_profile_id: int, medication_id: int, attribute: str, new_value):
-    query = (
-        select(MedicationCourse)
-        .where(
-            (MedicationCourse.profile_id == int(current_profile_id)),
-            (MedicationCourse.id == int(medication_id))
-        )
+
+async def orm_update_medication_attribute(
+    session: AsyncSession,
+    current_profile_id: int,
+    medication_id: int,
+    attribute: str,
+    new_value,
+):
+    return await _update_medication_attribute(
+        session, current_profile_id, medication_id, attribute, new_value
     )
-    res = await session.execute(query)
-    mdc = res.scalars().first()
-    if not mdc:
-        return None
-    if hasattr(mdc, attribute):
-        setattr(mdc, attribute, new_value)
-    else:
-        raise ValueError(f"Атрибут '{attribute}' не существует в модели MedicationCourse.")
-    return mdc
+
 
 async def orm_create_medication_course(session: AsyncSession, *args):
-    start_date = None
-    end_date = None
-    if args[5]:
-        try:
-            start_date = datetime.strptime(args[5], '%Y-%m-%d').date()
-        except ValueError as e:
-            logger.warning("Invalid medication start_date %r: %s", args[5], e)
-    if args[6]:
-        try:
-            end_date = datetime.strptime(args[6], '%Y-%m-%d').date()
-        except ValueError as e:
-            logger.warning("Invalid medication end_date %r: %s", args[6], e)
-    new_medication_course = MedicationCourse(
-        profile_id = args[0],
-        medication_name = args[1],
-        dosage = args[2],
-        frequency = args[3],
-        notes = args[4],
-        start_date = start_date,
-        end_date = end_date,
+    await _create_medication_course(
+        session,
+        profile_id=args[0],
+        medication_name=args[1],
+        dosage=args[2],
+        frequency=args[3],
+        notes=args[4],
+        start_date=args[5],
+        end_date=args[6],
     )
-    session.add(new_medication_course)
 
 #NOTIFICATIONS
 async def orm_create_new_notification(session: AsyncSession, *args):
