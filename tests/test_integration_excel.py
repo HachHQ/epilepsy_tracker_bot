@@ -5,7 +5,7 @@ import pytest
 
 from database.repositories.seizures import create_seizure
 from i18n import set_locale, t
-from services.to_excel import build_seizures_excel
+from use_cases import import_export as import_export_use_cases
 
 pytestmark = pytest.mark.integration
 
@@ -30,7 +30,9 @@ async def test_build_seizures_excel_contains_seizure_row(db_session, test_user) 
     )
     await db_session.flush()
 
-    path = await build_seizures_excel(test_user["profile"].id, db_session)
+    path = await import_export_use_cases.export_profile_seizures_excel(
+        db_session, test_user["profile"].id
+    )
     try:
         set_locale("ru")
         df = pd.read_excel(path)

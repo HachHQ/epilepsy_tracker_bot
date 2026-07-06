@@ -1,26 +1,32 @@
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.fsm.context import FSMContext
+from aiogram import F, Router
 from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config_data.retention import SEIZURE_RETENTION_DAYS
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.states_factories import ProfileForm
 from i18n import t
 from keyboards.menu_kb import get_cancel_kb
 from keyboards.profile_form_kb import (
-    get_ask_for_have_diagnosis_kb, get_commit_deleting_profile_kb, get_sex_kb,
-    get_submit_profile_settings_kb, get_qeustion_about_species
-)
-from services.validators import (
-    validate_less_than_100, validate_name_of_profile_form, validate_age_of_profile_form,
-    validate_less_than_40, validate_less_than_30
+    get_ask_for_have_diagnosis_kb,
+    get_commit_deleting_profile_kb,
+    get_qeustion_about_species,
+    get_sex_kb,
+    get_submit_profile_settings_kb,
 )
 from services.redis_cache_data import (
-    get_cached_current_profile, get_cached_login, get_cached_trusted_persons_agrigated_data, get_cached_profiles_list,
-    get_cached_triggers_list
+    get_cached_current_profile,
+    get_cached_login,
+    get_cached_profiles_list,
 )
-from config_data.retention import SEIZURE_RETENTION_DAYS
+from services.validators import (
+    validate_age_of_profile_form,
+    validate_less_than_30,
+    validate_less_than_100,
+    validate_name_of_profile_form,
+)
 from use_cases.profiles import (
     create_profile_from_form,
     delete_profile_record,
@@ -54,7 +60,7 @@ def get_profile_info(data: dict[str, str]) -> str:
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
-    if await get_cached_login(db, callback.message.chat.id) == None:
+    if await get_cached_login(db, callback.message.chat.id) is None:
         await state.clear()
         await callback.message.answer(t("profile.need_registration"))
         await callback.answer()
@@ -74,13 +80,13 @@ async def process_profile_name(message: Message, state: FSMContext):
         await message.answer(t("profile.incorrect_profile_name"))
 
 @profile_form_router.callback_query(F.data == "profile_for_human", StateFilter(ProfileForm.biological_species))
-async def process_about_species(callback: CallbackQuery, state: FSMContext):
+async def process_human_species(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(t("profile.ask_diagnosis"), reply_markup=get_ask_for_have_diagnosis_kb())
     await state.set_state(ProfileForm.type_of_epilepsy)
     await callback.answer()
 
 @profile_form_router.callback_query(F.data == "profile_for_animal", StateFilter(ProfileForm.biological_species))
-async def process_about_species(callback: CallbackQuery, state: FSMContext):
+async def process_animal_species(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(t("profile.ask_animal_species"), reply_markup=get_cancel_kb())
     await callback.answer()
 
@@ -197,11 +203,7 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 
 @profile_form_router.callback_query(ProfileIsSetCb(), F.data == 'prof_edit')
 async def process_editing_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    my_own_profiles = await get_cached_profiles_list(db, callback.message.chat.id)
-    my_own_profiles_ids = [p['id'] for p in my_own_profiles]
-
     curr_profile = await get_cached_current_profile(db, callback.message.chat.id)
-    trusted_profiles = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
     profile_info = await get_profile(db, int(curr_profile.split("|")[0]))
     animal_line = ""
     if profile_info.biological_species is not None:

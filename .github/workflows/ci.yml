@@ -73,8 +73,8 @@ jobs:
       - name: Run tests
         run: pytest tests/ -q
 
-      - name: Ruff (tests and scripts)
-        run: ruff check tests scripts
+      - name: Ruff
+        run: ruff check .
 
   docker:
     runs-on: ubuntu-latest

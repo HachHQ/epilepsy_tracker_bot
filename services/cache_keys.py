@@ -1,5 +1,22 @@
+"""Redis cache key builders and invalidation contract."""
+
 CACHE_TIME = 3600
 REQUEST_TIMEOUT = 600
+
+# Logical cache groups invalidated by domain events (see services/cache_invalidation.py).
+INVALIDATION_CONTRACT: dict[str, tuple[str, ...]] = {
+    "seizure.create": (
+        "profile_triggers",
+        "profile_symptoms",
+        "global_triggers",
+        "global_symptoms",
+    ),
+    "seizure.update.triggers": ("profile_triggers", "global_triggers"),
+    "seizure.update.symptoms": ("profile_symptoms", "global_symptoms"),
+    "profile.delete": ("current_profile", "profiles_list:user_own"),
+    "trusted_person.mutate": ("trusted_persons", "profiles_list:trusted"),
+    "user.account.delete": ("login", "profiles_list", "current_profile", "trusted_persons"),
+}
 
 
 def user_login(user_id: int) -> str:

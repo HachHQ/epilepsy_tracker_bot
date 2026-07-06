@@ -32,6 +32,20 @@ def test_normalize_feature_names_accepts_string_or_list() -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_journal_seizures_delegates_to_repository() -> None:
+    fake_seizures = [object(), object()]
+    session = AsyncMock()
+    with patch(
+        "use_cases.seizures.list_profile_seizures",
+        new=AsyncMock(return_value=fake_seizures),
+    ) as list_mock:
+        result = await seizure_use_cases.list_journal_seizures(session, profile_id=4)
+
+    assert result is fake_seizures
+    list_mock.assert_awaited_once_with(session, 4, descending=True)
+
+
+@pytest.mark.asyncio
 async def test_delete_seizure_record_invalidates_cache_on_success() -> None:
     with patch(
         "use_cases.seizures.delete_seizure", new=AsyncMock(return_value=True)

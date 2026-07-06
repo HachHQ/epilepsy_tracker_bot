@@ -1,17 +1,16 @@
 import os
+from datetime import UTC, datetime
 
-from aiogram import Router, F
-from aiogram.types import FSInputFile, Message, CallbackQuery
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
 from adapters.telegram.delivery import send_chart_photo
-from database.orm_query import get_avg_duration_by_month, get_top_seizure_features
 from filters.correct_commands import ProfileIsSetCb, ProfileIsSetMsg
+from i18n import t
 from keyboards.journal_kb import get_graphs_type
 from keyboards.seizure_kb import build_statistics_navigation_keyboard
-from i18n import t
 from services.graph_stat_builder import (
     ChartBuildResult,
     compute_seizure_statistics,
@@ -20,18 +19,19 @@ from services.graph_stat_builder import (
     format_top_features,
     get_hour_distribution_plot,
     get_month_distribution_plot,
+    get_month_gist,
     get_weekday_distribution_plot,
     get_year_gist,
-    get_month_gist,
     get_year_gist_with_courses,
 )
 from services.redis_cache_data import get_cached_current_profile
+from use_cases import analytics as analytics_use_cases
 
 analytics_router = Router()
 
 
 def _year_lines(prefix: str, template_key: str) -> str:
-    current_year = datetime.now(timezone.utc).year
+    current_year = datetime.now(UTC).year
     lines = []
     for year in (current_year, current_year - 1, current_year - 2):
         lines.append(t(template_key, year=year) + "\n\n")
@@ -86,7 +86,7 @@ async def switch_to_features(callback: CallbackQuery, db: AsyncSession):
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
 
-    result = await get_top_seizure_features(db, profile_id)
+    result = await analytics_use_cases.get_profile_feature_stats(db, profile_id)
     text = format_top_features(profile_name, result["top_symptoms"], result["top_triggers"], result["top_types"])
     await callback.message.edit_text(
         text,
@@ -117,7 +117,7 @@ async def get_duration_graph(message: Message, db: AsyncSession):
     profile = await get_cached_current_profile(db, message.chat.id)
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
-    data = await get_avg_duration_by_month(db, profile_id, year)
+    data = await analytics_use_cases.get_monthly_avg_duration(db, profile_id, year)
     if not data:
         return await message.answer(t("analytics.no_duration_data", year=year))
     chart_file = draw_avg_duration_bar_chart(data, year, profile_name)

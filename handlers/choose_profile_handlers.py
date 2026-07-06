@@ -1,11 +1,11 @@
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from i18n import t
+from keyboards.profiles_list_kb import get_choosing_type_of_profiles_kb, get_paginated_profiles_kb
 from services.redis_cache_data import get_cached_profiles_list
 from use_cases.profiles import switch_current_profile
-from keyboards.profiles_list_kb import get_choosing_type_of_profiles_kb, get_paginated_profiles_kb
 
 choose_profile_router = Router()
 

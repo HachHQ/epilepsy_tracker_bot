@@ -1,34 +1,29 @@
-from dataclasses import dataclass
-
-import os
-from uuid import uuid4
-import pandas as pd
-import matplotlib.pyplot as plt
 import calendar
-import numpy as np
-from scipy import stats
-from sqlalchemy.ext.asyncio import AsyncSession
+import os
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timezone, timedelta, date
+from uuid import uuid4
+
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import rcParams
 from matplotlib.ticker import MaxNLocator
+from scipy import stats
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import MedicationCourse, Seizure
-
-Path("temp_images").mkdir(exist_ok=True)
-
+from database.repositories.medications import list_profile_medications
+from database.repositories.seizures import (
+    list_profile_seizures,
+    list_seizures_for_year,
+    list_seizures_from_date,
+)
 from i18n import get_month_abbreviations, get_weekday_abbreviations, t
 from services.notes_formatters import get_minutes_and_seconds
-from database.orm_query import (
-from database.repositories.medications import list_profile_medications
-    orm_get_seizures_by_profile_ascending,
-    orm_get_seizures_for_a_specific_period,
-    orm_get_seizures_for_a_specific_year,
-)
-from services.redis_cache_data import (
-    get_cached_current_profile,
-    get_user_local_datetime
-)
+from services.redis_cache_data import get_cached_current_profile, get_user_local_datetime
+
+Path("temp_images").mkdir(exist_ok=True)
 
 MONTHS_RU = get_month_abbreviations()
 WEEKDAYS_RU = get_weekday_abbreviations()
@@ -49,7 +44,7 @@ class ChartBuildResult:
 
 def get_current_utc_context() -> tuple[datetime, int, int, str]:
     _refresh_chart_labels()
-    current_date = datetime.now(timezone.utc)
+    current_date = datetime.now(UTC)
     current_year = current_date.year
     current_month = current_date.month
     return current_date, current_year, current_month, MONTHS_RU[current_month - 1]
@@ -77,10 +72,10 @@ async def get_year_gist(session: AsyncSession, chat_id: int) -> ChartBuildResult
     current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
         return ChartBuildResult(error=t("analytics.select_profile"))
-    seizure_data = await orm_get_seizures_for_a_specific_period(
+    seizure_data = await list_seizures_from_date(
         session,
-        int(current_profile.split('|', 1)[0]),
-        current_year,
+        int(current_profile.split("|", 1)[0]),
+        year=current_year,
     )
     if len(seizure_data) == 0:
         return ChartBuildResult(error=t("analytics.no_chart_data"))
@@ -118,8 +113,11 @@ async def get_month_gist(session: AsyncSession, chat_id: int) -> ChartBuildResul
     current_profile = await get_cached_current_profile(session, chat_id)
     if current_profile is None:
         return ChartBuildResult(error=t("analytics.select_profile"))
-    seizures_data = await orm_get_seizures_for_a_specific_period(
-        session, int(current_profile.split('|')[0]), current_year, current_month
+    seizures_data = await list_seizures_from_date(
+        session,
+        int(current_profile.split("|")[0]),
+        year=current_year,
+        month=current_month,
     )
     if len(seizures_data) == 0:
         return ChartBuildResult(error=t("analytics.no_chart_data"))
@@ -167,11 +165,11 @@ def make_a_gist_with_courses(
     plt.ylim(0, max(dataY) + 5)
     plt.grid(visible=True, which='both', linestyle='--', linewidth=0.5)
     if medication_spans:
-        for i, (start_month, end_month, color, label) in enumerate(medication_spans):
+        for _, (start_month, end_month, color, label) in enumerate(medication_spans):
             ax.axvspan(start_month - 0.5, end_month + 0.5, color=color, alpha=0.2, label=label)
 
         handles, labels = ax.get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
+        by_label = dict(zip(labels, handles, strict=False))
         ax.legend(by_label.values(), by_label.keys(), fontsize=9)
     return plt.bar(dataX, dataY)
 
@@ -221,7 +219,7 @@ async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, comman
         current_year = int(command_parts[-1])
     except ValueError:
         return ChartBuildResult(error=t("analytics.invalid_command_format"))
-    seizure_data = await orm_get_seizures_for_a_specific_year(session, profile_id, current_year)
+    seizure_data = await list_seizures_for_year(session, profile_id, current_year)
     if len(seizure_data) == 0:
         return ChartBuildResult(error=t("analytics.no_data_for_year", year=current_year))
     month_arr = range(1, 13)
@@ -261,7 +259,7 @@ async def get_hour_distribution_plot(session: AsyncSession, chat_id: int) -> Cha
         return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
-    seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
+    seizures = await list_profile_seizures(session, profile_id, descending=False)
     if not seizures:
         return ChartBuildResult(error=t("analytics.no_seizure_data"))
     hourly_distribution = [0] * 24
@@ -297,7 +295,7 @@ async def get_weekday_distribution_plot(session: AsyncSession, chat_id: int) -> 
         return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
-    seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
+    seizures = await list_profile_seizures(session, profile_id, descending=False)
     if not seizures:
         return ChartBuildResult(error=t("analytics.no_seizure_data_analysis"))
     weekday_counts = [0] * 7
@@ -332,7 +330,7 @@ async def get_month_distribution_plot(session: AsyncSession, chat_id: int) -> Ch
         return ChartBuildResult(error=t("analytics.select_profile_first"))
     profile_id = int(profile.split('|', 1)[0])
     profile_name = profile.split('|', 1)[1]
-    seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
+    seizures = await list_profile_seizures(session, profile_id, descending=False)
     if not seizures:
         return ChartBuildResult(error=t("analytics.no_analysis_data"))
     month_counts = [0] * 12
@@ -392,7 +390,7 @@ async def compute_seizure_statistics(session: AsyncSession, chat_id: int) -> dic
         return {"error": t("analytics.select_profile_first")}
     profile_id = int(profile.split("|")[0])
     profile_name = profile.split("|")[1]
-    seizures = await orm_get_seizures_by_profile_ascending(session, profile_id)
+    seizures = await list_profile_seizures(session, profile_id, descending=False)
     if len(seizures) < 1:
         return {"error": t("analytics.no_analysis_data")}
     durations = []

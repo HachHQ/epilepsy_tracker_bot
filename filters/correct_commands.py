@@ -1,12 +1,14 @@
 from aiogram.filters import BaseFilter
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.redis_cache_data import (
-    get_cached_current_profile, get_cached_login, get_cached_profiles_list, get_cached_trusted_persons_agrigated_data
-)
-from i18n import t
 from config_data.config import get_config
+from i18n import t
+from services.redis_cache_data import (
+    get_cached_current_profile,
+    get_cached_profiles_list,
+)
+
 
 class EditCommandFilter(BaseFilter):
     async def __call__(self, message: Message) -> bool:

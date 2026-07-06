@@ -1,9 +1,9 @@
 import calendar
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
-from services.redis_cache_data import get_user_local_datetime
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from i18n import get_month_names, get_seizure_types, t
 
 
@@ -38,7 +38,7 @@ def get_temporary_cancel_submit_kb(action_btns: bool = True) -> InlineKeyboardMa
         pass
 
 def get_year_date_kb(backward_offset: int = 3, forward_offset: int = 1, action_btns: bool = True):
-    current_datetime = datetime.now(timezone.utc)
+    current_datetime = datetime.now(UTC)
     current_year = current_datetime.date().year
     years_date_kb_bd = InlineKeyboardBuilder()
     t_d_ago_date = current_datetime - timedelta(days=2)

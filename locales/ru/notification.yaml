@@ -25,6 +25,7 @@ notification:
     Режим: {pattern}
   no_notifications: "У вас нет сохраненных уведомлений."
   list_header: "Ваши уведомления (Всего {count})\n\n"
+  list_item: "🔔 - {time} {pattern} {enabled} - /ntfyedit_{id}\n\n"
   settings_header: "Настройки уведомления\n\n"
   settings_view: |
     Настройки уведомления

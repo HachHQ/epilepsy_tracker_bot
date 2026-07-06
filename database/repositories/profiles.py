@@ -185,6 +185,15 @@ async def restore_profile(session: AsyncSession, profile_id: int) -> bool:
     return True
 
 
+async def get_user_current_active_profile(session: AsyncSession, chat_id: int) -> Profile | None:
+    user = await session.scalar(
+        select(User).where(User.telegram_id == chat_id, User.deleted_at.is_(None))
+    )
+    if not user or not user.current_profile:
+        return None
+    return await get_active_profile_by_id(session, user.current_profile)
+
+
 async def set_user_current_profile(
     session: AsyncSession,
     chat_id: int,

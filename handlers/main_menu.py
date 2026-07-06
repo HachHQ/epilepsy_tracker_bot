@@ -1,13 +1,12 @@
-import asyncio
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.redis_cache_data import get_cached_login, get_cached_current_profile
 from i18n import t
 from keyboards.menu_kb import get_main_menu_keyboard
+from services.redis_cache_data import get_cached_current_profile, get_cached_login
 
 main_menu_router = Router()
 
