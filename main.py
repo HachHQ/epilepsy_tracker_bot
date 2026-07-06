@@ -21,7 +21,8 @@ from handlers.account_handlers import account_router
 from handlers.analytics_handlers import analytics_router
 from handlers.journal_handlers import journal_router
 from handlers.choose_profile_handlers import choose_profile_router
-from handlers.control_panel_handlers import control_panel_router
+from handlers.import_export_handlers import import_export_router
+from handlers.trusted_person_handlers import trusted_person_router
 from handlers.profiles_pagination_handlers import pagination_router
 from handlers.cancel_handlers import cancel_router
 from handlers.start_message import start_message_router
@@ -82,7 +83,8 @@ async def main():
     dp.include_router(start_message_router)
     dp.include_router(main_menu_router)
     dp.include_router(sos_router)
-    dp.include_router(control_panel_router)
+    dp.include_router(trusted_person_router)
+    dp.include_router(import_export_router)
     dp.include_router(analytics_router)
     dp.include_router(pagination_router)
     dp.include_router(choose_profile_router)

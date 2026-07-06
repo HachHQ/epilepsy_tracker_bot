@@ -84,13 +84,9 @@ async def orm_get_seizures_by_profile_ascending(session: AsyncSession, current_p
     return seizures_result.scalars().all()
 
 async def orm_get_seizures_by_profile_descending(session: AsyncSession, current_profile_id: int):
-    query = (
-            select(Seizure)
-            .where(Seizure.profile_id == int(current_profile_id))
-            .order_by(desc(Seizure.date))
-        )
-    seizures_result = await session.execute(query)
-    return seizures_result.scalars().all()
+    from database.repositories.seizures import list_profile_seizures
+
+    return await list_profile_seizures(session, current_profile_id, descending=True)
 
 async def orm_get_average_duration(session: AsyncSession, current_profile_id: int):
     query = (
@@ -116,15 +112,9 @@ async def orm_get_seizures_with_duration(session: AsyncSession, current_profile_
     return seizure_with_duration.scalars().all()
 
 async def orm_get_seizure_info(session: AsyncSession, seizure_id: int, current_profile_id: int):
-    query = (
-        select(Seizure)
-        .filter(
-            (Seizure.profile_id == int(current_profile_id)),
-            (Seizure.id == int(seizure_id))
-        )
-    )
-    seizures_res = await session.execute(query)
-    return seizures_res.scalars().first()
+    from database.repositories.seizures import get_seizure_by_id
+
+    return await get_seizure_by_id(session, seizure_id, current_profile_id)
 
 async def orm_get_seizures_for_a_specific_period(session: AsyncSession,  curr_prof: int, year: int, month: int = 1, day: int = 1):
     date = datetime(year=year, month=month, day=day)

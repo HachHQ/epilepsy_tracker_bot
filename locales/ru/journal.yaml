@@ -1,5 +1,6 @@
 journal:
   seizures_list_header: "Зафиксированные приступы для профиля <u>{profile_name}</u>\n\n"
+  list_item: "{date} {time}{creator}/show_{id}\n\n"
   menu: |
     Выберите действие:
     - Журнал приступов
