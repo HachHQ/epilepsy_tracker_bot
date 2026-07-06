@@ -1,8 +1,7 @@
 from collections.abc import Iterable
+from datetime import date, datetime
 
-from datetime import datetime
-
-from sqlalchemy import asc, delete, desc, select
+from sqlalchemy import asc, cast, Date, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
@@ -115,6 +114,60 @@ async def list_profile_seizures(
     order = desc(Seizure.date) if descending else asc(Seizure.date)
     result = await session.execute(
         select(Seizure).where(Seizure.profile_id == int(profile_id)).order_by(order)
+    )
+    return list(result.scalars().all())
+
+
+async def list_seizures_from_date(
+    session: AsyncSession,
+    profile_id: int,
+    *,
+    year: int,
+    month: int = 1,
+    day: int = 1,
+) -> list[Seizure]:
+    from_date = datetime(year=year, month=month, day=day)
+    result = await session.execute(
+        select(Seizure).where(
+            cast(Seizure.date, Date) >= from_date,
+            Seizure.profile_id == int(profile_id),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_seizures_for_year(
+    session: AsyncSession,
+    profile_id: int,
+    year: int,
+) -> list[Seizure]:
+    start_date = date(year, 1, 1)
+    end_date = date(year + 1, 1, 1)
+    result = await session.execute(
+        select(Seizure).where(
+            Seizure.profile_id == int(profile_id),
+            cast(Seizure.date, Date) >= start_date,
+            cast(Seizure.date, Date) < end_date,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_average_duration(session: AsyncSession, profile_id: int):
+    return await session.scalar(
+        select(func.avg(Seizure.duration)).where(
+            Seizure.profile_id == int(profile_id),
+            Seizure.duration.is_not(None),
+        )
+    )
+
+
+async def list_seizures_with_duration(session: AsyncSession, profile_id: int) -> list[Seizure]:
+    result = await session.execute(
+        select(Seizure).where(
+            Seizure.profile_id == int(profile_id),
+            Seizure.duration.is_not(None),
+        )
     )
     return list(result.scalars().all())
 

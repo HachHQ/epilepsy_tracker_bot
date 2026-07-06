@@ -24,9 +24,9 @@ i18n + locales/   — все пользовательские тексты
 |---------|--------|-----------------|
 | Retention (soft delete, purge) | ✅ | — |
 | i18n foundation (`locales/ru`) | ✅ | `locales/en`, user locale setting |
-| use_cases | users, profiles, seizures, retention, medications, notifications, trusted | — |
-| repositories | users, profiles, seizures, retention, medications, notifications, trusted | import_export |
-| `orm_query.py` (~560 строк) | частично заменён | вычистить |
+| use_cases | users, profiles, seizures, retention, medications, notifications, trusted, analytics | — |
+| repositories | users, profiles, seizures, retention, medications, notifications, trusted, analytics, symptoms_triggers | import_export |
+| `orm_query.py` | ✅ удалён | — |
 | CI (GitHub Actions) | ✅ | ruff на весь проект |
 | Толстые handlers | — | control_panel, medication, notification |
 
@@ -41,7 +41,7 @@ i18n + locales/   — все пользовательские тексты
 1. **Repositories** для `medication`, `notifications`, `trusted_persons`, `import_export`.
 2. **Use cases** с теми же границами; инвалидация кэша только из use cases.
 3. **Похудеть handlers:** `trusted_person_handlers`, `import_export_handlers`, `medication_handlers`, `notification_handlers` — убрать прямые вызовы `orm_*`.
-4. **Удалить `orm_query.py`** когда все вызовы переедут в repositories.
+4. ✅ **Удалить `orm_query.py`** — все вызовы в repositories / use cases.
 
 ### Критерий готовности
 
@@ -174,8 +174,13 @@ docker build -t diplomathesis-bot:local .
 
 ### Итерация C
 
-10. Трек 1 — удаление `orm_query.py`
-11. Трек 5 — cache contract
+10. ✅ Трек 1 — удаление `orm_query.py`
+11. ✅ Трек 5 — cache contract (начало)
+
+### Итерация D
+
+12. Трек 5 — расширить invalidation tests
+13. Трек 4 — adapters vs services cleanup
 
 ---
 
