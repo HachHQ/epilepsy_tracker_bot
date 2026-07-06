@@ -20,6 +20,7 @@ def test_t_returns_russian_string() -> None:
     set_locale("ru")
     assert "Привет" in t("start.welcome")
     assert t("common.yes") == "Да"
+    assert t("excel.column_date") == "Дата"
 
 
 def test_t_supports_format_params() -> None:

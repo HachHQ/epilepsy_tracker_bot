@@ -66,7 +66,6 @@ async def process_journal_handler(callback: CallbackQuery, state: FSMContext, db
 async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     login = await get_cached_login(db, callback.message.chat.id)
-    print(callback.message.chat.id)
     current_profile_id = await get_cached_current_profile(db, callback.message.chat.id)
     if current_profile_id is None:
         await callback.message.answer(t("journal.select_profile"))
@@ -108,7 +107,6 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
     if not seizure:
         await message.answer(t("journal.record_not_found_for_profile", profile_name=current_profile.split('|', 1)[1]))
         return
-    print(seizure.location)
     await show_seizure_note(
         bot,
         message,

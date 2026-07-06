@@ -133,16 +133,16 @@ def generate_features_keyboard(features_list: list, selected_features: list, cur
     if len(features_list) > page_size:
         nav_btns = []
         if current_page > 0:
-            nav_btns.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page:{current_page-1}"))
+            nav_btns.append(InlineKeyboardButton(text=t("buttons.back"), callback_data=f"page:{current_page-1}"))
         if current_page < total_pages - 1:
             nav_btns.append(InlineKeyboardButton(text=t("buttons.forward"), callback_data=f"page:{current_page+1}"))
         if nav_btns:
             builder.row(*nav_btns)
     if action_btns:
-        builder.row(*[InlineKeyboardButton(text="☑️ Готово", callback_data=f"done:{current_page}")])
+        builder.row(*[InlineKeyboardButton(text=t("buttons.done"), callback_data=f"done:{current_page}")])
         builder.row(*_main_btns())
     else:
-        builder.row(InlineKeyboardButton(text="☑️ Готово", callback_data=f"done:{current_page}"))
+        builder.row(InlineKeyboardButton(text=t("buttons.done"), callback_data=f"done:{current_page}"))
     return builder.as_markup()
 
 def generate_seizure_type_keyboard(current_page: int, page_size: int = 5, action_btns: bool = True) -> InlineKeyboardMarkup:
@@ -163,7 +163,7 @@ def generate_seizure_type_keyboard(current_page: int, page_size: int = 5, action
     nav_buttons = []
     if current_page > 0:
         nav_buttons.append(InlineKeyboardButton(
-            text="⬅️ Назад",
+            text=t("buttons.back"),
             callback_data=f"seizure_type_page:{current_page - 1}"
         ))
     if current_page < total_pages - 1:

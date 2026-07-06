@@ -23,11 +23,11 @@ i18n + locales/   — все пользовательские тексты
 | Область | Готово | В работе / долг |
 |---------|--------|-----------------|
 | Retention (soft delete, purge) | ✅ | — |
-| i18n foundation (`locales/ru`) | ✅ | `locales/en`, Excel-колонки |
-| use_cases | users, profiles, seizures, retention | medication, notifications, trusted |
-| repositories | users, profiles, seizures, retention | остальные домены |
+| i18n foundation (`locales/ru`) | ✅ | `locales/en`, user locale setting |
+| use_cases | users, profiles, seizures, retention, medications | notifications, trusted |
+| repositories | users, profiles, seizures, retention, medications | остальные домены |
 | `orm_query.py` (~560 строк) | частично заменён | вычистить |
-| CI (GitHub Actions) | 🚧 трек 6 | — |
+| CI (GitHub Actions) | ✅ | ruff на весь проект |
 | Толстые handlers | — | control_panel, medication, notification |
 
 ---
@@ -79,10 +79,10 @@ i18n + locales/   — все пользовательские тексты
 
 | Что | Файл |
 |-----|------|
-| Заголовки колонок Excel | `services/to_excel.py` |
+| Заголовки колонок Excel | ✅ `locales/ru/excel.yaml` |
 | Английская локаль | `locales/en/` |
 | Локаль по настройке пользователя | `User` + middleware |
-| Guard от кириллицы в handlers | `tests/test_i18n_guard.py` |
+| Guard от кириллицы в handlers | ✅ `tests/test_i18n_guard.py` |
 
 ### Ветка
 
@@ -118,9 +118,9 @@ i18n + locales/   — все пользовательские тексты
 - [x] `requirements-dev.txt` — pytest, ruff
 - [x] `.github/workflows/ci.yml` — тесты, alembic, docker build, ruff
 - [x] `scripts/ci-check.sh` — локальный прогон как в CI
-- [ ] `print` → `logging` в handlers
-- [ ] healthcheck для `bot` в `docker-compose.yml`
-- [ ] badge CI в `README.md`
+- [x] `print` → `logging` / удаление debug-print в handlers
+- [x] healthcheck для `bot` в `docker-compose.yml`
+- [x] badge CI в `README.md`
 - [ ] `ruff check .` на весь проект (сейчас только `tests/` и `scripts/`)
 
 ### Локальная проверка
@@ -159,17 +159,18 @@ docker build -t diplomathesis-bot:local .
 ### Итерация A (текущая)
 
 1. ✅ i18n foundation (PR #2)
-2. 🚧 **Трек 6 — CI**
-3. Трек 3 — Excel + i18n guard
+2. ✅ **Трек 6 — CI** (PR #3)
+3. ✅ Трек 3 — Excel + i18n guard
+4. ✅ Трек 1 — medication use cases
+5. Трек 1 — notifications use cases
 
 ### Итерация B
 
-4. Трек 1 — medication + notifications use cases
-5. Трек 1 — вычистка `control_panel_handlers`
+6. Трек 1 — вычистка `control_panel_handlers`
+7. Трек 2 — FSM приступа (начало)
 
 ### Итерация C
 
-6. Трек 2 — FSM приступа
 7. Трек 1 — удаление `orm_query.py`
 8. Трек 5 — cache contract
 

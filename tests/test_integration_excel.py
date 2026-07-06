@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from database.repositories.seizures import create_seizure
+from i18n import set_locale, t
 from services.to_excel import build_seizures_excel
 
 pytestmark = pytest.mark.integration
@@ -31,12 +32,13 @@ async def test_build_seizures_excel_contains_seizure_row(db_session, test_user) 
 
     path = await build_seizures_excel(test_user["profile"].id, db_session)
     try:
+        set_locale("ru")
         df = pd.read_excel(path)
         assert len(df) == 1
-        assert df.iloc[0]["Дата"] == "2026-05-27"
-        assert df.iloc[0]["Комментарий"] == "excel export test"
-        assert "stress" in str(df.iloc[0]["Триггеры"]).lower()
-        assert "aura" in str(df.iloc[0]["Симптомы"]).lower()
+        assert df.iloc[0][t("excel.column_date")] == "2026-05-27"
+        assert df.iloc[0][t("excel.column_comment")] == "excel export test"
+        assert "stress" in str(df.iloc[0][t("excel.column_triggers")]).lower()
+        assert "aura" in str(df.iloc[0][t("excel.column_symptoms")]).lower()
     finally:
         if os.path.exists(path):
             os.remove(path)

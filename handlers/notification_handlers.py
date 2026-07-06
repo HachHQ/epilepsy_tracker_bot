@@ -149,7 +149,6 @@ async def process_pagination_of_notifys_list(callback: CallbackQuery, state: FSM
 @notification_router.message(F.text.startswith('/ntfyedit'))
 async def process_pagination_of_notifys_list(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
-    print(message.text)
     notify_id = message.text.split('_', 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     user_notification = await orm_get_notification_by_id(db, int(user_id_db), int(notify_id))
@@ -191,7 +190,6 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
         if user_notification.is_enabled:
             await message.answer(t("notification.disable_confirm"), reply_markup=get_notify_to_enable_kb(nt_id, user_id_db, not user_notification.is_enabled))
         else:
-            print(not user_notification.is_enabled)
             await message.answer(t("notification.enable_confirm"), reply_markup=get_notify_to_enable_kb(nt_id, user_id_db, not user_notification.is_enabled))
     else:
         await message.answer(t("notification.unknown_command"))
@@ -199,9 +197,7 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
 @notification_router.callback_query(F.data.startswith('nt_enabled_mode'))
 async def process_edit_pattern_of_notification(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, notify_id, user_id_db, enabled_mode = callback.data.split(':', 4)
-    print(enabled_mode, type(enabled_mode))
     enabled_mode = enabled_mode.lower() == "true"
-    print(enabled_mode, type(enabled_mode))
     if answer == 'yes':
         await orm_update_notification_settings(db, int(user_id_db), int(notify_id), 'is_enabled', enabled_mode)
         if enabled_mode:
@@ -215,7 +211,6 @@ async def process_edit_pattern_of_notification(callback: CallbackQuery, state: F
 
 @notification_router.message(F.text.startswith('/ntdelete'))
 async def process_deleting_of_notify(message: Message, state: FSMContext, db: AsyncSession):
-    print('ловим')
     await state.clear()
     notify_id = message.text.split('_', 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
