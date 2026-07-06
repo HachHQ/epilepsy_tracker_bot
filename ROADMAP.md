@@ -62,14 +62,15 @@ i18n + locales/   — все пользовательские тексты
 
 ### Шаги
 
-1. Валидация — только `services/validators.py`.
-2. Каждый шаг FSM → тонкий handler + `use_cases/seizures`.
-3. Общий рендер превью приступа — `adapters/telegram/delivery.py`.
+1. ✅ Валидация — только `services/validators.py`.
+2. ✅ Каждый шаг FSM → тонкий handler + `use_cases/seizures`.
+3. ✅ Общий рендер превью приступа — `adapters/telegram/delivery.py` (`show_seizure_preview`).
+4. ✅ `handlers_logic/seizure_form/` — модули по шагам; `seizure_form_logic.py` — re-export.
 
 ### Критерий готовности
 
-- `seizure_form_logic.py` < 300 строк или разбит на модули по шагам.
-- Тесты use case без aiogram.
+- ✅ `seizure_form_logic.py` < 300 строк (разбит на модули).
+- ✅ Тесты use case без aiogram.
 
 ---
 
@@ -167,8 +168,8 @@ docker build -t diplomathesis-bot:local .
 
 ### Итерация B
 
-7. Трек 1 — вычистка `control_panel_handlers` (excel/import остаётся)
-8. Трек 2 — FSM приступа (начало)
+7. ✅ Трек 2 — FSM приступа (начало)
+8. Трек 1 — вычистка `control_panel_handlers` (excel/import остаётся)
 
 ### Итерация C
 
