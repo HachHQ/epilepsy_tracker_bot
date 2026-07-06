@@ -1,8 +1,6 @@
 import logging
-import os
 import uuid
 from datetime import datetime, time as time_class
-from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
+from i18n import get_excel_export_headers, t
 
 Path("temp_tables").mkdir(exist_ok=True)
 logger = logging.getLogger(__name__)
@@ -23,6 +22,7 @@ EXPECTED_COLUMNS = [
 
 
 async def build_seizures_excel(profile_id: int, db: AsyncSession) -> str:
+    headers = get_excel_export_headers()
     result = await db.execute(select(Seizure).where(Seizure.profile_id == int(profile_id)))
     seizures = result.scalars().all()
     data = []
@@ -40,17 +40,18 @@ async def build_seizures_excel(profile_id: int, db: AsyncSession) -> str:
             .where(SeizureTrigger.seizure_id == seizure_id)
         )
         triggers = [row[0] for row in result.fetchall()]
-        data.append({
-            "Дата": seizure.date,
-            "Время": seizure.time,
-            "Степень тяжести": seizure.severity,
-            "Длительность (в секундах)": seizure.duration,
-            "Комментарий": seizure.comment,
-            "Тип приступа": seizure.type_of_seizure,
-            "Локация": seizure.location,
-            "Триггеры": ", ".join(triggers),
-            "Симптомы": ", ".join(symptoms),
-        })
+        row = {
+            "date": seizure.date,
+            "time": seizure.time,
+            "severity": seizure.severity,
+            "duration": seizure.duration,
+            "comment": seizure.comment,
+            "type_of_seizure": seizure.type_of_seizure,
+            "location": seizure.location,
+            "triggers": ", ".join(triggers),
+            "symptoms": ", ".join(symptoms),
+        }
+        data.append({headers[key]: row[key] for key in headers})
     df = pd.DataFrame(data)
     path = f"temp_tables/{uuid.uuid4().hex}_seizure_report.xlsx"
     df.to_excel(path, index=False)
@@ -140,7 +141,7 @@ async def import_seizures_from_xlsx(
 ) -> tuple[int, list]:
     df = pd.read_excel(file_path)
     if set(EXPECTED_COLUMNS) - set(df.columns):
-        raise ValueError("Файл не содержит все необходимые колонки")
+        raise ValueError(t("excel.missing_columns"))
     failed_rows = []
     success_count = 0
     for index, row in df.iterrows():
@@ -169,7 +170,7 @@ async def import_seizures_from_xlsx(
                     symptom = await get_or_create_symptom(db, name, profile_id)
                     db.add(SeizureSymptom(seizure_id=seizure.id, symptom_id=symptom.id))
             if pd.notna(row.get("triggers")):
-                trigger_names = [t.strip() for t in str(row["triggers"]).split(",")]
+                trigger_names = [name.strip() for name in str(row["triggers"]).split(",")]
                 for name in trigger_names:
                     trigger = await get_or_create_trigger(db, name, profile_id)
                     db.add(SeizureTrigger(seizure_id=seizure.id, trigger_id=trigger.id))

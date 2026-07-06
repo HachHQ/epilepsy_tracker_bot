@@ -1,0 +1,11 @@
+excel:
+  column_date: "Дата"
+  column_time: "Время"
+  column_severity: "Степень тяжести"
+  column_duration: "Длительность (в секундах)"
+  column_comment: "Комментарий"
+  column_type: "Тип приступа"
+  column_location: "Локация"
+  column_triggers: "Триггеры"
+  column_symptoms: "Симптомы"
+  missing_columns: "Файл не содержит все необходимые колонки"

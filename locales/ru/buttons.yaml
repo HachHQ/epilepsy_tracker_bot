@@ -17,6 +17,7 @@ buttons:
   finish_seizure: "Завершить заполнение"
   forward: "Вперед ➡️"
   back: "⬅️ Назад"
+  done: "☑️ Готово"
   own_profiles: "Собственные профили"
   trusted_profiles: "Профили доверенных лиц"
   send_notifications: "Отправить уведомления"

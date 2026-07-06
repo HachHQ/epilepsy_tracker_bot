@@ -1,5 +1,7 @@
 # DiplomaThesis
 
+[![CI](https://github.com/HachHQ/epilepsy_tracker_bot/actions/workflows/ci.yml/badge.svg)](https://github.com/HachHQ/epilepsy_tracker_bot/actions/workflows/ci.yml)
+
 Telegram bot for tracking epileptic seizures, medication courses, reminders, trusted contacts, and analytics.
 
 ## Stack

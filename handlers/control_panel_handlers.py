@@ -1,3 +1,4 @@
+import logging
 import uuid
 import os
 from aiogram import Router, F, Bot
@@ -41,6 +42,7 @@ from keyboards.trusted_user_kb import (
 from keyboards.journal_kb import get_nav_btns_for_list
 
 control_panel_router = Router()
+logger = logging.getLogger(__name__)
 
 from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 
@@ -108,8 +110,8 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
                 reply_markup=get_y_or_n_buttons_to_continue_process(),
             )
             await state.set_state(TrustedPersonForm.correct_trusted_person_login)
-        except Exception as e:
-            print(f"Ошибка {e} при обращении к таблице users")
+        except Exception:
+            logger.exception("Failed to look up trusted person by login")
     else:
         await message.answer(t("user.incorrect_login"), reply_markup=get_cancel_kb())
 
@@ -142,17 +144,17 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         recipient_login = data['trusted_person_login']
         sender_login = await get_cached_login(db, callback.message.chat.id)
 
-        print(f"Поиск пользователя с логином: {recipient_login}")
+        logger.info("Searching trusted person recipient: %s", recipient_login)
         search_user_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
         user = search_user_result.scalars().first()
         search_recipient_result = await db.execute(select(User).filter(User.login == recipient_login))
         recipient = search_recipient_result.scalars().first()
 
         if not recipient:
-            print("Пользователь не найден")
+            logger.warning("Trusted person recipient not found: %s", recipient_login)
             await callback.message.answer(t("trusted.user_not_found_dot"))
             return
-        print(f"Найден пользователь: {recipient.login} - {recipient.telegram_id}")
+        logger.info("Found recipient %s (telegram_id=%s)", recipient.login, recipient.telegram_id)
 
         search_existing_connection = await db.execute(select(TrustedPersonProfiles).filter(
             (TrustedPersonProfiles.trusted_person_user_id == user.id),
@@ -178,7 +180,7 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
             status = RequestStatus.PENDING
         )
 
-        print(f"Новый запрос добавлен: {new_request}")
+        logger.info("Created trusted person request %s", new_request.id)
         await notification_queue.enqueue(TrustedContactRequest(chat_id=recipient.telegram_id,
                                               request_uuid=short_uuid,
                                               sender_login=sender_login,
@@ -189,9 +191,9 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         await set_redis_sending_timeout_ten_min(callback.message.chat.id, "can")
         await callback.answer()
         await state.clear()
-    except Exception as e:
+    except Exception:
         await state.clear()
-        print(f"Неизвестная ошибка: {e}")
+        logger.exception("Failed to confirm trusted person transfer")
 
 @control_panel_router.callback_query(F.data == 'reject_transfer')
 async def process_rejection(callback: CallbackQuery, state: FSMContext):
@@ -203,7 +205,7 @@ async def process_rejection(callback: CallbackQuery, state: FSMContext):
 async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession, bot: Bot):
     unpacked_callback_data = unpack_callback_data(callback.data)
     if not unpacked_callback_data:
-        print("Ошибка сравнения цифровых подписей")
+        logger.warning("Trusted person callback signature mismatch")
         return
     action, uuid_request, transmitted_profile_id, sender_id = unpacked_callback_data.split('|', 3)
     search_sender_result = await db.execute(select(User).filter(User.id == int(sender_id)))

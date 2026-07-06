@@ -123,3 +123,20 @@ def get_epilepsy_symptoms() -> list[str]:
 
 def get_seizure_types() -> dict[int, str]:
     return _lookup_int_map("domain.seizure_types")
+
+
+_EXCEL_COLUMN_I18N = {
+    "date": "excel.column_date",
+    "time": "excel.column_time",
+    "severity": "excel.column_severity",
+    "duration": "excel.column_duration",
+    "comment": "excel.column_comment",
+    "type_of_seizure": "excel.column_type",
+    "location": "excel.column_location",
+    "triggers": "excel.column_triggers",
+    "symptoms": "excel.column_symptoms",
+}
+
+
+def get_excel_export_headers() -> dict[str, str]:
+    return {key: t(i18n_key) for key, i18n_key in _EXCEL_COLUMN_I18N.items()}

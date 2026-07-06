@@ -112,13 +112,10 @@ async def process_skip_user_diagnosis(callback: CallbackQuery, state: FSMContext
 @profile_form_router.message(StateFilter(ProfileForm.type_of_epilepsy))
 async def process_diagnosis(message: Message, state: FSMContext, db: AsyncSession):
     if validate_less_than_100(message.text):
-        print("раз")
         data = await state.get_data()
         mode = data.get("profmode", "create")
         if mode == 'prof_edit_mode':
-            print('хоба')
             profile_id=data['profile_id']
-            print(profile_id)
             await update_profile_field(
                 db, chat_id=message.chat.id, profile_id=int(profile_id),
                 attribute='type_of_epilepsy', new_value=message.text,
@@ -202,16 +199,9 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 async def process_editing_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     my_own_profiles = await get_cached_profiles_list(db, callback.message.chat.id)
     my_own_profiles_ids = [p['id'] for p in my_own_profiles]
-    print(my_own_profiles_ids)
 
     curr_profile = await get_cached_current_profile(db, callback.message.chat.id)
-    if int(curr_profile.split('|',1)[0]) in my_own_profiles_ids:
-        print('nice')
-    else:
-        print('not nice')
     trusted_profiles = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
-    profiles = [f"{tr['profile']['id']}:{tr['permissions']['can_edit']}:{tr['permissions']['get_notification']}" for tr in trusted_profiles]
-    print(profiles)
     profile_info = await get_profile(db, int(curr_profile.split("|")[0]))
     animal_line = ""
     if profile_info.biological_species is not None:
@@ -256,11 +246,7 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
         else:
             await message.answer(t("profile.human_profile_only"))
     elif action == 'del':
-
-        print('зашли0')
-
         text = t("profile.delete_confirm", days=SEIZURE_RETENTION_DAYS)
-        print(int(curr_prof.split('|')[0]))
         await message.answer(text, reply_markup=get_commit_deleting_profile_kb(int(curr_prof.split('|')[0])))
     else:
         await message.answer(t("profile.unknown_command"))

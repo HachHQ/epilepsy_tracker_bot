@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -14,6 +16,7 @@ from services.notification_queue import NotificationQueue, SosMassNotification
 from services.redis_cache_data import get_cached_trusted_persons_agrigated_data
 
 sos_router = Router()
+logger = logging.getLogger(__name__)
 
 @sos_router.callback_query(F.data == 'sos_notification')
 async def process_ask_for_geoloc(callback: CallbackRegistry, state: FSMContext):
@@ -61,8 +64,8 @@ async def process_send_sos_notify_to_trusted_persons(
         try:
             if tr['permissions']['get_notification']:
                 unique[tr['trusted_user']['id']] = tr['trusted_user']['telegram_id']
-        except Exception as e:
-            print(f"❌ Ошибка при обработке записи {tr}: {e}")
+        except Exception:
+            logger.exception("Failed to process trusted person entry: %s", tr)
     trusted_persons_tg_ids = list(unique.values())
     if len(trusted_persons_tg_ids) == 0:
         await callback.message.answer(t("sos.no_trusted_persons"))

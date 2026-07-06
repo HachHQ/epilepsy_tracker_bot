@@ -171,7 +171,6 @@ async def process_medication_confirm(callback: CallbackQuery, state: FSMContext,
     start_date = data.get("start_date", None)
     end_date = data.get("end_date", None)
     profile_id = await get_cached_current_profile(db, callback.message.chat.id)
-    print(profile_id)
     medication_list = [int(profile_id.split('|')[0]), medication_name, dosage, frequency, notes, start_date, end_date]
     await orm_create_medication_course(db, *medication_list)
     text = _format_course_added(medication_name, dosage, frequency, notes, start_date, end_date)
@@ -201,7 +200,6 @@ async def process_medication_end_date(message: CallbackQuery, state: FSMContext,
         start_date = data.get("start_date", None)
         end_date = data.get("end_date", None)
         profile_id = await get_cached_current_profile(db, message.chat.id)
-        print(profile_id)
         medication_list = [int(profile_id.split('|')[0]), medication_name, dosage, frequency, notes, start_date, end_date]
         await orm_create_medication_course(db, *medication_list)
         text = _format_course_added(medication_name, dosage, frequency, notes, start_date, end_date)
@@ -306,9 +304,7 @@ async def process_editing_medication_settings(message: Message, state: FSMContex
 async def process_confirm_deleting_notify(callback: CallbackQuery, db: AsyncSession):
     _, answer, mdc_id, prof_id = callback.data.split(':', 3)
     if answer == 'yes':
-        print('yes')
         res = await orm_delete_profile_medication(db, int(prof_id), int(mdc_id))
-        print('res')
         if res:
             await callback.message.answer(t("medication.delete_success"))
         else:
