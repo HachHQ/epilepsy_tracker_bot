@@ -55,6 +55,7 @@ medication:
   not_entered: "Не введено"
   no_courses: "У вас нет добавленных курсов лекарств."
   courses_list_header: "Ваши курсы лекарств (Всего {count})\n\n"
+  list_item: "💊 - {name} {dosage} - /mdcedit_{id}\n\n"
   course_settings: |
     Настройки курса для профиля - {profile_name}
 

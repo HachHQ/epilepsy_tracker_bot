@@ -20,7 +20,7 @@ Path("temp_images").mkdir(exist_ok=True)
 from i18n import get_month_abbreviations, get_weekday_abbreviations, t
 from services.notes_formatters import get_minutes_and_seconds
 from database.orm_query import (
-    orm_get_profile_medications_list,
+from database.repositories.medications import list_profile_medications
     orm_get_seizures_by_profile_ascending,
     orm_get_seizures_for_a_specific_period,
     orm_get_seizures_for_a_specific_year,
@@ -232,7 +232,7 @@ async def get_year_gist_with_courses(session: AsyncSession, chat_id: int, comman
             count_seizures_by_month[date_obj.month - 1] += 1
         except ValueError:
             continue
-    course_list = await orm_get_profile_medications_list(session, profile_id)
+    course_list = await list_profile_medications(session, profile_id)
     med_spans = extract_course_spans(course_list, current_year, seizure_data)
     make_a_gist_with_courses(
         title=t("analytics.chart_seizures_frequency_year", year=current_year),
