@@ -67,9 +67,21 @@ See `.env.example` for the full list. Required groups:
 ## Quality Checks
 
 ```bash
-ruff check .
-pytest
-mypy .
+docker compose up -d postgres redis
+bash scripts/ci-check.sh
 ```
 
-The current codebase is being moved toward thin handlers, use cases, repositories, and explicit migrations. Prefer adding new behavior through that structure rather than extending legacy monolithic modules.
+Or manually:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+alembic upgrade head
+pytest tests/ -q
+ruff check tests scripts
+```
+
+CI runs on every push/PR to `master` (see `.github/workflows/ci.yml`).
+
+Architecture plans: [ROADMAP.md](ROADMAP.md). Git workflow: [RULE.md](RULE.md).
+
+The codebase follows thin handlers → use cases → repositories. Prefer that structure for new features.

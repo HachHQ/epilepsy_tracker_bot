@@ -5,7 +5,6 @@ import pytest
 from adapters.telegram.notification_queue import (
     MedicationReminderNotification,
     NotificationQueue,
-    SosMassNotification,
 )
 
 

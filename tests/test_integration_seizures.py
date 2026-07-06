@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import select
 
-from database.models import Seizure, Symptom
+from database.models import Symptom
 from database.repositories.seizures import get_seizure_by_id
 from use_cases.seizures import (
     create_seizure_from_state,

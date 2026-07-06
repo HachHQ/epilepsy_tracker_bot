@@ -97,3 +97,4 @@ poetry run pytest -q
 4. Следовать структуре проекта: `handlers` → `use_cases` → `database/repositories`, без лишней связки aiogram в `services/`.
 5. **Тексты пользователю** — только через `i18n.t("domain.key")` и YAML в `locales/`. Не хардкодить строки в handlers/keyboards.
 6. Новые сообщения добавлять в `locales/ru/*.yaml` (по домену), с `{placeholders}` для подстановок.
+7. Следовать [ROADMAP.md](ROADMAP.md) при архитектурных изменениях.
