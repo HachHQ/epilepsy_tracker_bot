@@ -17,7 +17,7 @@ from keyboards.notification_kb import (
     get_notify_sumbenu,
     get_notify_to_enable_kb,
 )
-from services.medication_reminders import get_nearest_slot
+from services.medication_slots import get_nearest_slot
 from services.redis_cache_data import get_cached_user_id_from_db
 from services.validators import validate_less_than_100, validate_time
 from use_cases import notifications as notification_use_cases

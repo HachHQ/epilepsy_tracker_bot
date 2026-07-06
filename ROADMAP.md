@@ -179,8 +179,8 @@ docker build -t diplomathesis-bot:local .
 
 ### Итерация D
 
-12. Трек 5 — расширить invalidation tests
-13. Трек 4 — adapters vs services cleanup
+12. ✅ Трек 5 — расширить invalidation tests
+13. ✅ Трек 4 — adapters vs services cleanup (импорты из `adapters/telegram`)
 
 ---
 

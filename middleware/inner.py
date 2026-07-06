@@ -2,7 +2,7 @@ import logging
 from aiogram.types import TelegramObject
 from aiogram import BaseMiddleware
 from typing import Any, Awaitable, Callable, Dict
-from services.notification_queue import NotificationQueue
+from adapters.telegram.notification_queue import NotificationQueue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
