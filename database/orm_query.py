@@ -4,8 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 from datetime import datetime, date
 
-from database.models import (MedicationCourse, User, Profile, RequestStatus, TrustedPersonProfiles, UserNotifications,
+from database.models import (MedicationCourse, User, Profile, RequestStatus, TrustedPersonProfiles,
                               TrustedPersonRequest, Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger)
+from database.repositories.medications import (
+    create_medication_course as _create_medication_course,
+    delete_medication as _delete_medication,
+    get_medication_by_id as _get_medication_by_id,
+    list_profile_medications as _list_profile_medications,
+    update_medication_attribute as _update_medication_attribute,
+)
+from database.repositories.notifications import (
+    create_notification as _create_notification,
+    delete_notification as _delete_notification,
+    get_notification_by_id as _get_notification_by_id,
+    list_user_notifications as _list_user_notifications,
+    update_notification_attribute as _update_notification_attribute,
+)
 from database.repositories.profiles import get_active_profile_by_id, get_profile_by_id, list_user_profiles
 
 logger = logging.getLogger(__name__)
@@ -370,14 +384,6 @@ async def orm_delete_profile(session: AsyncSession, profile_id: int):
 
     return await delete_profile_by_id(session, profile_id)
 
-from database.repositories.medications import (
-    create_medication_course as _create_medication_course,
-    delete_medication as _delete_medication,
-    get_medication_by_id as _get_medication_by_id,
-    list_profile_medications as _list_profile_medications,
-    update_medication_attribute as _update_medication_attribute,
-)
-
 #MEDICATIONS
 async def orm_get_profile_medications_list(session: AsyncSession, current_profile_id: int):
     courses = await _list_profile_medications(session, current_profile_id)
@@ -420,69 +426,40 @@ async def orm_create_medication_course(session: AsyncSession, *args):
 
 #NOTIFICATIONS
 async def orm_create_new_notification(session: AsyncSession, *args):
-    new_notification = UserNotifications(
-        user_id = int(args[0]),
-        notify_time = args[1],
-        note = args[2],
-        pattern = args[3]
+    await _create_notification(
+        session,
+        user_id=int(args[0]),
+        notify_time=args[1],
+        note=args[2],
+        pattern=args[3],
     )
-    session.add(new_notification)
+
 
 async def orm_get_all_user_notifications(session: AsyncSession, user_id_db: int):
-    res = await session.execute(
-        select(UserNotifications)
-        .where(
-            UserNotifications.user_id == int(user_id_db)
-        )
-    )
-    user_notifys = res.scalars().all()
-    if len(user_notifys) == 0:
+    notifications = await _list_user_notifications(session, user_id_db)
+    if not notifications:
         return None
-    return user_notifys
+    return notifications
+
 
 async def orm_get_notification_by_id(session: AsyncSession, user_id_db: int, notification_id: int):
-    query = (
-        select(UserNotifications)
-        .where(
-            (UserNotifications.user_id == int(user_id_db)),
-            (UserNotifications.id == int(notification_id))
-        )
-    )
-    res = await session.execute(query)
-    notify = res.scalars().first()
-    if notify is None:
-        return None
-    return notify
+    return await _get_notification_by_id(session, user_id_db, notification_id)
 
-async def orm_update_notification_settings(session: AsyncSession, user_id_db: int, notification_id: int, attribute: str, new_value):
-    query = (
-        select(UserNotifications)
-        .where(
-            (UserNotifications.user_id == int(user_id_db)),
-            (UserNotifications.id == int(notification_id))
-        )
+
+async def orm_update_notification_settings(
+    session: AsyncSession,
+    user_id_db: int,
+    notification_id: int,
+    attribute: str,
+    new_value,
+):
+    return await _update_notification_attribute(
+        session, user_id_db, notification_id, attribute, new_value
     )
-    res = await session.execute(query)
-    nt = res.scalars().first()
-    if not nt:
-        return None
-    if hasattr(nt, attribute):
-        setattr(nt, attribute, new_value)
-    else:
-        raise ValueError(f"Атрибут '{attribute}' не существует в модели UserNotifications.")
-    return nt
+
 
 async def orm_delete_notification(session: AsyncSession, user_id_db: int, notification_id: int):
-    query = (
-        delete(UserNotifications)
-        .where(
-            (UserNotifications.id == int(notification_id)),
-            (UserNotifications.user_id == int(user_id_db))
-        )
-    )
-    del_res = await session.execute(query)
-    deleted_count = del_res.rowcount
-    return deleted_count > 0
+    return await _delete_notification(session, user_id_db, notification_id)
 
 #SYMPTOMS AND TRIGGERS
 async def orm_get_global_symptoms(session: AsyncSession):
