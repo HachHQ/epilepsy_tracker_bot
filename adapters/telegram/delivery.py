@@ -6,6 +6,29 @@ from aiogram.types import FSInputFile, Message
 from services.notes_formatters import SeizureDisplayPayload, build_seizure_display, parse_location_coords
 
 
+from use_cases.seizures import SeizurePreview
+
+
+async def show_seizure_preview(bot: Bot, message: Message, preview: SeizurePreview) -> None:
+    await show_seizure_note(
+        bot,
+        message,
+        seizure_id=preview.seizure_id,
+        current_profile=preview.profile_name,
+        date=preview.date,
+        time=preview.time,
+        count=preview.count,
+        triggers=preview.triggers,
+        severity=preview.severity,
+        duration=preview.duration,
+        comment=preview.comment,
+        symptoms=preview.symptoms,
+        type_of_seizure=preview.type_of_seizure,
+        video_tg_id=preview.video_tg_id,
+        location=preview.location,
+    )
+
+
 async def deliver_seizure_display(
     bot: Bot,
     message: Message,
