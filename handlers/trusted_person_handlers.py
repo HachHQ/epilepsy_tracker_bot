@@ -10,7 +10,6 @@ from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 from database.models import User
 from database.redis_query import (
     get_redis_sending_timeout_ten_min,
-    set_redis_cached_profiles_list,
     set_redis_sending_timeout_ten_min,
 )
 from database.repositories.users import get_user_by_chat_id
@@ -27,7 +26,6 @@ from keyboards.trusted_user_kb import (
     get_y_or_n_buttons_to_continue_process,
     get_y_or_n_buttons_to_finish_process,
 )
-from services.cache_invalidation import invalidate_trusted_persons
 from services.hmac_encrypt import unpack_callback_data
 from adapters.telegram.notification_queue import NotificationQueue, TrustedContactRequest
 from services.redis_cache_data import (
@@ -213,6 +211,7 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
             request_id=uuid_request,
             sender_id=int(sender_id),
             recipient_id=recepient.id,
+            recipient_chat_id=callback.message.chat.id,
         )
         if result.reason == "not_found":
             await callback.message.answer(t("trusted.request_not_found_short"))
@@ -236,9 +235,6 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
             chat_id=sender.telegram_id,
             text=t("trusted.recipient_confirmed", login=recepient.login),
         )
-        profiles = await trusted_use_cases.list_guest_trusted_profiles(db, callback.message.chat.id)
-        await set_redis_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
-        await invalidate_trusted_persons(callback.message.chat.id)
         await callback.message.answer(t("trusted.request_confirmed"))
         await callback.answer()
         await db.commit()
@@ -362,9 +358,10 @@ async def process_change_editing_permission(message: Message, state: FSMContext,
 async def process_commit_changing_editing_permission(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        await trusted_use_cases.toggle_edit_permission(db, int(tpp_id))
+        await trusted_use_cases.toggle_edit_permission(
+            db, int(tpp_id), owner_chat_id=callback.message.chat.id
+        )
         await callback.message.edit_text(t("trusted.permissions_saved"))
-        await invalidate_trusted_persons(callback.message.chat.id)
     else:
         await callback.message.edit_text(t("trusted.permissions_cancelled"))
     await callback.answer()
@@ -398,9 +395,10 @@ async def process_change_getting_notification_permission(message: Message, state
 async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        await trusted_use_cases.toggle_notify_permission(db, int(tpp_id))
+        await trusted_use_cases.toggle_notify_permission(
+            db, int(tpp_id), owner_chat_id=callback.message.chat.id
+        )
         await callback.message.edit_text(t("trusted.permissions_saved"))
-        await invalidate_trusted_persons(callback.message.chat.id)
     else:
         await callback.message.edit_text(t("trusted.permissions_cancelled"))
     await callback.answer()
@@ -422,12 +420,13 @@ async def process_deleting_trusted_person(message: Message, state: FSMContext, d
 async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        result = await trusted_use_cases.delete_trusted_person(db, int(tpp_id))
-            if result.deleted:
-                await callback.message.edit_text(t("trusted.delete_success"))
-                await invalidate_trusted_persons(callback.message.chat.id)
-            else:
-                await callback.message.edit_text(t("trusted.record_not_found"))
+        result = await trusted_use_cases.delete_trusted_person(
+            db, int(tpp_id), owner_chat_id=callback.message.chat.id
+        )
+        if result.deleted:
+            await callback.message.edit_text(t("trusted.delete_success"))
+        else:
+            await callback.message.edit_text(t("trusted.record_not_found"))
     else:
         await callback.message.edit_text(t("trusted.delete_cancelled"))
     await callback.answer()

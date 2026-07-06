@@ -12,11 +12,8 @@ from adapters.telegram.delivery import send_document_file
 from handlers_logic.states_factories import GetExcelTableForm
 from i18n import t
 from services.redis_cache_data import get_cached_current_profile, get_cached_login
-from services.to_excel import (
-    build_seizures_excel,
-    get_excel_template_path,
-    import_seizures_from_xlsx,
-)
+from use_cases import import_export as import_export_use_cases
+from services.to_excel import get_excel_template_path
 
 import_export_router = Router()
 logger = logging.getLogger(__name__)
@@ -25,7 +22,9 @@ logger = logging.getLogger(__name__)
 @import_export_router.callback_query(F.data == "export_data")
 async def process_export_excel_data_by_profile(callback: CallbackQuery, db: AsyncSession, bot: Bot):
     prof = await get_cached_current_profile(db, callback.message.chat.id)
-    file_path = await build_seizures_excel(int(prof.split("|")[0]), db)
+    file_path = await import_export_use_cases.export_profile_seizures_excel(
+        db, int(prof.split("|")[0])
+    )
     await send_document_file(bot, callback.message.chat.id, file_path)
     await callback.answer()
 
@@ -59,18 +58,23 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
         os.makedirs("import_temp", exist_ok=True)
         file = await bot.get_file(message.document.file_id)
         await bot.download_file(file.file_path, destination=file_path)
-        valid_count, failed_rows = await import_seizures_from_xlsx(
-            file_path,
-            db=db,
+        result = await import_export_use_cases.import_seizures_from_excel(
+            db,
+            file_path=file_path,
             profile_id=int(prof.split("|")[0]),
             login=login,
+            user_id=message.chat.id,
         )
-        text = t("import.import_complete", valid_count=valid_count, failed_count=len(failed_rows))
+        text = t(
+            "import.import_complete",
+            valid_count=result.success_count,
+            failed_count=len(result.failed_rows),
+        )
         await message.answer(text)
-        if failed_rows:
+        if result.failed_rows:
             import pandas as pd
 
-            df_failed = pd.DataFrame(failed_rows)
+            df_failed = pd.DataFrame(result.failed_rows)
             failed_file_path = f"import_temp/{file_id}_errors.xlsx"
             df_failed.to_excel(failed_file_path, index=False)
             await message.answer_document(
