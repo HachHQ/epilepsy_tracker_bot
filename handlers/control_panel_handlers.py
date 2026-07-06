@@ -1,50 +1,55 @@
 import logging
-import uuid
 import os
-from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, Message, FSInputFile
-from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from datetime import datetime, timezone
-from aiogram.types.document import Document as AiogramDocument
 from uuid import uuid4
 
+from aiogram import Bot, F, Router
+from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.types.document import Document as AiogramDocument
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from adapters.telegram.delivery import send_document_file
+from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
+from database.models import User
+from database.redis_query import (
+    get_redis_sending_timeout_ten_min,
+    set_redis_cached_profiles_list,
+    set_redis_sending_timeout_ten_min,
+)
+from database.repositories.users import get_user_by_chat_id
 from filters.correct_commands import UserOwnProfilesListExist
 from handlers_logic.states_factories import GetExcelTableForm, TrustedPersonForm
-from database.models import User, Profile, TrustedPersonProfiles, TrustedPersonRequest, RequestStatus
-from database.redis_query import (
-    set_redis_cached_profiles_list, set_redis_sending_timeout_ten_min, get_redis_sending_timeout_ten_min,
+from i18n import t
+from keyboards.journal_kb import get_nav_btns_for_list
+from keyboards.menu_kb import get_cancel_kb
+from keyboards.profiles_list_kb import get_paginated_profiles_kb
+from keyboards.trusted_user_kb import (
+    get_commiting_changing_editing_permission_kb,
+    get_commiting_changing_notify_permission_kb,
+    get_commiting_deleting_trusted_person_kb,
+    get_y_or_n_buttons_to_continue_process,
+    get_y_or_n_buttons_to_finish_process,
 )
 from services.cache_invalidation import invalidate_trusted_persons
-from database.orm_query import (
-    orm_update_list_of_trusted_profiles, orm_get_user_by_login, orm_get_trusted_users_with_full_info,
-    orm_switch_trusted_profile_notify_edit_state, orm_delete_tursted_person
-    )
-from i18n import t
-from services.redis_cache_data import get_cached_current_profile, get_cached_profiles_list, get_cached_login, get_cached_trusted_persons_agrigated_data
+from services.hmac_encrypt import unpack_callback_data
 from services.notification_queue import NotificationQueue, TrustedContactRequest
-from adapters.telegram.delivery import send_document_file
+from services.redis_cache_data import (
+    get_cached_current_profile,
+    get_cached_login,
+    get_cached_profiles_list,
+    get_cached_trusted_persons_agrigated_data,
+)
 from services.to_excel import (
     build_seizures_excel,
     get_excel_template_path,
     import_seizures_from_xlsx,
 )
 from services.validators import validate_login_of_user_form
-from services.hmac_encrypt import unpack_callback_data
-from keyboards.profiles_list_kb import get_paginated_profiles_kb
-from keyboards.menu_kb import get_cancel_kb
-from keyboards.trusted_user_kb import (
-    get_y_or_n_buttons_to_continue_process, get_y_or_n_buttons_to_finish_process, get_commiting_changing_editing_permission_kb,
-    get_commiting_changing_notify_permission_kb, get_commiting_deleting_trusted_person_kb
-)
-from keyboards.journal_kb import get_nav_btns_for_list
+from use_cases import trusted_persons as trusted_use_cases
 
 control_panel_router = Router()
 logger = logging.getLogger(__name__)
-
-from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 
 def _trusted_unknown(value):
     return value if value is not None else t("trusted.unknown")
@@ -91,7 +96,7 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
         login_redis = await get_cached_login(db, message.chat.id)
         await state.update_data(trusted_person_login=message.text)
         try:
-            user = await orm_get_user_by_login(db, message.text)
+            user = await trusted_use_cases.find_user_by_login(db, message.text)
             if not user:
                 await message.answer(t("trusted.user_not_found"))
                 return
@@ -145,48 +150,44 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         sender_login = await get_cached_login(db, callback.message.chat.id)
 
         logger.info("Searching trusted person recipient: %s", recipient_login)
-        search_user_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
-        user = search_user_result.scalars().first()
-        search_recipient_result = await db.execute(select(User).filter(User.login == recipient_login))
-        recipient = search_recipient_result.scalars().first()
+        user = await get_user_by_chat_id(db, callback.message.chat.id)
+        recipient = await trusted_use_cases.find_user_by_login(db, recipient_login)
 
-        if not recipient:
+        if not user or not recipient:
             logger.warning("Trusted person recipient not found: %s", recipient_login)
             await callback.message.answer(t("trusted.user_not_found_dot"))
             return
         logger.info("Found recipient %s (telegram_id=%s)", recipient.login, recipient.telegram_id)
 
-        search_existing_connection = await db.execute(select(TrustedPersonProfiles).filter(
-            (TrustedPersonProfiles.trusted_person_user_id == user.id),
-            (TrustedPersonProfiles.profile_owner_id == recipient.id),
-            (TrustedPersonProfiles.profile_id == int(data['transmitted_profile_id']))
-        ))
-        exist_request = search_existing_connection.scalars().first()
-        if exist_request:
+        if await trusted_use_cases.trusted_link_exists(
+            db,
+            trusted_person_user_id=recipient.id,
+            profile_owner_id=user.id,
+            profile_id=int(data["transmitted_profile_id"]),
+        ):
             await callback.message.answer(t("trusted.already_trusted"))
             await callback.message.answer(t("trusted.restart_add_flow"))
             await state.clear()
             await callback.answer()
             return
 
-        uuid_for_request = uuid.uuid4()
-        short_uuid = str(uuid_for_request)[:16]
-
-        new_request = TrustedPersonRequest(
-            id = str(short_uuid),
-            sender_id = user.id,
-            recepient_id = recipient.id,
-            transmitted_profile_id = int(data['transmitted_profile_id']),
-            status = RequestStatus.PENDING
+        create_result = await trusted_use_cases.create_trusted_request(
+            db,
+            sender_id=user.id,
+            recipient_id=recipient.id,
+            profile_id=int(data["transmitted_profile_id"]),
         )
 
-        logger.info("Created trusted person request %s", new_request.id)
-        await notification_queue.enqueue(TrustedContactRequest(chat_id=recipient.telegram_id,
-                                              request_uuid=short_uuid,
-                                              sender_login=sender_login,
-                                              sender_id=user.id,
-                                              transmitted_profile_id=int(data['transmitted_profile_id'])))
-        db.add(new_request)
+        logger.info("Created trusted person request %s", create_result.request_uuid)
+        await notification_queue.enqueue(
+            TrustedContactRequest(
+                chat_id=recipient.telegram_id,
+                request_uuid=create_result.request_uuid,
+                sender_login=sender_login,
+                sender_id=user.id,
+                transmitted_profile_id=int(data["transmitted_profile_id"]),
+            )
+        )
         await callback.message.answer(t("trusted.request_sent"))
         await set_redis_sending_timeout_ten_min(callback.message.chat.id, "can")
         await callback.answer()
@@ -207,87 +208,84 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
     if not unpacked_callback_data:
         logger.warning("Trusted person callback signature mismatch")
         return
-    action, uuid_request, transmitted_profile_id, sender_id = unpacked_callback_data.split('|', 3)
-    search_sender_result = await db.execute(select(User).filter(User.id == int(sender_id)))
-    sender = search_sender_result.scalars().first()
+    action, uuid_request, transmitted_profile_id, sender_id = unpacked_callback_data.split("|", 3)
+    sender = await db.get(User, int(sender_id))
+    recepient = await get_user_by_chat_id(db, callback.message.chat.id)
 
-    search_recepient_id_result = await db.execute(select(User).filter(User.telegram_id == callback.message.chat.id))
-    recepient = search_recepient_id_result.scalars().first()
-
-    if not recepient:
+    if not recepient or not sender:
         await callback.message.answer(t("trusted.request_not_found"))
         await callback.answer()
         return
 
-    search_request_result = await db.execute(
-        select(TrustedPersonRequest).filter(
-            (TrustedPersonRequest.id == uuid_request) &
-            (TrustedPersonRequest.sender_id == sender.id) &
-            (TrustedPersonRequest.recepient_id == recepient.id)
+    if action == "p_conf":
+        result = await trusted_use_cases.accept_trusted_request(
+            db,
+            request_id=uuid_request,
+            sender_id=int(sender_id),
+            recipient_id=recepient.id,
         )
-    )
-    request = search_request_result.scalars().first()
-
-    if not request:
-        await callback.message.answer(t("trusted.request_not_found_short"))
-        return
-
-
-    if request.status != RequestStatus.PENDING:
-        await callback.message.answer(t("trusted.request_already_processed"))
-        await callback.answer()
-        return
-
-    if datetime.now(timezone.utc) > request.expires_at:
-            request.status = RequestStatus.EXPIRED
+        if result.reason == "not_found":
+            await callback.message.answer(t("trusted.request_not_found_short"))
+            await callback.answer()
+            return
+        if result.reason == "already_processed":
+            await callback.message.answer(t("trusted.request_already_processed"))
+            await callback.answer()
+            return
+        if result.reason == "expired":
             await db.commit()
             await callback.message.answer(t("trusted.request_expired"))
-            await bot.send_message(chat_id=sender.telegram_id, text=t("trusted.recipient_timeout", login=recepient.login))
+            await bot.send_message(
+                chat_id=sender.telegram_id,
+                text=t("trusted.recipient_timeout", login=recepient.login),
+            )
             await callback.answer()
             return
 
-    if action == "p_conf":
-        request.status = RequestStatus.ACCEPTED
-
-        new_trusted_person_profile = TrustedPersonProfiles(
-            trusted_person_user_id = recepient.id,
-            profile_owner_id = sender.id,
-            profile_id = int(transmitted_profile_id),
+        await bot.send_message(
+            chat_id=sender.telegram_id,
+            text=t("trusted.recipient_confirmed", login=recepient.login),
         )
-        db.add(new_trusted_person_profile)
-
-        await bot.send_message(chat_id=sender.telegram_id, text=t("trusted.recipient_confirmed", login=recepient.login))
-
-        profiles = await orm_update_list_of_trusted_profiles(db, callback.message.chat.id)
-
+        profiles = await trusted_use_cases.list_guest_trusted_profiles(db, callback.message.chat.id)
         await set_redis_cached_profiles_list(callback.message.chat.id, "trusted", profiles)
         await invalidate_trusted_persons(callback.message.chat.id)
-
         await callback.message.answer(t("trusted.request_confirmed"))
-
         await callback.answer()
-
         await db.commit()
-
+        return
 
     if action == "n_conf":
-        request.status = RequestStatus.REJECTED
+        result = await trusted_use_cases.reject_trusted_request(
+            db,
+            request_id=uuid_request,
+            sender_id=int(sender_id),
+            recipient_id=recepient.id,
+        )
+        if result.reason == "not_found":
+            await callback.message.answer(t("trusted.request_not_found_short"))
+            await callback.answer()
+            return
+        if result.reason == "already_processed":
+            await callback.message.answer(t("trusted.request_already_processed"))
+            await callback.answer()
+            return
 
-        await bot.send_message(chat_id=sender.telegram_id, text=t("trusted.recipient_rejected", login=recepient.login))
-
+        await bot.send_message(
+            chat_id=sender.telegram_id,
+            text=t("trusted.recipient_rejected", login=recepient.login),
+        )
         await callback.message.answer(t("trusted.request_rejected"))
         await callback.answer()
-
         await db.commit()
-
-    await callback.answer()
 
 @control_panel_router.callback_query(F.data == "trusted_person_control_panel")
 async def process_trusted_person_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
-    trusted_persons = await orm_get_trusted_users_with_full_info(db, callback.message.chat.id)
-    if len(trusted_persons) == 0:
+    trusted_persons = await trusted_use_cases.list_owner_trusted_persons(db, callback.message.chat.id)
+    if not trusted_persons:
         await callback.message.answer(t("trusted.no_trusted_persons"))
+        await callback.answer()
+        return
     text = t("trusted.list_header")
     text += display_trusted_profiles(trusted_persons, 0)
     await callback.message.answer(text, parse_mode='HTML', reply_markup=get_nav_btns_for_list(len(trusted_persons), NOTES_PER_PAGE, 0, 'trusted_person_control_panel'))
@@ -298,8 +296,10 @@ async def process_pagination_of_trusted_persons_control_panel(callback: Callback
     await state.clear()
     _, page = callback.data.split(':', 1)
     trusted_persons = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
-    if len(trusted_persons) == 0:
+    if not trusted_persons:
         await callback.message.answer(t("trusted.no_trusted_persons"))
+        await callback.answer()
+        return
     text = t("trusted.list_header")
     text += display_trusted_profiles(trusted_persons, page)
     await callback.message.edit_text(text, parse_mode='HTML', reply_markup=get_nav_btns_for_list(len(trusted_persons), NOTES_PER_PAGE, page, 'trusted_person_control_panel'))
@@ -372,7 +372,7 @@ async def process_change_editing_permission(message: Message, state: FSMContext,
 async def process_commit_changing_editing_permission(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        await orm_switch_trusted_profile_notify_edit_state(db, int(tpp_id), switch_edit=True)
+        await trusted_use_cases.toggle_edit_permission(db, int(tpp_id))
         await callback.message.edit_text(t("trusted.permissions_saved"))
         await invalidate_trusted_persons(callback.message.chat.id)
     else:
@@ -408,7 +408,7 @@ async def process_change_getting_notification_permission(message: Message, state
 async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        await orm_switch_trusted_profile_notify_edit_state(db, int(tpp_id), getting_notify=True)
+        await trusted_use_cases.toggle_notify_permission(db, int(tpp_id))
         await callback.message.edit_text(t("trusted.permissions_saved"))
         await invalidate_trusted_persons(callback.message.chat.id)
     else:
@@ -433,8 +433,8 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
         if answer == 'yes':
-            res = await orm_delete_tursted_person(db, int(tpp_id))
-            if res:
+            result = await trusted_use_cases.delete_trusted_person(db, int(tpp_id))
+            if result.deleted:
                 await callback.message.edit_text(t("trusted.delete_success"))
                 await invalidate_trusted_persons(callback.message.chat.id)
             else:

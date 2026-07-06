@@ -1,12 +1,14 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone, timedelta
+from database.repositories.trusted_persons import (
+    list_trusted_persons_for_owner,
+    list_trusted_profiles_for_guest,
+)
 from database.orm_query import (
     orm_get_user,
     orm_get_current_profile_data,
-    orm_get_trusted_profiles_list,
     orm_get_user_own_profiles_list,
-    orm_get_trusted_users_with_full_info,
     orm_get_global_symptoms,
     orm_get_global_triggers,
     orm_get_triggers_by_profile,
@@ -100,7 +102,7 @@ async def get_cached_profiles_list(session: AsyncSession, user_id: int, profile_
         return cached_profiles
     profiles = []
     if profile_type == "trusted":
-        profiles = await orm_get_trusted_profiles_list(session, user_id)
+        profiles = await list_trusted_profiles_for_guest(session, user_id)
     elif profile_type == "user_own":
         profiles = await orm_get_user_own_profiles_list(session, user_id)
     if not profiles:
@@ -132,7 +134,7 @@ async def get_cached_trusted_persons_agrigated_data(session: AsyncSession, user_
         logger.debug("Get trusted persons aggregated data from Redis")
         return trusted_persons_redis
 
-    trusted_persons_db = await orm_get_trusted_users_with_full_info(session, user_id)
+    trusted_persons_db = await list_trusted_persons_for_owner(session, user_id)
     if trusted_persons_db is None:
         return None
 
