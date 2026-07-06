@@ -3,9 +3,8 @@ import os
 from aiogram import Bot
 from aiogram.types import FSInputFile, Message
 
-from services.notes_formatters import SeizureDisplayPayload, build_seizure_display, parse_location_coords
-
-
+from database.models import Seizure
+from services.notes_formatters import SeizureDisplayPayload, build_seizure_display, get_minutes_and_seconds, parse_location_coords
 from use_cases.seizures import SeizurePreview
 
 
@@ -26,6 +25,34 @@ async def show_seizure_preview(bot: Bot, message: Message, preview: SeizurePrevi
         type_of_seizure=preview.type_of_seizure,
         video_tg_id=preview.video_tg_id,
         location=preview.location,
+    )
+
+
+async def show_seizure_from_model(
+    bot: Bot,
+    message: Message,
+    seizure: Seizure,
+    profile_name: str,
+    *,
+    edit_mode: bool = False,
+) -> None:
+    await show_seizure_note(
+        bot,
+        message,
+        seizure_id=seizure.id,
+        current_profile=profile_name,
+        date=seizure.date,
+        time=seizure.time,
+        count=seizure.count,
+        triggers=seizure.triggers,
+        severity=seizure.severity,
+        duration=get_minutes_and_seconds(seizure.duration),
+        comment=seizure.comment,
+        symptoms=seizure.symptoms,
+        video_tg_id=seizure.video_tg_id,
+        location=seizure.location,
+        type_of_seizure=seizure.type_of_seizure,
+        edit_mode=edit_mode,
     )
 
 

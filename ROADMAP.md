@@ -40,7 +40,7 @@ i18n + locales/   — все пользовательские тексты
 
 1. **Repositories** для `medication`, `notifications`, `trusted_persons`, `import_export`.
 2. **Use cases** с теми же границами; инвалидация кэша только из use cases.
-3. **Похудеть handlers:** `control_panel_handlers.py`, `medication_handlers.py`, `notification_handlers.py` — убрать прямые вызовы `orm_*`.
+3. **Похудеть handlers:** `trusted_person_handlers`, `import_export_handlers`, `medication_handlers`, `notification_handlers` — убрать прямые вызовы `orm_*`.
 4. **Удалить `orm_query.py`** когда все вызовы переедут в repositories.
 
 ### Критерий готовности
@@ -169,12 +169,13 @@ docker build -t diplomathesis-bot:local .
 ### Итерация B
 
 7. ✅ Трек 2 — FSM приступа (начало)
-8. Трек 1 — вычистка `control_panel_handlers` (excel/import остаётся)
+8. ✅ Трек 1 — вычистка `control_panel_handlers`
+9. ✅ Трек 2 — journal edit flow
 
 ### Итерация C
 
-9. Трек 1 — удаление `orm_query.py`
-10. Трек 5 — cache contract
+10. Трек 1 — удаление `orm_query.py`
+11. Трек 5 — cache contract
 
 ---
 

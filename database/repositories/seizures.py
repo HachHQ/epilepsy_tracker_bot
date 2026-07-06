@@ -2,7 +2,7 @@ from collections.abc import Iterable
 
 from datetime import datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import asc, delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
@@ -104,6 +104,19 @@ async def create_seizure(
         session.add(SeizureTrigger(seizure_id=seizure.id, trigger_id=trigger.id))
 
     return seizure
+
+
+async def list_profile_seizures(
+    session: AsyncSession,
+    profile_id: int,
+    *,
+    descending: bool = True,
+) -> list[Seizure]:
+    order = desc(Seizure.date) if descending else asc(Seizure.date)
+    result = await session.execute(
+        select(Seizure).where(Seizure.profile_id == int(profile_id)).order_by(order)
+    )
+    return list(result.scalars().all())
 
 
 async def get_seizure_by_id(

@@ -6,6 +6,8 @@ from database.models import Seizure
 from database.repositories.seizures import (
     create_seizure,
     delete_seizure,
+    get_seizure_by_id,
+    list_profile_seizures,
     normalize_feature_names,
     update_seizure_attribute,
 )
@@ -104,6 +106,19 @@ async def create_seizure_from_state(
         location=seizure.location,
         type_of_seizure=seizure.type_of_seizure,
     )
+
+
+async def list_journal_seizures(session: AsyncSession, profile_id: int) -> list[Seizure]:
+    return await list_profile_seizures(session, profile_id, descending=True)
+
+
+async def get_journal_seizure(
+    session: AsyncSession,
+    *,
+    seizure_id: int,
+    profile_id: int,
+) -> Seizure | None:
+    return await get_seizure_by_id(session, seizure_id, profile_id)
 
 
 async def delete_seizure_record(

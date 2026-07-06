@@ -1,101 +1,113 @@
-from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery
-from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
+from aiogram import Bot, F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from adapters.telegram.delivery import show_seizure_from_model
 from config_data.pagination import JOURNAL_NOTES_PER_PAGE as NOTES_PER_PAGE
 from filters.correct_commands import ProfileIsSetCb
-from handlers_logic.states_factories import SeizureForm
-from handlers_logic.seizure_form_logic import ask_for_a_year
-from database.orm_query import (
-    orm_get_seizures_by_profile_descending, orm_get_seizure_info,
-)
-from use_cases.seizures import delete_seizure_record
-from services.redis_cache_data import (
-    get_cached_current_profile, get_cached_login, get_cached_triggers_list,
-    get_cached_profile_triggers_list,
-)
-from adapters.telegram.delivery import show_seizure_note
+from handlers_logic.seizure_form import start_seizure_field_edit
 from i18n import t
-from services.notes_formatters import get_minutes_and_seconds
-from keyboards.journal_kb import get_nav_btns_for_list, get_journal_nav_kb, get_delete_seizure_note_kb
-from keyboards.seizure_kb import (
-    generate_seizure_type_keyboard, get_year_date_kb, get_severity_kb, get_time_ranges_kb, get_count_of_seizures_kb,
-    generate_features_keyboard, get_duration_kb
+from keyboards.journal_kb import get_delete_seizure_note_kb, get_journal_nav_kb, get_nav_btns_for_list
+from services.redis_cache_data import get_cached_current_profile, get_cached_login
+from use_cases.seizures import (
+    delete_seizure_record,
+    get_journal_seizure,
+    list_journal_seizures,
+    parse_current_profile,
 )
-from keyboards.profile_form_kb import get_geolocation_for_timezone_kb
+
 journal_router = Router()
 
-def sort_seizures_by_datetime(seizures):
+
+def _sort_seizures_by_datetime(seizures):
     def get_datetime(item):
         date_str = item.date
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        if hasattr(item, 'time') and item.time:
-            time_str = item.time
-            datetime_obj = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        else:
-            datetime_obj = date_obj
+        if hasattr(item, "time") and item.time:
+            return datetime.strptime(f"{date_str} {item.time}", "%Y-%m-%d %H:%M")
+        return datetime.strptime(date_str, "%Y-%m-%d")
 
-        return datetime_obj
-    sorted_data = sorted(seizures, key=get_datetime, reverse=True)
-    return sorted_data
+    return sorted(seizures, key=get_datetime, reverse=True)
+
 
 def display_seizure_notes(seizures, current_page, login):
-    seizures_sorted_by_datetime = sort_seizures_by_datetime(seizures)
+    seizures_sorted = _sort_seizures_by_datetime(seizures)
     current_page = int(current_page)
     start_index = current_page * NOTES_PER_PAGE
-    end_index = int(start_index) + NOTES_PER_PAGE
-    seizures_on_page = seizures_sorted_by_datetime[start_index:end_index]
+    end_index = start_index + NOTES_PER_PAGE
     text = ""
-    for seizure in seizures_on_page:
-        line = (
-            f"{seizure.date} "
-            f"{seizure.time + " "  if seizure.time is not None else ""}"
-            f"{seizure.creator_login + " " if seizure.creator_login is not None and seizure.creator_login != login else ""}"
-            f"/show_{seizure.id}\n\n"
+    for seizure in seizures_sorted[start_index:end_index]:
+        creator = (
+            seizure.creator_login + " "
+            if seizure.creator_login is not None and seizure.creator_login != login
+            else ""
         )
-        text += line
+        time_part = seizure.time + " " if seizure.time is not None else ""
+        text += t(
+            "journal.list_item",
+            date=seizure.date,
+            time=time_part,
+            creator=creator,
+            id=seizure.id,
+        )
     return text
 
+
 @journal_router.callback_query(F.data == "seizure_data")
-async def process_journal_handler(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_journal_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(t("journal.menu"), reply_markup=get_journal_nav_kb())
+
 
 @journal_router.callback_query(F.data == "journal", ProfileIsSetCb())
 async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     login = await get_cached_login(db, callback.message.chat.id)
-    current_profile_id = await get_cached_current_profile(db, callback.message.chat.id)
-    if current_profile_id is None:
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    if current_profile is None:
         await callback.message.answer(t("journal.select_profile"))
         return
-    seizures = await orm_get_seizures_by_profile_descending(db, int(current_profile_id.split('|', 1)[0]))
+    profile_id, profile_name = parse_current_profile(current_profile)
+    seizures = await list_journal_seizures(db, profile_id)
     if not seizures:
-        await callback.message.answer(t("journal.no_seizures", profile_name=current_profile_id.split('|', 1)[1]), parse_mode='MarkDownV2')
+        await callback.message.answer(
+            t("journal.no_seizures", profile_name=profile_name),
+            parse_mode="MarkDownV2",
+        )
         await callback.answer()
         return
-    text = t("journal.seizures_list_header", profile_name=current_profile_id.split('|', 1)[1])
+    text = t("journal.seizures_list_header", profile_name=profile_name)
     text += display_seizure_notes(seizures, 0, login)
-    await callback.message.answer(f"{text}", parse_mode='HTML', reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, 0, 'journal_page'))
+    await callback.message.answer(
+        text,
+        parse_mode="HTML",
+        reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, 0, "journal_page"),
+    )
     await callback.answer()
 
-@journal_router.callback_query(F.data.startswith('journal_page'))
-async def process_pagination_of__seizures_list(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+
+@journal_router.callback_query(F.data.startswith("journal_page"))
+async def process_pagination_of_seizures_list(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     login = await get_cached_login(db, callback.message.chat.id)
-    _, page = callback.data.split(':', 1)
-    current_profile_id = await get_cached_current_profile(db, callback.message.chat.id)
-    seizures = await orm_get_seizures_by_profile_descending(db, int(current_profile_id.split('|', 1)[0]))
-    text = t("journal.seizures_list_header", profile_name=current_profile_id.split('|', 1)[1])
+    _, page = callback.data.split(":", 1)
+    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
+    profile_id, profile_name = parse_current_profile(current_profile)
+    seizures = await list_journal_seizures(db, profile_id)
+    text = t("journal.seizures_list_header", profile_name=profile_name)
     text += display_seizure_notes(seizures, int(page), login)
-    await callback.message.edit_text(text, reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, int(page), 'journal_page'), parse_mode='HTML')
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_nav_btns_for_list(len(seizures), NOTES_PER_PAGE, int(page), "journal_page"),
+        parse_mode="HTML",
+    )
 
 
-@journal_router.message(F.text.startswith('/show'))
+@journal_router.message(F.text.startswith("/show"))
 async def get_detailed_info_about_seizure(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
     await state.clear()
-    seizure_id = message.text.split('_', 1)[1]
+    seizure_id = message.text.split("_", 1)[1]
     if not seizure_id.isnumeric():
         await message.answer(t("journal.invalid_index"))
         return
@@ -103,131 +115,70 @@ async def get_detailed_info_about_seizure(message: Message, state: FSMContext, d
     if current_profile is None:
         await message.answer(t("journal.select_profile_short"))
         return
-    seizure = await orm_get_seizure_info(db, int(seizure_id), current_profile.split('|', 1)[0])
+    profile_id, profile_name = parse_current_profile(current_profile)
+    seizure = await get_journal_seizure(db, seizure_id=int(seizure_id), profile_id=profile_id)
     if not seizure:
-        await message.answer(t("journal.record_not_found_for_profile", profile_name=current_profile.split('|', 1)[1]))
+        await message.answer(t("journal.record_not_found_for_profile", profile_name=profile_name))
         return
-    await show_seizure_note(
-        bot,
-        message,
-        current_profile=current_profile.split('|', 1)[1],
-        date=seizure.date,
-        time=seizure.time,
-        count=seizure.count,
-        triggers=seizure.triggers,
-        severity=seizure.severity,
-        duration=get_minutes_and_seconds(seizure.duration),
-        comment=seizure.comment,
-        symptoms=seizure.symptoms,
-        video_tg_id=seizure.video_tg_id,
-        location=seizure.location,
-        type_of_seizure=seizure.type_of_seizure,
-        seizure_id=seizure.id,
-    )
+    await show_seizure_from_model(bot, message, seizure, profile_name)
 
-@journal_router.message(F.text.startswith('/sjedit'))
+
+@journal_router.message(F.text.startswith("/sjedit"))
 async def show_edit_options(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
     await state.clear()
-    seizure_id = int(message.text.split('_', 1)[1])
+    seizure_id = int(message.text.split("_", 1)[1])
     current_profile = await get_cached_current_profile(db, message.chat.id)
-    seizure = await orm_get_seizure_info(db, int(seizure_id), int(current_profile.split('|', 1)[0]))
+    profile_id, profile_name = parse_current_profile(current_profile)
+    seizure = await get_journal_seizure(db, seizure_id=seizure_id, profile_id=profile_id)
     if not seizure:
         await message.answer(t("journal.record_not_found"))
         return
-    await show_seizure_note(
-        bot,
-        message,
-        seizure_id=seizure.id,
-        current_profile=current_profile.split('|', 1)[1],
-        date=seizure.date,
-        time=seizure.time,
-        count=seizure.count,
-        triggers=seizure.triggers,
-        severity=seizure.severity,
-        duration=get_minutes_and_seconds(seizure.duration),
-        comment=seizure.comment,
-        symptoms=seizure.symptoms,
-        video_tg_id=seizure.video_tg_id,
-        location=seizure.location,
-        type_of_seizure=seizure.type_of_seizure,
-        edit_mode=True,
-    )
-    # await message.answer(text, parse_mode='HTML')
+    await show_seizure_from_model(bot, message, seizure, profile_name, edit_mode=True)
 
-@journal_router.message(F.text.startswith('/update'))
-async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
+
+@journal_router.message(F.text.startswith("/update"))
+async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
-    _, action, seizure_id = message.text.split('_', 2)
+    _, action, seizure_id = message.text.split("_", 2)
     current_profile = await get_cached_current_profile(db, message.chat.id)
-
-    await state.update_data(mode="edit", seizure_id=int(seizure_id), profile_id=int(current_profile.split('|', 1)[0]))
-    if action == "date":
-        await ask_for_a_year(message, state)
-        await state.set_state(SeizureForm.year)
-    elif action == "time":
-        await message.answer(t("journal.edit_time"), reply_markup=get_time_ranges_kb(action_btns=False))
-        await state.set_state(SeizureForm.hour)
-    elif action == "count":
-        await message.answer(t("journal.edit_count"), reply_markup=get_count_of_seizures_kb(action_btns=False))
-        await state.set_state(SeizureForm.count)
-    elif action == 'type':
-        await state.set_state(SeizureForm.type_of_seizure)
-        keyboard = generate_seizure_type_keyboard(current_page=0, page_size=6, action_btns=False)
-        await message.answer(t("journal.edit_type"), reply_markup=keyboard)
-    elif action == "triggers":
-        await state.update_data(selected_triggers=[], current_page=0)
-        global_triggers = await get_cached_triggers_list(db, message.chat.id)
-        profiles_triggers = await get_cached_profile_triggers_list(db, message.chat.id, int(current_profile.split('|', 1)[0]))
-        await message.answer(t("journal.edit_triggers"), reply_markup=generate_features_keyboard(profiles_triggers + global_triggers, [], 0, 5, action_btns=False))
-        await state.set_state(SeizureForm.triggers)
-    elif action == "severity":
-        await message.answer(t("journal.edit_severity"), reply_markup=get_severity_kb(action_btns=False))
-        await state.set_state(SeizureForm.severity)
-    elif action == "duration":
-        await message.answer(t("journal.edit_duration"), reply_markup=get_duration_kb(action_btns=False))
-        await state.set_state(SeizureForm.duration)
-    elif action == "comment":
-        await message.answer(t("journal.edit_comment"))
-        await state.set_state(SeizureForm.comment)
-    elif action == "video":
-        await message.answer(t("journal.edit_video"))
-        await state.set_state(SeizureForm.video_tg_id)
-    elif action == "symptoms":
-        await message.answer(t("journal.edit_symptoms"))
-        await state.set_state(SeizureForm.symptoms)
-    elif action == "location":
-        await message.answer(t("journal.edit_location"), reply_markup=get_geolocation_for_timezone_kb())
-        await state.set_state(SeizureForm.location)
-    else:
-        await message.answer(t("journal.unknown_command"))
+    profile_id, _ = parse_current_profile(current_profile)
+    await start_seizure_field_edit(
+        message,
+        state,
+        db,
+        action=action,
+        seizure_id=int(seizure_id),
+        profile_id=profile_id,
+    )
 
 
-@journal_router.message(F.text.startswith('/delete'))
-async def delete_seizure(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
-    seizure_id = int(message.text.split('_', 1)[1])
+@journal_router.message(F.text.startswith("/delete"))
+async def delete_seizure(message: Message, db: AsyncSession):
+    seizure_id = int(message.text.split("_", 1)[1])
     current_profile = await get_cached_current_profile(db, message.chat.id)
     if current_profile is None:
         await message.answer(t("journal.select_profile_short"))
         return
-    await message.answer(t("journal.delete_confirm"), reply_markup=get_delete_seizure_note_kb(int(seizure_id)))
+    await message.answer(t("journal.delete_confirm"), reply_markup=get_delete_seizure_note_kb(seizure_id))
 
 
 @journal_router.callback_query(F.data.startswith("delete_seizure_note"))
 async def process_delete_seizure_note(callback: CallbackQuery, db: AsyncSession):
-    _, answer, seizure_id = callback.data.split(':', 2)
+    _, answer, seizure_id = callback.data.split(":", 2)
     current_profile = await get_cached_current_profile(db, callback.message.chat.id)
     if current_profile is None:
         await callback.message.answer(t("journal.select_profile_short"))
+        await callback.answer()
         return
-    if answer == 'yes':
-        profile_id = int(current_profile.split('|', 1)[0])
-        res = await delete_seizure_record(
+    if answer == "yes":
+        profile_id, _ = parse_current_profile(current_profile)
+        deleted = await delete_seizure_record(
             db,
             user_id=callback.message.chat.id,
             profile_id=profile_id,
             seizure_id=int(seizure_id),
         )
-        if res:
+        if deleted:
             await callback.message.edit_text(t("journal.delete_success"))
         else:
             await callback.message.edit_text(t("journal.delete_not_found"))

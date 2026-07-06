@@ -1,15 +1,11 @@
 import logging
-import os
-from uuid import uuid4
 
 from aiogram import Bot, F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, FSInputFile, Message
-from aiogram.types.document import Document as AiogramDocument
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from adapters.telegram.delivery import send_document_file
 from config_data.pagination import TRUSTED_PERSONS_PER_PAGE as NOTES_PER_PAGE
 from database.models import User
 from database.redis_query import (
@@ -19,7 +15,7 @@ from database.redis_query import (
 )
 from database.repositories.users import get_user_by_chat_id
 from filters.correct_commands import UserOwnProfilesListExist
-from handlers_logic.states_factories import GetExcelTableForm, TrustedPersonForm
+from handlers_logic.states_factories import TrustedPersonForm
 from i18n import t
 from keyboards.journal_kb import get_nav_btns_for_list
 from keyboards.menu_kb import get_cancel_kb
@@ -35,20 +31,14 @@ from services.cache_invalidation import invalidate_trusted_persons
 from services.hmac_encrypt import unpack_callback_data
 from services.notification_queue import NotificationQueue, TrustedContactRequest
 from services.redis_cache_data import (
-    get_cached_current_profile,
     get_cached_login,
     get_cached_profiles_list,
     get_cached_trusted_persons_agrigated_data,
 )
-from services.to_excel import (
-    build_seizures_excel,
-    get_excel_template_path,
-    import_seizures_from_xlsx,
-)
 from services.validators import validate_login_of_user_form
 from use_cases import trusted_persons as trusted_use_cases
 
-control_panel_router = Router()
+trusted_person_router = Router()
 logger = logging.getLogger(__name__)
 
 def _trusted_unknown(value):
@@ -80,7 +70,7 @@ def display_trusted_profiles(trusted_profiles, current_page):
         )
     return text
 
-@control_panel_router.callback_query(F.data == 'add_trusted')
+@trusted_person_router.callback_query(F.data == 'add_trusted')
 async def process_input_trusted_person_login(callback: CallbackQuery, state: FSMContext):
     timeout_check = await get_redis_sending_timeout_ten_min(callback.message.chat.id)
     if timeout_check is not None:
@@ -90,7 +80,7 @@ async def process_input_trusted_person_login(callback: CallbackQuery, state: FSM
     await callback.message.answer(t("trusted.enter_login"), reply_markup=get_cancel_kb())
     await callback.answer()
 
-@control_panel_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
+@trusted_person_router.message(StateFilter(TrustedPersonForm.trusted_person_login))
 async def process_search_trusted_person_by_login(message: Message, state: FSMContext, db: AsyncSession):
     if validate_login_of_user_form(message.text):
         login_redis = await get_cached_login(db, message.chat.id)
@@ -120,14 +110,14 @@ async def process_search_trusted_person_by_login(message: Message, state: FSMCon
     else:
         await message.answer(t("user.incorrect_login"), reply_markup=get_cancel_kb())
 
-@control_panel_router.callback_query(F.data == "trusted_person_correct", StateFilter(TrustedPersonForm.correct_trusted_person_login), UserOwnProfilesListExist())
+@trusted_person_router.callback_query(F.data == "trusted_person_correct", StateFilter(TrustedPersonForm.correct_trusted_person_login), UserOwnProfilesListExist())
 async def process_display_profile_for_transmitting(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id)
     await callback.message.answer(t("trusted.select_profile"), reply_markup=get_paginated_profiles_kb(profiles_redis, to_share=True))
     await state.set_state(TrustedPersonForm.selected_profile)
     await callback.answer()
 
-@control_panel_router.callback_query((F.data.startswith('select_profile')) & (F.data.endswith('|share')), StateFilter(TrustedPersonForm.selected_profile))
+@trusted_person_router.callback_query((F.data.startswith('select_profile')) & (F.data.endswith('|share')), StateFilter(TrustedPersonForm.selected_profile))
 async def process_submitting_profile_to_share(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     _, profile_id, profile_name_raw = callback.data.split(':', 2)
@@ -141,7 +131,7 @@ async def process_submitting_profile_to_share(callback: CallbackQuery, state: FS
     await state.set_state(TrustedPersonForm.confirm_transfer)
     await callback.answer()
 
-@control_panel_router.callback_query(F.data == 'confirm_transfer', StateFilter(TrustedPersonForm.confirm_transfer))
+@trusted_person_router.callback_query(F.data == 'confirm_transfer', StateFilter(TrustedPersonForm.confirm_transfer))
 async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: AsyncSession, notification_queue: NotificationQueue):
     try:
 
@@ -196,13 +186,13 @@ async def process_confirmation(callback: CallbackQuery, state: FSMContext, db: A
         await state.clear()
         logger.exception("Failed to confirm trusted person transfer")
 
-@control_panel_router.callback_query(F.data == 'reject_transfer')
+@trusted_person_router.callback_query(F.data == 'reject_transfer')
 async def process_rejection(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.answer(t("trusted.transfer_cancelled"))
     await callback.answer()
 
-@control_panel_router.callback_query(F.data.startswith("p_conf") | F.data.startswith("n_conf"))
+@trusted_person_router.callback_query(F.data.startswith("p_conf") | F.data.startswith("n_conf"))
 async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSession, bot: Bot):
     unpacked_callback_data = unpack_callback_data(callback.data)
     if not unpacked_callback_data:
@@ -278,7 +268,7 @@ async def process_accept_trusted_person(callback: CallbackQuery, db: AsyncSessio
         await callback.answer()
         await db.commit()
 
-@control_panel_router.callback_query(F.data == "trusted_person_control_panel")
+@trusted_person_router.callback_query(F.data == "trusted_person_control_panel")
 async def process_trusted_person_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     trusted_persons = await trusted_use_cases.list_owner_trusted_persons(db, callback.message.chat.id)
@@ -291,7 +281,7 @@ async def process_trusted_person_control_panel(callback: CallbackQuery, state: F
     await callback.message.answer(text, parse_mode='HTML', reply_markup=get_nav_btns_for_list(len(trusted_persons), NOTES_PER_PAGE, 0, 'trusted_person_control_panel'))
     await callback.answer()
 
-@control_panel_router.callback_query(F.data.startswith('trusted_person_control_panel'))
+@trusted_person_router.callback_query(F.data.startswith('trusted_person_control_panel'))
 async def process_pagination_of_trusted_persons_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     await state.clear()
     _, page = callback.data.split(':', 1)
@@ -311,7 +301,7 @@ def find_trusted_record_by_id(trusted_persons, trusted_profile_id: int):
                 return item
         return None
 
-@control_panel_router.message(F.text.startswith("/tpshow"))
+@trusted_person_router.message(F.text.startswith("/tpshow"))
 async def process_showing_tp_detailed_info(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -342,7 +332,7 @@ async def process_showing_tp_detailed_info(message: Message, state: FSMContext, 
     )
     await message.answer(text, parse_mode='HTML')
 
-@control_panel_router.message(F.text.startswith("/tpeditcned_"))
+@trusted_person_router.message(F.text.startswith("/tpeditcned_"))
 async def process_change_editing_permission(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -368,7 +358,7 @@ async def process_change_editing_permission(message: Message, state: FSMContext,
         )
 
 
-@control_panel_router.callback_query(F.data.startswith("tpchangeediting"))
+@trusted_person_router.callback_query(F.data.startswith("tpchangeediting"))
 async def process_commit_changing_editing_permission(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
@@ -379,7 +369,7 @@ async def process_commit_changing_editing_permission(callback: CallbackQuery, st
         await callback.message.edit_text(t("trusted.permissions_cancelled"))
     await callback.answer()
 
-@control_panel_router.message(F.text.startswith("/tpeditntfyprm"))
+@trusted_person_router.message(F.text.startswith("/tpeditntfyprm"))
 async def process_change_getting_notification_permission(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -404,7 +394,7 @@ async def process_change_getting_notification_permission(message: Message, state
             reply_markup=get_commiting_changing_notify_permission_kb(tpp_id),
         )
 
-@control_panel_router.callback_query(F.data.startswith("tpchangegettingnotify"))
+@trusted_person_router.callback_query(F.data.startswith("tpchangegettingnotify"))
 async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
@@ -415,7 +405,7 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
         await callback.message.edit_text(t("trusted.permissions_cancelled"))
     await callback.answer()
 
-@control_panel_router.message(F.text.startswith("/tpdelete"))
+@trusted_person_router.message(F.text.startswith("/tpdelete"))
 async def process_deleting_trusted_person(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
     tpp_id = message.text.split('_', 1)[1]
@@ -428,12 +418,11 @@ async def process_deleting_trusted_person(message: Message, state: FSMContext, d
         return
     await message.answer(t("trusted.delete_confirm"), reply_markup=get_commiting_deleting_trusted_person_kb(tpp_id))
 
-@control_panel_router.callback_query(F.data.startswith("tpdeleting"))
+@trusted_person_router.callback_query(F.data.startswith("tpdeleting"))
 async def process_delete_trusted_person(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     _, answer, tpp_id = callback.data.split(':', 2)
     if answer == "yes":
-        if answer == 'yes':
-            result = await trusted_use_cases.delete_trusted_person(db, int(tpp_id))
+        result = await trusted_use_cases.delete_trusted_person(db, int(tpp_id))
             if result.deleted:
                 await callback.message.edit_text(t("trusted.delete_success"))
                 await invalidate_trusted_persons(callback.message.chat.id)
@@ -442,61 +431,3 @@ async def process_delete_trusted_person(callback: CallbackQuery, state: FSMConte
     else:
         await callback.message.edit_text(t("trusted.delete_cancelled"))
     await callback.answer()
-
-@control_panel_router.callback_query(F.data == 'export_data')
-async def process_export_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
-    prof = await get_cached_current_profile(db, callback.message.chat.id)
-    file_path = await build_seizures_excel(int(prof.split('|')[0]), db)
-    await send_document_file(bot, callback.message.chat.id, file_path)
-    await callback.answer()
-
-@control_panel_router.callback_query(F.data == 'import_data')
-async def process_import_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, db: AsyncSession, bot: Bot):
-    await send_document_file(
-        bot,
-        callback.message.chat.id,
-        get_excel_template_path(),
-        caption=t("import.template_caption"),
-        remove_after=False,
-    )
-    await callback.message.answer(t("import.download_template"))
-    await state.set_state(GetExcelTableForm.get_xlsx_file)
-    await callback.answer()
-
-@control_panel_router.message(F.document, StateFilter(GetExcelTableForm))
-async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMContext, bot: Bot):
-    if message.document.file_name.endswith('.xlsx'):
-        try:
-            prof = await get_cached_current_profile(db, message.chat.id)
-            login = await get_cached_login(db, message.chat.id)
-            file_id = str(uuid4())
-            file_path = f"import_temp/{file_id}.xlsx"
-            os.makedirs("import_temp", exist_ok=True)
-            document = message.document
-            file = await bot.get_file(document.file_id)
-            await bot.download_file(file.file_path, destination=file_path)
-            valid_count, failed_rows = await import_seizures_from_xlsx(
-                file_path, db=db, profile_id=int(prof.split('|')[0]), login=login,
-            )
-            text = t("import.import_complete", valid_count=valid_count, failed_count=len(failed_rows))
-            await message.answer(text)
-            if failed_rows:
-                import pandas as pd
-                df_failed = pd.DataFrame(failed_rows)
-                failed_file_path = f"import_temp/{file_id}_errors.xlsx"
-                df_failed.to_excel(failed_file_path, index=False)
-
-                await message.answer_document(
-                    document=FSInputFile(failed_file_path),
-                    caption=t("import.failed_rows_caption"),
-                )
-                os.remove(failed_file_path)
-
-        except Exception as e:
-            await message.answer(t("import.file_processing_error", error=str(e)))
-        finally:
-            await state.clear()
-            if os.path.exists(file_path):
-                os.remove(file_path)
-    else:
-        await message.answer(t("import.xlsx_required"))
