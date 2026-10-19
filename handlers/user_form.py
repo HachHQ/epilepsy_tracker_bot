@@ -42,7 +42,7 @@ async def process_name(message: Message, state: FSMContext):
     if validate_name_of_user_form(message.text):
         await state.update_data(name=message.text)
         await message.answer(t("user.name_saved"), reply_markup=get_geolocation_for_timezone_kb())
-        await message.answer(t("user.timezone_info"), reply_markup=get_timezone_kb(), parse_mode='MarkDownV2')
+        await message.answer(t("user.timezone_info"), reply_markup=get_timezone_kb(), parse_mode="HTML")
         await state.set_state(UserForm.timezone)
     else:
         await message.answer(t("user.invalid_name"), reply_markup=get_cancel_kb())
@@ -59,7 +59,7 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
         now = datetime.now(timezone)
         utc_offset = now.utcoffset()
         if utc_offset is None:
-            await message.answer(t("user.timezone_info"), reply_markup=get_timezone_kb(), parse_mode='MarkDownV2')
+            await message.answer(t("user.timezone_info"), reply_markup=get_timezone_kb(), parse_mode="HTML")
             return
         utc_offset_seconds = utc_offset.total_seconds()
         utc_offset_hours = utc_offset_seconds / 3600
