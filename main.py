@@ -118,5 +118,6 @@ async def _heartbeat_loop() -> None:
         write_heartbeat()
         await asyncio.sleep(15)
 
+
 if __name__ == "__main__":
     asyncio.run(main())
