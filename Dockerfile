@@ -12,6 +12,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin app
+
 COPY requirements.txt ./
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt
@@ -20,7 +22,8 @@ COPY . .
 
 RUN mkdir -p temp_images \
     && sed -i 's/\r$//' docker/entrypoint.sh \
-    && chmod +x docker/entrypoint.sh
+    && chmod +x docker/entrypoint.sh \
+    && chown -R app:app /app
 
 ENTRYPOINT ["/bin/sh", "/app/docker/entrypoint.sh"]
 CMD ["python", "main.py"]

@@ -33,8 +33,18 @@ echo "PostgreSQL is ready."
 echo "Running migrations..."
 alembic upgrade head
 
-echo "Running seed..."
-python -m database.seed
+case "${SEED_ON_STARTUP:-0}" in
+  1|true|TRUE|yes|YES)
+    echo "Running development seed..."
+    python -m database.seed
+    ;;
+  *)
+    echo "Skipping database seed."
+    ;;
+esac
+
+mkdir -p /app/temp_images
+chown -R app:app /app/temp_images
 
 echo "Starting bot..."
-exec "$@"
+exec runuser -u app -- "$@"

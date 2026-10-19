@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -40,6 +41,7 @@ from middleware.inner import NotificationMiddleware, DatabaseSessionMiddleware
 from middleware.locale import LocaleMiddleware
 
 from services.notification_queue import NotificationQueue
+from services.runtime_health import write_heartbeat
 from i18n import set_locale, t
 
 logging.basicConfig(level=logging.INFO)
@@ -99,15 +101,26 @@ async def main():
     schedule_retention_purge()
     scheduler.start()
 
+    heartbeat = asyncio.create_task(_heartbeat_loop())
     try:
         await notification_queue.start()
         await set_main_menu(bot)
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
+        heartbeat.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat
         scheduler.shutdown(wait=False)
         await notification_queue.stop()
         await bot.session.close()
+
+
+async def _heartbeat_loop() -> None:
+    while True:
+        write_heartbeat()
+        await asyncio.sleep(15)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
