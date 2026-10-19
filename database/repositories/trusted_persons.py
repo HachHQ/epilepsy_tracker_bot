@@ -187,10 +187,22 @@ async def accept_trusted_person_request(
     request: TrustedPersonRequest,
 ) -> TrustedPersonProfiles:
     request.status = RequestStatus.ACCEPTED
+    existing = await get_existing_trusted_link(
+        session,
+        trusted_person_user_id=request.recepient_id,
+        profile_owner_id=request.sender_id,
+        profile_id=request.transmitted_profile_id,
+    )
+    if existing is not None:
+        await session.flush()
+        return existing
     link = TrustedPersonProfiles(
         trusted_person_user_id=request.recepient_id,
         profile_owner_id=request.sender_id,
         profile_id=request.transmitted_profile_id,
+        can_read=True,
+        can_edit=False,
+        get_notification=True,
     )
     session.add(link)
     await session.flush()

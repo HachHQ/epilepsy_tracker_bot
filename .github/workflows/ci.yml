@@ -76,6 +76,9 @@ jobs:
       - name: Ruff
         run: ruff check .
 
+      - name: Mypy
+        run: mypy .
+
   docker:
     runs-on: ubuntu-latest
     steps:

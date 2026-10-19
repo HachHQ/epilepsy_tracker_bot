@@ -1,3 +1,4 @@
+from aiogram.enums import ButtonStyle
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -51,7 +52,11 @@ def get_geolocation_for_timezone_kb() -> ReplyKeyboardMarkup:
 
 def get_submit_profile_settings_kb() -> InlineKeyboardMarkup:
     submit_kb_bd = InlineKeyboardBuilder()
-    submit_kb_bd.button(text=t("buttons.submit"), callback_data="submit_profile_settings")
+    submit_kb_bd.button(
+        text=t("buttons.submit"),
+        callback_data="submit_profile_settings",
+        style=ButtonStyle.SUCCESS,
+    )
     submit_kb_bd.row(_cancel_btn(), width=1)
     return submit_kb_bd.as_markup()
 
@@ -76,7 +81,11 @@ def get_biospec_edit_kb():
 
 def get_commit_deleting_profile_kb(prof_id):
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("common.yes"), callback_data=f"delete_profile:yes:{prof_id}")
+    builder.button(
+        text=t("common.yes"),
+        callback_data=f"delete_profile:yes:{prof_id}",
+        style=ButtonStyle.SUCCESS,
+    )
     builder.button(text=t("common.no"), callback_data=f"delete_profile:no:{prof_id}")
     builder.adjust(1)
     return builder.as_markup()

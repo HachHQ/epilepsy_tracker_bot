@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from contextlib import suppress
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -32,9 +33,11 @@ from handlers.trusted_person_handlers import trusted_person_router
 from handlers.user_form import user_form_router
 from i18n import set_locale, t
 from keyboards.set_menu import set_main_menu
+from middleware.delete_command import DeleteCommandMiddleware
 from middleware.inner import DatabaseSessionMiddleware, NotificationMiddleware
 from middleware.locale import LocaleMiddleware
 from services.retention_purge import schedule_retention_purge
+from services.runtime_health import write_heartbeat
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,6 +71,7 @@ notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 async def main():
     await init_db()
 
+    dp.message.middleware(DeleteCommandMiddleware())
     dp.update.middleware(NotificationMiddleware(notification_queue))
     dp.update.middleware(LocaleMiddleware())
     dp.update.middleware(DatabaseSessionMiddleware(SessionLocal))
@@ -94,15 +98,25 @@ async def main():
     schedule_retention_purge()
     scheduler.start()
 
+    heartbeat = asyncio.create_task(_heartbeat_loop())
     try:
         await notification_queue.start()
         await set_main_menu(bot)
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
+        heartbeat.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat
         scheduler.shutdown(wait=False)
         await notification_queue.stop()
         await bot.session.close()
+
+
+async def _heartbeat_loop() -> None:
+    while True:
+        write_heartbeat()
+        await asyncio.sleep(15)
 
 if __name__ == "__main__":
     asyncio.run(main())

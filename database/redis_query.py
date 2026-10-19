@@ -5,6 +5,7 @@ import orjson
 
 from database.redis_client import redis
 from services import cache_keys
+from services.profile_ref import format_profile_key
 
 CACHE_TIME = cache_keys.CACHE_TIME
 REQUEST_TIMEOUT = cache_keys.REQUEST_TIMEOUT
@@ -19,19 +20,19 @@ def _decode_json(raw):
     return json.loads(raw)
 
 # Get operations
-async def get_redis_cached_login(user_id: int) -> str:
+async def get_redis_cached_login(user_id: int) -> str | None:
     login = await redis.get(cache_keys.user_login(user_id))
     return login.decode('utf-8') if login else None
 
-async def get_redis_cached_user_id_from_db(user_id: int) -> int:
+async def get_redis_cached_user_id_from_db(user_id: int) -> str | None:
     user_db_id = await redis.get(cache_keys.user_db_id(user_id))
     return user_db_id.decode('utf-8') if user_db_id else None
 
-async def get_redis_cached_current_profile(user_id: int) -> str:
+async def get_redis_cached_current_profile(user_id: int) -> str | None:
     current_profile = await redis.get(cache_keys.current_profile(user_id))
     return current_profile.decode('utf-8') if current_profile else None
 
-async def get_redis_cached_profiles_list(user_id: int, profile_type: str = "user_own") -> list[str]:
+async def get_redis_cached_profiles_list(user_id: int, profile_type: str = "user_own") -> list[dict] | None:
     cache_key = cache_keys.profiles_list(user_id, profile_type)
     cached_profiles = await redis.get(cache_key)
     return _decode_json(cached_profiles)
@@ -77,13 +78,25 @@ async def set_redis_cached_user_id_from_db(user_id: int, user_db_id: int):
         await redis.setex(cache_keys.user_db_id(user_id), CACHE_TIME, user_db_id)
 
 async def set_redis_cached_current_profile(user_id: int, profile_id: int, profile_name: str):
-    await redis.setex(cache_keys.current_profile(user_id), CACHE_TIME, f"{profile_id}|{profile_name}")
+    await redis.setex(
+        cache_keys.current_profile(user_id),
+        CACHE_TIME,
+        format_profile_key(profile_id, profile_name),
+    )
 
 async def set_redis_cached_profiles_list(user_id: int, profile_type: str, profiles):
     await redis.setex(cache_keys.profiles_list(user_id, profile_type), CACHE_TIME, json.dumps(profiles))
 
 async def set_redis_sending_timeout_ten_min(user_id: int, can_send: str):
     await redis.setex(cache_keys.sending_timeout(user_id), REQUEST_TIMEOUT, can_send)
+
+
+async def register_trusted_lookup(user_id: int) -> int:
+    key = cache_keys.trusted_lookup(user_id)
+    count = int(await redis.incr(key))
+    if await redis.ttl(key) < 0:
+        await redis.expire(key, REQUEST_TIMEOUT)
+    return count
 
 async def set_redis_user_timezone(user_id: int, timezone: str):
     await redis.setex(cache_keys.user_timezone(user_id), CACHE_TIME, timezone)

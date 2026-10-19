@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import SEIZURE_RETENTION_DAYS
 from filters.correct_commands import ProfileIsSetCb
+from handlers_logic.access_reply import deny_unless_owner
 from handlers_logic.states_factories import ProfileForm
 from i18n import t
 from keyboards.menu_kb import get_cancel_kb
@@ -16,8 +17,8 @@ from keyboards.profile_form_kb import (
     get_sex_kb,
     get_submit_profile_settings_kb,
 )
+from services.profile_ref import ProfileRef
 from services.redis_cache_data import (
-    get_cached_current_profile,
     get_cached_login,
     get_cached_profiles_list,
 )
@@ -202,15 +203,27 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
     await callback.answer()
 
 @profile_form_router.callback_query(ProfileIsSetCb(), F.data == 'prof_edit')
-async def process_editing_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    curr_profile = await get_cached_current_profile(db, callback.message.chat.id)
-    profile_info = await get_profile(db, int(curr_profile.split("|")[0]))
+async def process_editing_profile_data(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
+    curr_profile = current_profile
+    if curr_profile is None:
+        await callback.message.answer(t("profile.choose_profile"))
+        await callback.answer()
+        return
+    if await deny_unless_owner(callback, curr_profile):
+        return
+    profile_info = await get_profile(db, curr_profile.id)
+    if profile_info is None:
+        await callback.message.answer(t("profile.record_not_found"))
+        await callback.answer()
+        return
     animal_line = ""
     if profile_info.biological_species is not None:
         animal_line = t("profile.animal_line", species=profile_info.biological_species)
     text = t(
         "profile.edit_view",
-        name=curr_profile.split("|")[1],
+        name=curr_profile.name,
         created_at=profile_info.created_at.date(),
         epilepsy_type=profile_info.type_of_epilepsy if profile_info.type_of_epilepsy is not None else t("profile.not_entered"),
         age=profile_info.age,
@@ -221,17 +234,22 @@ async def process_editing_profile_data(callback: CallbackQuery, state: FSMContex
     await callback.answer()
 
 @profile_form_router.message(F.text.startswith('/prof'))
-async def process_editing_notify_settings(message: Message, state: FSMContext, db: AsyncSession):
+async def process_editing_notify_settings(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     _, action = message.text.split('_', 1)
-    curr_prof = await get_cached_current_profile(db, message.chat.id)
+    curr_prof = current_profile
     if curr_prof is None:
         await message.answer(t("profile.choose_profile"))
-    prof_info = await get_profile(db, int(curr_prof.split('|')[0]))
+        return
+    if await deny_unless_owner(message, curr_prof):
+        return
+    prof_info = await get_profile(db, curr_prof.id)
     if prof_info is None:
         await message.answer(t("profile.record_not_found"))
         return
-    await state.update_data(profmode="prof_edit_mode", profile_id=int(curr_prof.split('|')[0]))
+    await state.update_data(profmode="prof_edit_mode", profile_id=curr_prof.id)
     if action == "eptype":
         await message.answer(t("profile.enter_diagnosis"))
         await state.set_state(ProfileForm.type_of_epilepsy)
@@ -249,7 +267,7 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
             await message.answer(t("profile.human_profile_only"))
     elif action == 'del':
         text = t("profile.delete_confirm", days=SEIZURE_RETENTION_DAYS)
-        await message.answer(text, reply_markup=get_commit_deleting_profile_kb(int(curr_prof.split('|')[0])))
+        await message.answer(text, reply_markup=get_commit_deleting_profile_kb(curr_prof.id))
     else:
         await message.answer(t("profile.unknown_command"))
 
@@ -257,8 +275,12 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
 async def process_deleting_profile(callback: CallbackQuery, db: AsyncSession):
     _, answer, prof_id = callback.data.split(":", 2)
     user_own_profiles = await get_cached_profiles_list(db, callback.message.chat.id)
-    user_own_profiles = [prof['id'] for prof in user_own_profiles]
-    if int(prof_id) not in user_own_profiles:
+    if not user_own_profiles:
+        await callback.message.answer(t("profile.delete_forbidden"))
+        await callback.answer()
+        return
+    owned_profile_ids = [prof['id'] for prof in user_own_profiles]
+    if int(prof_id) not in owned_profile_ids:
         await callback.message.answer(t("profile.delete_forbidden"))
         await callback.answer()
         return

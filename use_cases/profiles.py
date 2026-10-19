@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import SEIZURE_RETENTION_DAYS
 from database.models import Profile
-from database.redis_query import set_redis_cached_current_profile, set_redis_cached_profiles_list
 from database.repositories.profiles import (
     create_profile,
     get_active_profile_by_id,
@@ -18,6 +17,7 @@ from database.repositories.profiles import (
 from database.repositories.retention import purge_profile_forever
 from database.repositories.users import get_user_by_chat_id
 from services.cache_invalidation import invalidate_after_profile_deleted
+from services.redis_cache_data import remember_current_profile, remember_profiles_list
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class PurgeProfileResult:
 
 async def sync_user_own_profiles_cache(session: AsyncSession, chat_id: int) -> None:
     profiles = await list_user_profiles(session, chat_id)
-    await set_redis_cached_profiles_list(chat_id, "user_own", profiles)
+    await remember_profiles_list(chat_id, "user_own", profiles)
 
 
 async def create_profile_from_form(
@@ -129,7 +129,7 @@ async def switch_current_profile(
     if not user:
         return SwitchProfileResult(switched=False, reason="user_not_found")
 
-    await set_redis_cached_current_profile(chat_id, profile_id=profile_id, profile_name=profile_name)
+    await remember_current_profile(chat_id, profile_id, profile_name)
     return SwitchProfileResult(switched=True)
 
 

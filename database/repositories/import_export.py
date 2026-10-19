@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import SeizureSymptom, SeizureTrigger, Symptom, Trigger
 from database.repositories.seizures import list_profile_seizures
+from database.seizure_values import format_seizure_date, format_seizure_time
 
 
 async def list_seizure_export_rows(session: AsyncSession, profile_id: int) -> list[dict]:
@@ -23,8 +24,8 @@ async def list_seizure_export_rows(session: AsyncSession, profile_id: int) -> li
         triggers = [row[0] for row in triggers_result.fetchall()]
         rows.append(
             {
-                "date": seizure.date,
-                "time": seizure.time,
+                "date": format_seizure_date(seizure.date),
+                "time": format_seizure_time(seizure.time) or None,
                 "severity": seizure.severity,
                 "duration": seizure.duration,
                 "comment": seizure.comment,

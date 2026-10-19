@@ -14,6 +14,10 @@ from database.models import (
 from database.repositories.profiles import soft_delete_profile
 
 
+async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
+    return await session.get(User, user_id)
+
+
 async def get_user_by_chat_id(
     session: AsyncSession,
     chat_id: int,

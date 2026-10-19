@@ -8,6 +8,7 @@ async def set_main_menu(bot: Bot):
     set_locale("ru")
     main_menu_commands = [
         BotCommand(command='/menu', description=t('bot_commands.menu')),
+        BotCommand(command='/now', description=t('bot_commands.now')),
         BotCommand(command='/help', description=t('bot_commands.help')),
         BotCommand(command='/start', description=t('bot_commands.start')),
     ]

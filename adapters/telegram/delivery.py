@@ -4,6 +4,7 @@ from aiogram import Bot
 from aiogram.types import FSInputFile, Message
 
 from database.models import Seizure
+from database.seizure_values import format_seizure_date, format_seizure_time
 from services.notes_formatters import (
     SeizureDisplayPayload,
     build_seizure_display,
@@ -39,6 +40,7 @@ async def show_seizure_from_model(
     seizure: Seizure,
     profile_name: str,
     *,
+    medication: str | None = None,
     edit_mode: bool = False,
 ) -> None:
     await show_seizure_note(
@@ -46,8 +48,8 @@ async def show_seizure_from_model(
         message,
         seizure_id=seizure.id,
         current_profile=profile_name,
-        date=seizure.date,
-        time=seizure.time,
+        date=format_seizure_date(seizure.date),
+        time=format_seizure_time(seizure.time) or None,
         count=seizure.count,
         triggers=seizure.triggers,
         severity=seizure.severity,
@@ -57,6 +59,7 @@ async def show_seizure_from_model(
         video_tg_id=seizure.video_tg_id,
         location=seizure.location,
         type_of_seizure=seizure.type_of_seizure,
+        medication=medication,
         edit_mode=edit_mode,
     )
 

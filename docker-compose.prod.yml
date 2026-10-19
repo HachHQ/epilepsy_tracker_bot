@@ -1,0 +1,86 @@
+# Production stack for a single VPS. Local development stays in docker-compose.yml.
+# Update a running server with: bash scripts/up-prod.sh
+name: diplomathesis
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: diplomathesis-postgres
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-diplomathesis}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-diplomathesis}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: diplomathesis-redis
+    restart: unless-stopped
+    logging: *default-logging
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build: .
+    container_name: diplomathesis-bot
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - .env
+    environment:
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in .env}
+      ADMINS: ${ADMINS:?Set ADMINS in .env}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:?Set HMAC_SECRET_KEY in .env}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SEED_ON_STARTUP: "0"
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - bot_temp_images:/app/temp_images
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"from services.runtime_health import heartbeat_is_fresh; import sys; sys.exit(0 if heartbeat_is_fresh() else 1)\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  pgdata:
+  redisdata:
+  bot_temp_images:

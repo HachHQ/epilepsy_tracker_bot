@@ -37,7 +37,8 @@ docker run --rm \
     pip install -q -r requirements.txt -r requirements-dev.txt &&
     alembic upgrade head &&
     pytest tests/ -q &&
-    ruff check .
+    ruff check . &&
+    mypy .
   "
 
 echo "CI checks passed."

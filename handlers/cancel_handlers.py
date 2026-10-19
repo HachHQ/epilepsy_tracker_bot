@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from filters.correct_commands import IsAdmin
 from i18n import t
 from services.cache_invalidation import invalidate_user_debug_cache
-from services.redis_cache_data import get_cached_current_profile
+from services.profile_ref import ProfileRef
 
 cancel_router = Router()
 
@@ -33,9 +33,9 @@ async def cancel_fsm_script_outside_fsm(callback: CallbackQuery):
     await callback.answer()
 
 @cancel_router.message(F.text.lower().contains("clear_redis"), IsAdmin())
-async def clear_redis_cache(message: Message, db: AsyncSession):
-    prof = await get_cached_current_profile(db, message.chat.id)
-    profile_id = int(prof.split("|")[0]) if prof else None
+async def clear_redis_cache(message: Message, db: AsyncSession, current_profile: ProfileRef | None):
+    prof = current_profile
+    profile_id = prof.id if prof else None
     await invalidate_user_debug_cache(message.chat.id, profile_id)
 
     await message.answer(t("admin.redis_cleared"))

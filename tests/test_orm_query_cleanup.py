@@ -23,7 +23,7 @@ async def test_analytics_use_case_delegates_to_repository() -> None:
 
     from use_cases import analytics as analytics_use_cases
 
-    fake_stats = {"top_symptoms": [], "top_triggers": [], "top_types": []}
+    fake_stats: dict[str, list[object]] = {"top_symptoms": [], "top_triggers": [], "top_types": []}
     with patch(
         "use_cases.analytics.get_top_seizure_features",
         new=AsyncMock(return_value=fake_stats),

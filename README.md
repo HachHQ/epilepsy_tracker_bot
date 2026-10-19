@@ -12,12 +12,12 @@ Telegram bot for tracking epileptic seizures, medication courses, reminders, tru
 - Redis for FSM storage and cache
 - APScheduler for reminder jobs
 - pandas/matplotlib for exports and charts
-- Docker Compose for local/runtime deployment
+- Docker Compose for local development and a separate VPS stack
 
 ## Quick Start (Docker)
 
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-2. Copy `.env.example` to `.env` and fill in `API_TOKEN`, `ADMINS`, `HMAC_SECRET_KEY`.
+2. Copy `.env.example` to `.env` and fill in `API_TOKEN`, `ADMINS`, `HMAC_SECRET_KEY`. For a local demo account, also set `SEED_ON_STARTUP=1`.
 3. Start the full stack:
 
 ```bash
@@ -32,6 +32,16 @@ docker compose down
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for proxy settings, port conflicts, and local development without Docker.
+
+## VPS
+
+`docker-compose.prod.yml` is a separate stack: Postgres and Redis are not published on the host, the demo seed is forced off, and the Telegram proxy is empty unless `TELEGRAM_PROXY` is set. On the server, keep `.env` next to the clone and update the bot with:
+
+```bash
+bash scripts/up-prod.sh
+```
+
+Run one copy of this stack. The bot uses long polling and an in-process scheduler.
 
 ## Local Development (without Docker)
 
@@ -54,6 +64,8 @@ See `.env.example` for the full list. Required groups:
 - HMAC secret for signed callback payloads
 
 `ADMINS` is parsed as a comma-separated list of Telegram user IDs, for example `123456,987654`.
+
+`SEED_ON_STARTUP=1` creates the documented demo user on container start. Leave it unset outside local development.
 
 ## Project Layout
 

@@ -1,9 +1,10 @@
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Symptom, Trigger
+from database.models import Seizure, SeizureSymptom, Symptom, Trigger
+from database.repositories.seizures import fold_symptom_counts
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,17 @@ async def list_global_triggers(session: AsyncSession) -> list[str]:
 
 async def list_profile_symptoms(session: AsyncSession, profile_id: int) -> list[str] | None:
     result = await session.execute(
-        select(Symptom.symptom_name).where(Symptom.profile_id == profile_id)
+        select(Symptom.symptom_name, func.count(SeizureSymptom.seizure_id))
+        .join(SeizureSymptom, SeizureSymptom.symptom_id == Symptom.id)
+        .join(Seizure, Seizure.id == SeizureSymptom.seizure_id)
+        .where(
+            Symptom.profile_id == int(profile_id),
+            Seizure.profile_id == int(profile_id),
+        )
+        .group_by(Symptom.symptom_name)
+        .order_by(desc(func.count(SeizureSymptom.seizure_id)), Symptom.symptom_name)
     )
-    names = [row.symptom_name for row in result.all()]
+    names = [name for name, _count in fold_symptom_counts(result.all())]
     return names if names else None
 
 

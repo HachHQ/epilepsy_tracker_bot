@@ -69,12 +69,13 @@ async def process_add_medication(callback: CallbackQuery, state: FSMContext):
 
 @notification_router.message(StateFilter(NotificationForm.notify_time))
 async def process_notification_time(message: Message, state: FSMContext, db: AsyncSession):
-    if validate_time(message.text):
-        await state.update_data(notify_time=message.text)
+    raw_time = message.text
+    if raw_time and validate_time(raw_time):
+        await state.update_data(notify_time=raw_time)
         data = await state.get_data()
         mode = data.get("ntmode", "create")
         if mode == "notification_edit_mode":
-            formatted_time = get_nearest_slot(datetime.strptime(message.text, "%H:%M").time())
+            formatted_time = get_nearest_slot(datetime.strptime(raw_time, "%H:%M")).time()
             await notification_use_cases.update_notification_field(
                 db,
                 user_id=int(data["user_id_db"]),
@@ -82,7 +83,7 @@ async def process_notification_time(message: Message, state: FSMContext, db: Asy
                 attribute="notify_time",
                 new_value=formatted_time,
             )
-            await message.answer(t("notification.time_updated", value=message.text))
+            await message.answer(t("notification.time_updated", value=raw_time))
             await state.clear()
             return
         await state.set_state(NotificationForm.note)
@@ -145,8 +146,16 @@ async def process_notification_pattern_and_saving(
         return
     notify_time = data.get("notify_time", None)
     note = data.get("note", None)
+    if not isinstance(notify_time, str):
+        await callback.message.answer(t("notification.restart"))
+        await callback.answer()
+        return
     user_id = await get_cached_user_id_from_db(db, callback.message.chat.id)
-    formatted_time = get_nearest_slot(datetime.strptime(notify_time, "%H:%M").time())
+    if user_id is None:
+        await callback.message.answer(t("notification.restart"))
+        await callback.answer()
+        return
+    formatted_time = get_nearest_slot(datetime.strptime(notify_time, "%H:%M")).time()
     await notification_use_cases.create_notification_from_form(
         db,
         user_id=user_id,
@@ -168,6 +177,10 @@ async def process_notification_pattern_and_saving(
 @notification_router.callback_query(F.data == "notification_control_panel")
 async def process_notification_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
     user_id_db = await get_cached_user_id_from_db(db, callback.message.chat.id)
+    if user_id_db is None:
+        await callback.message.answer(t("notification.record_not_found"))
+        await callback.answer()
+        return
     user_notifications = await notification_use_cases.list_notifications(db, user_id_db)
     if not user_notifications:
         await callback.message.answer(t("notification.no_notifications"))
@@ -190,6 +203,10 @@ async def process_pagination_of_notifys_list(callback: CallbackQuery, state: FSM
     await state.clear()
     _, page = callback.data.split(":", 1)
     user_id_db = await get_cached_user_id_from_db(db, callback.message.chat.id)
+    if user_id_db is None:
+        await callback.message.answer(t("notification.record_not_found"))
+        await callback.answer()
+        return
     user_notifications = await notification_use_cases.list_notifications(db, user_id_db)
     if not user_notifications:
         await callback.message.answer(t("notification.no_notifications"))
@@ -212,7 +229,10 @@ async def process_notification_edit_view(message: Message, state: FSMContext, db
     await state.clear()
     notify_id = message.text.split("_", 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
-    user_notification = await notification_use_cases.get_notification(db, int(user_id_db), int(notify_id))
+    if user_id_db is None:
+        await message.answer(t("notification.record_not_found"))
+        return
+    user_notification = await notification_use_cases.get_notification(db, user_id_db, int(notify_id))
     if user_notification is None:
         await message.answer(t("notification.record_not_found"))
         return
@@ -233,7 +253,10 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
     await state.clear()
     _, action, nt_id = message.text.split("_", 2)
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
-    user_notification = await notification_use_cases.get_notification(db, int(user_id_db), int(nt_id))
+    if user_id_db is None:
+        await message.answer(t("notification.record_not_found"))
+        return
+    user_notification = await notification_use_cases.get_notification(db, user_id_db, int(nt_id))
     if user_notification is None:
         await message.answer(t("notification.record_not_found"))
         return
@@ -289,7 +312,10 @@ async def process_deleting_of_notify(message: Message, state: FSMContext, db: As
     await state.clear()
     notify_id = message.text.split("_", 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
-    user_notification = await notification_use_cases.get_notification(db, int(user_id_db), int(notify_id))
+    if user_id_db is None:
+        await message.answer(t("notification.record_not_found"))
+        return
+    user_notification = await notification_use_cases.get_notification(db, user_id_db, int(notify_id))
     if user_notification is None:
         await message.answer(t("notification.record_not_found"))
         return

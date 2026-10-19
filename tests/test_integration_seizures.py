@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from database.models import Symptom
 from database.repositories.seizures import get_seizure_by_id
+from services.profile_ref import ProfileRef
 from use_cases.seizures import (
     create_seizure_from_state,
     delete_seizure_record,
@@ -20,7 +21,7 @@ async def test_seizure_create_persists_triggers_and_symptoms(db_session, test_us
         preview = await create_seizure_from_state(
             db_session,
             user_id=test_user["chat_id"],
-            current_profile=test_user["profile_key"],
+            profile=ProfileRef(id=test_user["profile"].id, name=test_user["profile"].profile_name),
             creator_login=test_user["user"].login,
             state_data={
                 "date_short": "2026-05-27",
@@ -36,6 +37,7 @@ async def test_seizure_create_persists_triggers_and_symptoms(db_session, test_us
 
     assert preview.seizure_id > 0
     assert preview.triggers == "Stress"
+    assert preview.symptoms is not None
     assert "aura" in preview.symptoms
 
     symptom_names = (
@@ -55,7 +57,7 @@ async def test_seizure_update_and_delete(db_session, test_user) -> None:
         preview = await create_seizure_from_state(
             db_session,
             user_id=test_user["chat_id"],
-            current_profile=test_user["profile_key"],
+            profile=ProfileRef(id=test_user["profile"].id, name=test_user["profile"].profile_name),
             creator_login=test_user["user"].login,
             state_data={"date_short": "2026-06-01", "severity": "1"},
         )

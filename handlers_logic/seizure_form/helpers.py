@@ -1,8 +1,12 @@
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.repositories.profiles import resolve_profile_access
+from database.repositories.seizures import merge_symptom_choices, normalize_symptom_names
+from database.repositories.users import get_user_by_chat_id
+from i18n import get_epilepsy_symptoms
 from services.redis_cache_data import (
-    get_cached_current_profile,
+    get_cached_profile_symptoms_list,
     get_cached_profile_triggers_list,
     get_cached_triggers_list,
 )
@@ -55,6 +59,12 @@ async def save_seizure_edit(
     new_value,
 ) -> None:
     data = await state.get_data()
+    user = await get_user_by_chat_id(db, chat_id)
+    if user is None:
+        return
+    access = await resolve_profile_access(db, user, int(data["profile_id"]))
+    if access is None or not access.can_edit:
+        return
     await update_seizure_field(
         db,
         user_id=chat_id,
@@ -65,9 +75,27 @@ async def save_seizure_edit(
     )
 
 
-async def load_trigger_keyboard_options(db: AsyncSession, chat_id: int) -> list:
-    current_profile = await get_cached_current_profile(db, chat_id)
-    profile_id = int(current_profile.split("|", 1)[0])
+async def load_symptom_keyboard_options(
+    db: AsyncSession,
+    chat_id: int,
+    profile_id: int | None,
+    selected: list[str] | None = None,
+) -> list[str]:
+    custom: list[str] = []
+    if profile_id is not None:
+        custom = await get_cached_profile_symptoms_list(db, chat_id, profile_id) or []
+    return merge_symptom_choices(get_epilepsy_symptoms(), custom, selected)
+
+
+def selected_symptom_names(value) -> list[str]:
+    return normalize_symptom_names(value)
+
+
+async def load_trigger_keyboard_options(
+    db: AsyncSession, chat_id: int, profile_id: int | None
+) -> list:
+    if profile_id is None:
+        return []
     global_triggers = await get_cached_triggers_list(db, chat_id)
     profile_triggers = await get_cached_profile_triggers_list(db, chat_id, profile_id)
     return profile_triggers + global_triggers

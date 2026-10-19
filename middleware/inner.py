@@ -7,6 +7,7 @@ from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.telegram.notification_queue import NotificationQueue
+from middleware.current_profile import load_current_profile
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class DatabaseSessionMiddleware(BaseMiddleware):
     ) -> Any:
         async with self.sessionmaker() as session:
             data["db"] = session
+            data["current_profile"] = await load_current_profile(session, event)
             try:
                 result = await handler(event, data)
                 await session.commit()

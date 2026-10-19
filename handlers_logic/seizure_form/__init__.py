@@ -28,6 +28,12 @@ from handlers_logic.seizure_form.media_location import (
     handle_video,
 )
 from handlers_logic.seizure_form.skip import handle_skip_step
+from handlers_logic.seizure_form.symptoms import (
+    handle_save_symptoms,
+    handle_symptoms_by_message,
+    handle_symptoms_page,
+    handle_toggle_symptom,
+)
 from handlers_logic.seizure_form.triggers_severity import (
     handle_save_toggled_triggers,
     handle_severity,
@@ -49,14 +55,18 @@ __all__ = [
     "handle_geolocation",
     "handle_location_by_message",
     "handle_month_of_date",
+    "handle_save_symptoms",
     "handle_save_toggled_triggers",
     "handle_seizre_right_now",
     "handle_severity",
     "handle_short_date",
     "handle_skip_step",
+    "handle_symptoms_by_message",
+    "handle_symptoms_page",
     "handle_stop_tracking_duration",
     "handle_time_by_btns",
     "handle_time_of_date_message",
+    "handle_toggle_symptom",
     "handle_toggle_trigger",
     "handle_triggers_by_message",
     "handle_triggers_page",

@@ -5,6 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import retention_deadline
 from database.models import MedicationCourse, Profile, Seizure, TrustedPersonProfiles, User
+from database.repositories.trusted_persons import get_existing_trusted_link
+from services.profile_access import profile_ref_for_viewer
+from services.profile_ref import ProfileRef
 
 
 async def create_profile(
@@ -194,16 +197,44 @@ async def get_user_current_active_profile(session: AsyncSession, chat_id: int) -
     return await get_active_profile_by_id(session, user.current_profile)
 
 
+async def resolve_profile_access(
+    session: AsyncSession,
+    user: User,
+    profile_id: int,
+) -> ProfileRef | None:
+    profile = await get_active_profile_by_id(session, profile_id)
+    if profile is None or profile.user_id is None:
+        return None
+    link = None
+    if profile.user_id != user.id:
+        link = await get_existing_trusted_link(
+            session,
+            trusted_person_user_id=user.id,
+            profile_owner_id=profile.user_id,
+            profile_id=profile.id,
+        )
+    return profile_ref_for_viewer(
+        user.id,
+        profile.user_id,
+        profile.id,
+        profile.profile_name,
+        link_can_read=None if link is None else link.can_read,
+        link_can_edit=None if link is None else link.can_edit,
+    )
+
+
 async def set_user_current_profile(
     session: AsyncSession,
     chat_id: int,
     profile_id: int,
 ) -> User | None:
-    user = await session.scalar(select(User).where(User.telegram_id == chat_id))
+    user = await session.scalar(
+        select(User).where(User.telegram_id == chat_id, User.deleted_at.is_(None))
+    )
     if not user:
         return None
-    profile = await get_active_profile_by_id(session, profile_id)
-    if not profile or profile.user_id != user.id:
+    access = await resolve_profile_access(session, user, profile_id)
+    if access is None:
         return None
-    user.current_profile = int(profile_id)
+    user.current_profile = access.id
     return user

@@ -58,7 +58,7 @@ async def test_restore_profile_after_soft_delete(db_session, test_user) -> None:
 @pytest.mark.asyncio
 async def test_soft_delete_and_restore_account(db_session, test_user) -> None:
     with patch("use_cases.users.invalidate_user_debug_cache", new=AsyncMock()), patch(
-        "use_cases.users.delete_redis_cached_login", new=AsyncMock()
+        "use_cases.users.forget_login", new=AsyncMock()
     ):
         delete_result = await soft_delete_account(
             db_session, chat_id=test_user["chat_id"],
@@ -74,7 +74,7 @@ async def test_soft_delete_and_restore_account(db_session, test_user) -> None:
     profile = await db_session.get(Profile, test_user["profile"].id)
     assert profile.deleted_at is not None
 
-    with patch("use_cases.users.set_redis_cached_login", new=AsyncMock()):
+    with patch("use_cases.users.remember_login", new=AsyncMock()):
         restore_result = await restore_account(
             db_session,
             chat_id=test_user["chat_id"],
@@ -140,7 +140,7 @@ async def test_purge_expired_seizures(db_session, test_user) -> None:
 @pytest.mark.asyncio
 async def test_purge_expired_user(db_session, test_user) -> None:
     with patch("use_cases.users.invalidate_user_debug_cache", new=AsyncMock()), patch(
-        "use_cases.users.delete_redis_cached_login", new=AsyncMock()
+        "use_cases.users.forget_login", new=AsyncMock()
     ):
         await soft_delete_account(db_session, chat_id=test_user["chat_id"])
 

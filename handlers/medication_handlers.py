@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.pagination import MEDICATIONS_PER_PAGE as NOTES_PER_PAGE
+from handlers_logic.access_reply import deny_read_only
 from handlers_logic.states_factories import MedicationCourse
 from i18n import t
 from keyboards.journal_kb import get_nav_btns_for_list
@@ -17,17 +18,17 @@ from keyboards.medication_kb import (
     get_skip_cancel_buttons,
 )
 from keyboards.menu_kb import get_cancel_kb
-from services.redis_cache_data import get_cached_current_profile
+from services.profile_ref import ProfileRef
 from services.validators import validate_date, validate_less_than_40, validate_less_than_60
 from use_cases import medications as medication_use_cases
 
 medication_router = Router()
 
 
-def _profile_id_from_cached(profile_key: str | None) -> int | None:
-    if not profile_key:
+def _profile_id_from_cached(profile_key: ProfileRef | None) -> int | None:
+    if profile_key is None:
         return None
-    return int(profile_key.split("|", 1)[0])
+    return profile_key.id
 
 
 def _medication_display_value(value):
@@ -72,7 +73,11 @@ async def process_choosing_profile(callback: CallbackQuery):
 
 
 @medication_router.callback_query(F.data == "add_medication")
-async def process_add_medication(callback: CallbackQuery, state: FSMContext):
+async def process_add_medication(
+    callback: CallbackQuery, state: FSMContext, current_profile: ProfileRef | None
+):
+    if await deny_read_only(callback, current_profile):
+        return
     await state.set_state(MedicationCourse.medication_name)
     await callback.message.answer(t("medication.name_prompt"), reply_markup=get_cancel_kb())
 
@@ -232,12 +237,17 @@ async def process_medication_start_date(message: Message, state: FSMContext, db:
         await message.answer(t("medication.start_date_invalid"), reply_markup=get_cancel_kb())
 
 
-async def _create_course_from_state(message_or_callback, state: FSMContext, db: AsyncSession) -> None:
+async def _create_course_from_state(
+    message_or_callback, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+) -> None:
     data = await state.get_data()
-    profile_key = await get_cached_current_profile(db, message_or_callback.chat.id)
+    profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
         await message_or_callback.answer(t("journal.select_profile_short"))
+        await state.clear()
+        return
+    if await deny_read_only(message_or_callback, profile_key):
         await state.clear()
         return
     await medication_use_cases.create_course_from_form(
@@ -263,13 +273,17 @@ async def _create_course_from_state(message_or_callback, state: FSMContext, db: 
 
 
 @medication_router.callback_query(F.data == "skip_end_date_for_medication", StateFilter(MedicationCourse.end_date))
-async def process_medication_confirm(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    await _create_course_from_state(callback.message, state, db)
+async def process_medication_confirm(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
+    await _create_course_from_state(callback.message, state, db, current_profile)
     await callback.answer()
 
 
 @medication_router.message(StateFilter(MedicationCourse.end_date))
-async def process_medication_end_date(message: Message, state: FSMContext, db: AsyncSession):
+async def process_medication_end_date(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     if validate_date(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -290,14 +304,16 @@ async def process_medication_end_date(message: Message, state: FSMContext, db: A
             await state.clear()
             return
         await state.update_data(end_date=message.text)
-        await _create_course_from_state(message, state, db)
+        await _create_course_from_state(message, state, db, current_profile)
     else:
         await message.answer(t("medication.start_date_invalid"), reply_markup=get_cancel_kb())
 
 
 @medication_router.callback_query(F.data == "medication_settings")
-async def process_medication_display(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    profile_key = await get_cached_current_profile(db, callback.message.chat.id)
+async def process_medication_display(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
+    profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
         await callback.message.answer(t("journal.select_profile_short"))
@@ -321,10 +337,12 @@ async def process_medication_display(callback: CallbackQuery, state: FSMContext,
 
 
 @medication_router.callback_query(F.data.startswith("profile_medications_journal"))
-async def process_medication_list_pagination(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_medication_list_pagination(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     _, page = callback.data.split(":", 1)
-    profile_key = await get_cached_current_profile(db, callback.message.chat.id)
+    profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
         await callback.message.answer(t("journal.select_profile_short"))
@@ -348,21 +366,23 @@ async def process_medication_list_pagination(callback: CallbackQuery, state: FSM
 
 
 @medication_router.message(F.text.startswith("/mdcedit"))
-async def process_pagination_of_medicine_list(message: Message, state: FSMContext, db: AsyncSession):
+async def process_pagination_of_medicine_list(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     mdc_id = message.text.split("_", 1)[1]
-    profile_key = await get_cached_current_profile(db, message.chat.id)
-    profile_id = _profile_id_from_cached(profile_key)
-    if profile_id is None:
+    profile_key = current_profile
+    if profile_key is None:
         await message.answer(t("journal.select_profile_short"))
         return
+    profile_id = profile_key.id
     profile_mdc = await medication_use_cases.get_course(db, profile_id, int(mdc_id))
     if profile_mdc is None:
         await message.answer(t("medication.record_not_found"))
         return
     text = t(
         "medication.course_settings",
-        profile_name=profile_key.split("|", 1)[1],
+        profile_name=profile_key.name,
         medication_name=profile_mdc.medication_name,
         dosage=profile_mdc.dosage,
         frequency=profile_mdc.frequency,
@@ -375,10 +395,14 @@ async def process_pagination_of_medicine_list(message: Message, state: FSMContex
 
 
 @medication_router.message(F.text.startswith("/mdc"))
-async def process_editing_medication_settings(message: Message, state: FSMContext, db: AsyncSession):
+async def process_editing_medication_settings(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     _, action, mdc_id = message.text.split("_", 2)
-    profile_key = await get_cached_current_profile(db, message.chat.id)
+    if await deny_read_only(message, current_profile):
+        return
+    profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
         await message.answer(t("journal.select_profile_short"))
@@ -416,8 +440,17 @@ async def process_editing_medication_settings(message: Message, state: FSMContex
 
 
 @medication_router.callback_query(F.data.startswith("delete_med_prof"))
-async def process_confirm_deleting_medication(callback: CallbackQuery, db: AsyncSession):
+async def process_confirm_deleting_medication(
+    callback: CallbackQuery, db: AsyncSession, current_profile: ProfileRef | None
+):
     _, answer, mdc_id, prof_id = callback.data.split(":", 3)
+    if answer == "yes":
+        if current_profile is None or int(prof_id) != current_profile.id:
+            await callback.message.answer(t("journal.select_profile_short"))
+            await callback.answer()
+            return
+        if await deny_read_only(callback, current_profile):
+            return
     if answer == "yes":
         result = await medication_use_cases.delete_course(
             db,

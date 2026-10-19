@@ -26,7 +26,7 @@ async def select_own_profile(callback: CallbackQuery, db: AsyncSession):
     await callback.message.edit_text(
         t("choose_profile.select_profile"),
         reply_markup=get_paginated_profiles_kb(
-            profiles=profiles_redis,
+            profiles=profiles_redis or [],
             page=0,
             profile_type=profile_type
         )

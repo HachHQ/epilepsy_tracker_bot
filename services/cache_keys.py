@@ -2,6 +2,7 @@
 
 CACHE_TIME = 3600
 REQUEST_TIMEOUT = 600
+TRUSTED_LOOKUP_LIMIT = 5
 
 # Logical cache groups invalidated by domain events (see services/cache_invalidation.py).
 INVALIDATION_CONTRACT: dict[str, tuple[str, ...]] = {
@@ -37,6 +38,10 @@ def profiles_list(user_id: int, profile_type: str) -> str:
 
 def sending_timeout(user_id: int) -> str:
     return f"user:timeout_check:{user_id}"
+
+
+def trusted_lookup(user_id: int) -> str:
+    return f"user:trusted_lookup:{user_id}"
 
 
 def user_timezone(user_id: int) -> str:

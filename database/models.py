@@ -15,10 +15,11 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func, text
 
 from database.db_init import Base
+from database.seizure_values import parse_seizure_date, parse_seizure_time
 
 
 class RequestStatus(enum.Enum):
@@ -105,8 +106,8 @@ class Seizure(Base):
 
     id = Column(Integer, primary_key=True)
     profile_id = Column(Integer, ForeignKey('profiles.id', ondelete="RESTRICT"), nullable=False)
-    date = Column(String(25))
-    time = Column(String(25), nullable=True)
+    date = Column(Date)
+    time = Column(Time, nullable=True)
     severity = Column(String(50), nullable=True)
     duration = Column(Integer, nullable=True)
     comment = Column(String(150), nullable=True)
@@ -122,6 +123,14 @@ class Seizure(Base):
     symptoms = Column(String, nullable=True)
     owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     retention_until = Column(DateTime(timezone=True), nullable=True)
+
+    @validates("date")
+    def _coerce_date(self, _key: str, value):
+        return parse_seizure_date(value)
+
+    @validates("time")
+    def _coerce_time(self, _key: str, value):
+        return parse_seizure_time(value)
 
     profile = relationship("Profile", back_populates="seizures")
     symptom_links = relationship("SeizureSymptom", back_populates="seizure", cascade="all, delete-orphan")
@@ -174,9 +183,9 @@ class TrustedPersonProfiles(Base):
     trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     profile_owner_id = Column(Integer, ForeignKey("users.id"))
     profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
-    can_read = Column(Boolean, nullable=False, default=True)
-    can_edit = Column(Boolean, nullable=False, default=True)
-    get_notification = Column(Boolean, nullable=False, default=True)
+    can_read = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    can_edit = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    get_notification = Column(Boolean, nullable=False, default=True, server_default=text("true"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     def to_dict(self):
         return {
@@ -193,6 +202,11 @@ class TrustedPersonProfiles(Base):
     __table_args__ = (
         Index("ix_trusted_person_profiles_trusted_user", "trusted_person_user_id"),
         Index("ix_trusted_person_profiles_owner_profile", "profile_owner_id", "profile_id"),
+        UniqueConstraint(
+            "trusted_person_user_id",
+            "profile_id",
+            name="uq_trusted_person_profile",
+        ),
     )
 
 class TrustedPersonRequest(Base):
@@ -204,7 +218,7 @@ class TrustedPersonRequest(Base):
     transmitted_profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '10 minutes'"), nullable=False)
+    expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '24 hours'"), nullable=False)
 
 class UserNotifications(Base):
     __tablename__ = 'user_notifications'

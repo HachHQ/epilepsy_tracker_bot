@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
@@ -6,8 +6,11 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.telegram.delivery import show_seizure_from_model
+from adapters.telegram.form_presenter import present_form
 from config_data.pagination import JOURNAL_NOTES_PER_PAGE as NOTES_PER_PAGE
+from database.seizure_values import format_seizure_date, format_seizure_time
 from filters.correct_commands import ProfileIsSetCb
+from handlers_logic.access_reply import deny_read_only
 from handlers_logic.seizure_form import start_seizure_field_edit
 from i18n import t
 from keyboards.journal_kb import (
@@ -15,12 +18,13 @@ from keyboards.journal_kb import (
     get_journal_nav_kb,
     get_nav_btns_for_list,
 )
-from services.redis_cache_data import get_cached_current_profile, get_cached_login
+from services.profile_ref import ProfileRef
+from services.redis_cache_data import get_cached_login
+from use_cases.medications import medication_text_on
 from use_cases.seizures import (
     delete_seizure_record,
     get_journal_seizure,
     list_journal_seizures,
-    parse_current_profile,
 )
 
 journal_router = Router()
@@ -28,10 +32,13 @@ journal_router = Router()
 
 def _sort_seizures_by_datetime(seizures):
     def get_datetime(item):
-        date_str = item.date
-        if hasattr(item, "time") and item.time:
-            return datetime.strptime(f"{date_str} {item.time}", "%Y-%m-%d %H:%M")
-        return datetime.strptime(date_str, "%Y-%m-%d")
+        on_date = item.date
+        if isinstance(on_date, str):
+            on_date = datetime.strptime(on_date, "%Y-%m-%d").date()
+        at_time = item.time if isinstance(item.time, time) else time.min
+        if isinstance(item.time, str) and item.time:
+            at_time = datetime.strptime(item.time, "%H:%M").time()
+        return datetime.combine(on_date, at_time)
 
     return sorted(seizures, key=get_datetime, reverse=True)
 
@@ -48,10 +55,11 @@ def display_seizure_notes(seizures, current_page, login):
             if seizure.creator_login is not None and seizure.creator_login != login
             else ""
         )
-        time_part = seizure.time + " " if seizure.time is not None else ""
+        time_label = format_seizure_time(seizure.time)
+        time_part = f"{time_label} " if time_label else ""
         text += t(
             "journal.list_item",
-            date=seizure.date,
+            date=format_seizure_date(seizure.date),
             time=time_part,
             creator=creator,
             id=seizure.id,
@@ -65,14 +73,15 @@ async def process_journal_handler(callback: CallbackQuery, state: FSMContext):
 
 
 @journal_router.callback_query(F.data == "journal", ProfileIsSetCb())
-async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def get_list_of_seizures(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     login = await get_cached_login(db, callback.message.chat.id)
-    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
     if current_profile is None:
         await callback.message.answer(t("journal.select_profile"))
         return
-    profile_id, profile_name = parse_current_profile(current_profile)
+    profile_id, profile_name = current_profile.id, current_profile.name
     seizures = await list_journal_seizures(db, profile_id)
     if not seizures:
         await callback.message.answer(
@@ -92,12 +101,16 @@ async def get_list_of_seizures(callback: CallbackQuery, state: FSMContext, db: A
 
 
 @journal_router.callback_query(F.data.startswith("journal_page"))
-async def process_pagination_of_seizures_list(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+async def process_pagination_of_seizures_list(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     login = await get_cached_login(db, callback.message.chat.id)
     _, page = callback.data.split(":", 1)
-    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
-    profile_id, profile_name = parse_current_profile(current_profile)
+    if current_profile is None:
+        await callback.message.answer(t("journal.select_profile_short"))
+        return
+    profile_id, profile_name = current_profile.id, current_profile.name
     seizures = await list_journal_seizures(db, profile_id)
     text = t("journal.seizures_list_header", profile_name=profile_name)
     text += display_seizure_notes(seizures, int(page), login)
@@ -109,57 +122,78 @@ async def process_pagination_of_seizures_list(callback: CallbackQuery, state: FS
 
 
 @journal_router.message(F.text.startswith("/show"))
-async def get_detailed_info_about_seizure(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
+async def get_detailed_info_about_seizure(
+    message: Message, state: FSMContext, db: AsyncSession, bot: Bot, current_profile: ProfileRef | None
+):
     await state.clear()
     seizure_id = message.text.split("_", 1)[1]
     if not seizure_id.isnumeric():
         await message.answer(t("journal.invalid_index"))
         return
-    current_profile = await get_cached_current_profile(db, message.chat.id)
     if current_profile is None:
         await message.answer(t("journal.select_profile_short"))
         return
-    profile_id, profile_name = parse_current_profile(current_profile)
+    profile_id, profile_name = current_profile.id, current_profile.name
     seizure = await get_journal_seizure(db, seizure_id=int(seizure_id), profile_id=profile_id)
     if not seizure:
         await message.answer(t("journal.record_not_found_for_profile", profile_name=profile_name))
         return
-    await show_seizure_from_model(bot, message, seizure, profile_name)
+    medication = await medication_text_on(db, seizure.profile_id, seizure.date)
+    await show_seizure_from_model(bot, message, seizure, profile_name, medication=medication)
 
 
 @journal_router.message(F.text.startswith("/sjedit"))
-async def show_edit_options(message: Message, state: FSMContext, db: AsyncSession, bot: Bot):
+async def show_edit_options(
+    message: Message, state: FSMContext, db: AsyncSession, bot: Bot, current_profile: ProfileRef | None
+):
     await state.clear()
     seizure_id = int(message.text.split("_", 1)[1])
-    current_profile = await get_cached_current_profile(db, message.chat.id)
-    profile_id, profile_name = parse_current_profile(current_profile)
+    if await deny_read_only(message, current_profile):
+        return
+    if current_profile is None:
+        await message.answer(t("journal.select_profile_short"))
+        return
+    profile_id, profile_name = current_profile.id, current_profile.name
     seizure = await get_journal_seizure(db, seizure_id=seizure_id, profile_id=profile_id)
     if not seizure:
         await message.answer(t("journal.record_not_found"))
         return
-    await show_seizure_from_model(bot, message, seizure, profile_name, edit_mode=True)
+    medication = await medication_text_on(db, seizure.profile_id, seizure.date)
+    await show_seizure_from_model(
+        bot, message, seizure, profile_name, medication=medication, edit_mode=True
+    )
 
 
 @journal_router.message(F.text.startswith("/update"))
-async def get_seizure_info_to_edit(message: Message, state: FSMContext, db: AsyncSession):
+async def get_seizure_info_to_edit(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
     _, action, seizure_id = message.text.split("_", 2)
-    current_profile = await get_cached_current_profile(db, message.chat.id)
-    profile_id, _ = parse_current_profile(current_profile)
-    await start_seizure_field_edit(
+    if await deny_read_only(message, current_profile):
+        return
+    if current_profile is None:
+        await message.answer(t("journal.select_profile_short"))
+        return
+    profile_id = current_profile.id
+    await present_form(
         message,
-        state,
-        db,
-        action=action,
-        seizure_id=int(seizure_id),
-        profile_id=profile_id,
+        await start_seizure_field_edit(
+            state,
+            db,
+            action=action,
+            seizure_id=int(seizure_id),
+            profile_id=profile_id,
+            chat_id=message.chat.id,
+        ),
     )
 
 
 @journal_router.message(F.text.startswith("/delete"))
-async def delete_seizure(message: Message, db: AsyncSession):
+async def delete_seizure(message: Message, db: AsyncSession, current_profile: ProfileRef | None):
     seizure_id = int(message.text.split("_", 1)[1])
-    current_profile = await get_cached_current_profile(db, message.chat.id)
+    if await deny_read_only(message, current_profile):
+        return
     if current_profile is None:
         await message.answer(t("journal.select_profile_short"))
         return
@@ -167,15 +201,18 @@ async def delete_seizure(message: Message, db: AsyncSession):
 
 
 @journal_router.callback_query(F.data.startswith("delete_seizure_note"))
-async def process_delete_seizure_note(callback: CallbackQuery, db: AsyncSession):
+async def process_delete_seizure_note(
+    callback: CallbackQuery, db: AsyncSession, current_profile: ProfileRef | None
+):
     _, answer, seizure_id = callback.data.split(":", 2)
-    current_profile = await get_cached_current_profile(db, callback.message.chat.id)
     if current_profile is None:
         await callback.message.answer(t("journal.select_profile_short"))
         await callback.answer()
         return
+    if await deny_read_only(callback, current_profile):
+        return
     if answer == "yes":
-        profile_id, _ = parse_current_profile(current_profile)
+        profile_id = current_profile.id
         deleted = await delete_seizure_record(
             db,
             user_id=callback.message.chat.id,

@@ -57,7 +57,11 @@ async def process_timezone_by_geolocation(message: Message, state: FSMContext):
     if timezone_name:
         timezone = pytz.timezone(timezone_name)
         now = datetime.now(timezone)
-        utc_offset_seconds = now.utcoffset().total_seconds()
+        utc_offset = now.utcoffset()
+        if utc_offset is None:
+            await message.answer(t("user.timezone_info"), reply_markup=get_timezone_kb(), parse_mode='MarkDownV2')
+            return
+        utc_offset_seconds = utc_offset.total_seconds()
         utc_offset_hours = utc_offset_seconds / 3600
         tz_value = f"{int(utc_offset_hours):+}"
         await state.update_data(timezone=tz_value)

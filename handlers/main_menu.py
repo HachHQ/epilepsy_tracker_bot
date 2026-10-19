@@ -6,24 +6,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from i18n import t
 from keyboards.menu_kb import get_main_menu_keyboard
-from services.redis_cache_data import get_cached_current_profile, get_cached_login
+from services.profile_ref import ProfileRef
+from services.redis_cache_data import get_cached_login
 
 main_menu_router = Router()
 
-async def get_main_menu_text(session: AsyncSession, message: Message):
+async def get_main_menu_text(
+    session: AsyncSession, message: Message, curr_prof: ProfileRef | None
+):
     lg = await get_cached_login(session, message.chat.id)
-    curr_prof = await get_cached_current_profile(session, message.chat.id)
     text = t(
         "menu.main_status",
         login=lg if lg is not None else t("menu.login_not_registered"),
-        profile=curr_prof.split('|', 1)[1] if curr_prof is not None else t("menu.profile_not_selected"),
+        profile=curr_prof.name if curr_prof is not None else t("menu.profile_not_selected"),
     )
     return text
 
 @main_menu_router.message(Command(commands="menu"))
-async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
+async def send_main_menu(
+    message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
     await state.clear()
-    text = await get_main_menu_text(db, message)
+    text = await get_main_menu_text(db, message, current_profile)
     await message.answer(
         text,
         reply_markup=get_main_menu_keyboard(),
@@ -31,8 +35,10 @@ async def send_main_menu(message: Message, state: FSMContext, db: AsyncSession):
     )
 
 @main_menu_router.callback_query((F.data == "to_menu") | (F.data == "to_menu_edit"))
-async def send_main_menu_callback(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    text = await get_main_menu_text(db, callback.message)
+async def send_main_menu_callback(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
+):
+    text = await get_main_menu_text(db, callback.message, current_profile)
     if callback.data == "to_menu":
         await state.clear()
         await callback.message.answer(

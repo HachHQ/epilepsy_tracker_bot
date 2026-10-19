@@ -52,6 +52,21 @@ def parse_location_coords(location: str | None) -> tuple[float, float] | None:
     return None
 
 
+def format_medication_courses(courses) -> str:
+    lines: list[str] = []
+    for course in courses:
+        parts = [
+            value.strip()
+            for value in (course.medication_name, course.dosage, course.frequency)
+            if isinstance(value, str) and value.strip()
+        ]
+        if parts:
+            lines.append(", ".join(parts))
+    if not lines:
+        return t("notes.no_active_course")
+    return "\n".join(lines)
+
+
 def _field_line(label_key: str, value, edit_mode: bool, update_cmd: str) -> str:
     display = value if value else t("notes.not_entered")
     suffix = f" {update_cmd}{chr(10)}" if edit_mode else chr(10)
@@ -85,7 +100,7 @@ def build_seizure_display(
         location_display = "❌"
     else:
         location_display = _location_marker(location)
-    medication_display = medication if medication else not_entered
+    medication_display = medication if medication else t("notes.no_active_course")
 
     note = t("notes.seizure_header", profile=current_profile)
     note += _field_line("notes.field_date", date, edit_mode, f"/update_date_{seizure_id}")
@@ -102,8 +117,7 @@ def build_seizure_display(
     note += (f" /update_video_{seizure_id}{chr(10)}" if edit_mode else chr(10))
     note += t("notes.field_location", value=location_display)
     note += (f" /update_location_{seizure_id}{chr(10)}" if edit_mode else chr(10))
-    note += t("notes.field_medication", value=medication_display)
-    note += (f" /update_medication_{seizure_id}{chr(10)}" if edit_mode else chr(10))
+    note += t("notes.field_medication", value=medication_display) + chr(10)
 
     if seizure_id > 0:
         note += (

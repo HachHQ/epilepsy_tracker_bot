@@ -1,3 +1,4 @@
+# Local development. On a VPS run: bash scripts/up-prod.sh
 services:
   postgres:
     image: postgres:14-alpine
@@ -48,6 +49,7 @@ services:
       DB_PORT: 5432
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SEED_ON_STARTUP: ${SEED_ON_STARTUP:-0}
       TELEGRAM_PROXY: ${TELEGRAM_PROXY:-http://host.docker.internal:10808}
     depends_on:
       postgres:
@@ -62,7 +64,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import pathlib,sys; c=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'main.py' in c else 1)\"",
+          "python -c \"from services.runtime_health import heartbeat_is_fresh; import sys; sys.exit(0 if heartbeat_is_fresh() else 1)\"",
         ]
       interval: 30s
       timeout: 10s

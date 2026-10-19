@@ -9,9 +9,11 @@ from aiogram.types import CallbackQuery, FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.telegram.delivery import send_document_file
+from handlers_logic.access_reply import deny_read_only
 from handlers_logic.states_factories import GetExcelTableForm
 from i18n import t
-from services.redis_cache_data import get_cached_current_profile, get_cached_login
+from services.profile_ref import ProfileRef
+from services.redis_cache_data import get_cached_login
 from services.to_excel import get_excel_template_path
 from use_cases import import_export as import_export_use_cases
 
@@ -20,17 +22,27 @@ logger = logging.getLogger(__name__)
 
 
 @import_export_router.callback_query(F.data == "export_data")
-async def process_export_excel_data_by_profile(callback: CallbackQuery, db: AsyncSession, bot: Bot):
-    prof = await get_cached_current_profile(db, callback.message.chat.id)
+async def process_export_excel_data_by_profile(
+    callback: CallbackQuery, db: AsyncSession, bot: Bot, current_profile: ProfileRef | None
+):
+    prof = current_profile
+    if prof is None:
+        await callback.message.answer(t("journal.select_profile_short"))
+        await callback.answer()
+        return
     file_path = await import_export_use_cases.export_profile_seizures_excel(
-        db, int(prof.split("|")[0])
+        db, prof.id
     )
     await send_document_file(bot, callback.message.chat.id, file_path)
     await callback.answer()
 
 
 @import_export_router.callback_query(F.data == "import_data")
-async def process_import_excel_data_by_profile(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def process_import_excel_data_by_profile(
+    callback: CallbackQuery, state: FSMContext, bot: Bot, current_profile: ProfileRef | None
+):
+    if await deny_read_only(callback, current_profile):
+        return
     await send_document_file(
         bot,
         callback.message.chat.id,
@@ -44,15 +56,26 @@ async def process_import_excel_data_by_profile(callback: CallbackQuery, state: F
 
 
 @import_export_router.message(F.document, StateFilter(GetExcelTableForm))
-async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMContext, bot: Bot):
+async def handle_excel_upload(
+    message: Message,
+    db: AsyncSession,
+    state: FSMContext,
+    bot: Bot,
+    current_profile: ProfileRef | None,
+):
     if not message.document.file_name.endswith(".xlsx"):
         await message.answer(t("import.xlsx_required"))
         return
 
     file_path = ""
     try:
-        prof = await get_cached_current_profile(db, message.chat.id)
+        prof = current_profile
         login = await get_cached_login(db, message.chat.id)
+        if await deny_read_only(message, prof):
+            return
+        if prof is None or login is None:
+            await message.answer(t("journal.select_profile_short"))
+            return
         file_id = str(uuid4())
         file_path = f"import_temp/{file_id}.xlsx"
         os.makedirs("import_temp", exist_ok=True)
@@ -61,7 +84,7 @@ async def handle_excel_upload(message: Message, db: AsyncSession, state: FSMCont
         result = await import_export_use_cases.import_seizures_from_excel(
             db,
             file_path=file_path,
-            profile_id=int(prof.split("|")[0]),
+            profile_id=prof.id,
             login=login,
             user_id=message.chat.id,
         )

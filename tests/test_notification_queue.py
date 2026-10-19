@@ -4,6 +4,7 @@ import pytest
 
 from adapters.telegram.notification_queue import (
     MedicationReminderNotification,
+    NotificationBase,
     NotificationQueue,
 )
 
@@ -28,7 +29,7 @@ async def test_notification_queue_processes_enqueued_items() -> None:
     queue = NotificationQueue(bot, rate_limit=0)
     sent = AsyncMock()
 
-    class FakeNotification:
+    class FakeNotification(NotificationBase):
         async def send(self, bot):
             await sent()
 

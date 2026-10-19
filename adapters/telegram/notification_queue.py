@@ -3,6 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from aiogram import Bot
+from aiogram.enums import ButtonStyle
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
@@ -53,7 +54,11 @@ class TrustedContactRequest(NotificationBase):
         base64_payload = pack_callback_data(
             self.request_uuid, self.transmitted_profile_id, self.sender_id
         )
-        keyboard.button(text=t("common.yes"), callback_data=f"p_conf|{base64_payload}")
+        keyboard.button(
+            text=t("common.yes"),
+            callback_data=f"p_conf|{base64_payload}",
+            style=ButtonStyle.SUCCESS,
+        )
         keyboard.button(text=t("common.no"), callback_data=f"n_conf|{base64_payload}")
         try:
             await bot.send_message(

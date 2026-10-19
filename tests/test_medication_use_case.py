@@ -1,7 +1,9 @@
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from database.models import MedicationCourse
 from use_cases import medications as medication_use_cases
 
 
@@ -58,3 +60,63 @@ async def test_delete_course_returns_deleted_flag() -> None:
         )
 
     assert result.deleted is True
+
+
+def test_courses_active_on_uses_the_seizure_day() -> None:
+    started_earlier = MedicationCourse(
+        id=2,
+        medication_name="Ламотриджин",
+        dosage="100 мг",
+        frequency="2 раза в день",
+        start_date=date(2026, 1, 1),
+        end_date=None,
+    )
+    ended_yesterday = MedicationCourse(
+        id=1,
+        medication_name="Кеппра",
+        dosage="500 мг",
+        frequency="утро",
+        start_date=date(2025, 1, 1),
+        end_date=date(2026, 10, 10),
+    )
+    starts_tomorrow = MedicationCourse(
+        id=3,
+        medication_name="Позже",
+        start_date=date(2026, 10, 12),
+        end_date=None,
+    )
+    missing_start = MedicationCourse(id=4, medication_name="Без даты", start_date=None)
+    ends_today = MedicationCourse(
+        id=5,
+        medication_name="Карбамазепин",
+        dosage="200 мг",
+        frequency="вечер",
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 10, 11),
+    )
+
+    active = medication_use_cases.courses_active_on(
+        [ended_yesterday, starts_tomorrow, started_earlier, missing_start, ends_today],
+        date(2026, 10, 11),
+    )
+
+    assert [course.medication_name for course in active] == ["Ламотриджин", "Карбамазепин"]
+
+
+@pytest.mark.asyncio
+async def test_medication_text_on_lists_active_courses() -> None:
+    course = MedicationCourse(
+        id=1,
+        medication_name="Ламотриджин",
+        dosage="100 мг",
+        frequency="2 раза в день",
+        start_date=date(2026, 1, 1),
+        end_date=None,
+    )
+    with patch(
+        "use_cases.medications.list_profile_medications",
+        new=AsyncMock(return_value=[course]),
+    ):
+        text = await medication_use_cases.medication_text_on(AsyncMock(), 7, "2026-10-11")
+
+    assert text == "Ламотриджин, 100 мг, 2 раза в день"

@@ -1,7 +1,7 @@
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date, datetime, time
 
-from sqlalchemy import Date, asc, cast, delete, desc, func, select
+from sqlalchemy import asc, delete, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
@@ -15,24 +15,124 @@ def normalize_feature_names(value: Iterable[str] | str | None) -> list[str]:
     return [str(name).strip() for name in value if str(name).strip()]
 
 
+def normalize_symptom_name(name: str) -> str:
+    collapsed = " ".join(name.split())
+    if not collapsed:
+        return ""
+    return collapsed.lower().capitalize()
+
+
+def normalize_symptom_names(value: Iterable[str] | str | None) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in normalize_feature_names(value):
+        name = normalize_symptom_name(raw)
+        key = name.casefold()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        names.append(name)
+    return names
+
+
+def fold_symptom_counts(rows: Iterable[tuple[str, int]]) -> list[tuple[str, int]]:
+    totals: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for name, count in rows:
+        display = normalize_symptom_name(str(name))
+        if not display:
+            continue
+        key = display.casefold()
+        totals[key] = totals.get(key, 0) + int(count)
+        labels[key] = display
+    ranked = sorted(totals, key=lambda key: (-totals[key], labels[key].casefold()))
+    return [(labels[key], totals[key]) for key in ranked]
+
+
+def merge_symptom_choices(
+    catalog: Iterable[str],
+    custom: Iterable[str],
+    selected: Iterable[str] | None = None,
+) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in [*catalog, *(custom or []), *(selected or [])]:
+        name = normalize_symptom_name(raw) if isinstance(raw, str) else ""
+        key = name.casefold()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        names.append(name)
+    return names
+
+
 async def get_or_create_symptom(
     session: AsyncSession,
     name: str,
     profile_id: int,
 ) -> Symptom:
-    symptom = await session.scalar(
+    normalized = normalize_symptom_name(name)
+    if not normalized:
+        raise ValueError("Symptom name is empty")
+    result = await session.scalars(
         select(Symptom).where(
-            Symptom.symptom_name == name,
-            (Symptom.profile_id.is_(None)) | (Symptom.profile_id == profile_id),
+            or_(Symptom.profile_id.is_(None), Symptom.profile_id == int(profile_id))
         )
     )
-    if symptom:
+    key = normalized.casefold()
+    matches = [
+        symptom
+        for symptom in result.all()
+        if symptom.symptom_name and symptom.symptom_name.casefold() == key
+    ]
+    if not matches:
+        symptom = Symptom(symptom_name=normalized, profile_id=int(profile_id))
+        session.add(symptom)
+        await session.flush()
         return symptom
 
-    symptom = Symptom(symptom_name=name, profile_id=profile_id)
-    session.add(symptom)
+    profile_rows = [symptom for symptom in matches if symptom.profile_id == int(profile_id)]
+    if profile_rows:
+        primary = next(
+            (symptom for symptom in profile_rows if symptom.symptom_name == normalized),
+            profile_rows[0],
+        )
+    else:
+        primary = matches[0]
+    for extra in matches:
+        if extra.id == primary.id:
+            continue
+        await _reassign_symptom_links(session, extra.id, primary.id)
+        await session.delete(extra)
     await session.flush()
-    return symptom
+    if primary.profile_id is not None and primary.symptom_name != normalized:
+        primary.symptom_name = normalized
+    return primary
+
+
+async def _reassign_symptom_links(
+    session: AsyncSession,
+    source_id: int,
+    target_id: int,
+) -> None:
+    links = list(
+        (
+            await session.scalars(
+                select(SeizureSymptom).where(SeizureSymptom.symptom_id == source_id)
+            )
+        ).all()
+    )
+    for link in links:
+        already = await session.scalar(
+            select(SeizureSymptom).where(
+                SeizureSymptom.seizure_id == link.seizure_id,
+                SeizureSymptom.symptom_id == target_id,
+            )
+        )
+        await session.delete(link)
+        if already is None:
+            session.add(SeizureSymptom(seizure_id=link.seizure_id, symptom_id=target_id))
+    await session.flush()
 
 
 async def get_or_create_trigger(
@@ -60,8 +160,8 @@ async def create_seizure(
     session: AsyncSession,
     *,
     profile_id: int,
-    date: str,
-    time: str | None,
+    date: date | str | None,
+    time: time | str | None,
     severity: str | None,
     duration: int | str | None,
     comment: str | None,
@@ -126,10 +226,10 @@ async def list_seizures_from_date(
     month: int = 1,
     day: int = 1,
 ) -> list[Seizure]:
-    from_date = datetime(year=year, month=month, day=day)
+    from_date = date(year, month, day)
     result = await session.execute(
         select(Seizure).where(
-            cast(Seizure.date, Date) >= from_date,
+            Seizure.date >= from_date,
             Seizure.profile_id == int(profile_id),
         )
     )
@@ -146,8 +246,8 @@ async def list_seizures_for_year(
     result = await session.execute(
         select(Seizure).where(
             Seizure.profile_id == int(profile_id),
-            cast(Seizure.date, Date) >= start_date,
-            cast(Seizure.date, Date) < end_date,
+            Seizure.date >= start_date,
+            Seizure.date < end_date,
         )
     )
     return list(result.scalars().all())
@@ -226,7 +326,37 @@ async def update_seizure_attribute(
     seizure = await get_seizure_by_id(session, seizure_id, profile_id)
     if not seizure:
         return None
+    if attribute == "symptoms":
+        await replace_seizure_symptoms(session, seizure, profile_id, new_value)
+        return seizure
     if not hasattr(seizure, attribute):
         raise ValueError(f"Атрибут '{attribute}' не существует в модели Seizure.")
     setattr(seizure, attribute, new_value)
     return seizure
+
+
+async def replace_seizure_symptoms(
+    session: AsyncSession,
+    seizure: Seizure,
+    profile_id: int,
+    value,
+) -> None:
+    names = normalize_symptom_names(value)
+    seizure.symptoms = ", ".join(names) if names else None
+    await session.execute(
+        delete(SeizureSymptom).where(SeizureSymptom.seizure_id == seizure.id)
+    )
+    for name in names:
+        symptom = await get_or_create_symptom(session, name, profile_id)
+        session.add(SeizureSymptom(seizure_id=seizure.id, symptom_id=symptom.id))
+    await delete_unused_profile_symptoms(session, profile_id)
+
+
+async def delete_unused_profile_symptoms(session: AsyncSession, profile_id: int) -> None:
+    linked = exists().where(SeizureSymptom.symptom_id == Symptom.id)
+    await session.execute(
+        delete(Symptom).where(
+            Symptom.profile_id == int(profile_id),
+            ~linked,
+        )
+    )
