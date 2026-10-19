@@ -35,13 +35,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for proxy settings, port conflicts, and l
 
 ## VPS
 
-`docker-compose.prod.yml` is a separate stack: Postgres and Redis are not published on the host, the demo seed is forced off, and the Telegram proxy is empty unless `TELEGRAM_PROXY` is set. On the server, keep `.env` next to the clone and update the bot with:
+`docker-compose.prod.yml` is a separate stack: Postgres and Redis are not published on the host, the demo seed is forced off, and the Telegram proxy is empty unless `TELEGRAM_PROXY` is set. The server keeps its own `.env` next to the clone.
 
-```bash
-bash scripts/up-prod.sh
-```
-
-Run one copy of this stack. The bot uses long polling and an in-process scheduler.
+A green pull request does not deploy. After it is merged into `master`, the Deploy job checks out that commit on the VPS and runs `scripts/up-prod.sh`. Only one copy of this stack should run: the bot uses long polling and an in-process scheduler.
 
 ## Local Development (without Docker)
 
