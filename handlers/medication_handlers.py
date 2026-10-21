@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from config_data.pagination import MEDICATIONS_PER_PAGE as NOTES_PER_PAGE
 from handlers_logic.access_reply import deny_read_only
 from handlers_logic.states_factories import MedicationCourse
@@ -65,7 +66,11 @@ def display_medications(profile_medications, current_page):
 
 @medication_router.callback_query(F.data == "medication")
 async def process_choosing_profile(callback: CallbackQuery):
-    await callback.message.edit_text(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(
         t("menu.medication"),
         reply_markup=get_medication_sumbenu(),
     )
@@ -76,14 +81,20 @@ async def process_choosing_profile(callback: CallbackQuery):
 async def process_add_medication(
     callback: CallbackQuery, state: FSMContext, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     if await deny_read_only(callback, current_profile):
         return
     await state.set_state(MedicationCourse.medication_name)
-    await callback.message.answer(t("medication.name_prompt"), reply_markup=get_cancel_kb())
+    await message.answer(t("medication.name_prompt"), reply_markup=get_cancel_kb())
 
 
 @medication_router.message(StateFilter(MedicationCourse.medication_name))
 async def process_medication_name(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_40(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -114,6 +125,8 @@ async def process_medication_name(message: Message, state: FSMContext, db: Async
 
 @medication_router.message(StateFilter(MedicationCourse.dosage))
 async def process_medication_dosage(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_40(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -144,6 +157,8 @@ async def process_medication_dosage(message: Message, state: FSMContext, db: Asy
 
 @medication_router.message(StateFilter(MedicationCourse.frequency))
 async def process_medication_frequency(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_40(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -174,13 +189,19 @@ async def process_medication_frequency(message: Message, state: FSMContext, db: 
 
 @medication_router.callback_query(F.data == "skip_note_for_medication", StateFilter(MedicationCourse.notes))
 async def process_skip_medication_notes(callback: CallbackQuery, state: FSMContext):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     await state.set_state(MedicationCourse.start_date)
-    await callback.message.answer(t("medication.start_date_prompt"), reply_markup=get_cancel_kb())
+    await message.answer(t("medication.start_date_prompt"), reply_markup=get_cancel_kb())
     await callback.answer()
 
 
 @medication_router.message(StateFilter(MedicationCourse.notes))
 async def process_medication_notes(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_60(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -208,6 +229,8 @@ async def process_medication_notes(message: Message, state: FSMContext, db: Asyn
 
 @medication_router.message(StateFilter(MedicationCourse.start_date))
 async def process_medication_start_date(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_date(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -276,7 +299,11 @@ async def _create_course_from_state(
 async def process_medication_confirm(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
-    await _create_course_from_state(callback.message, state, db, current_profile)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await _create_course_from_state(message, state, db, current_profile)
     await callback.answer()
 
 
@@ -284,6 +311,8 @@ async def process_medication_confirm(
 async def process_medication_end_date(
     message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    if message.text is None:
+        return
     if validate_date(message.text):
         data = await state.get_data()
         mode = data.get("mdcmode", "create")
@@ -313,20 +342,24 @@ async def process_medication_end_date(
 async def process_medication_display(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
-        await callback.message.answer(t("journal.select_profile_short"))
+        await message.answer(t("journal.select_profile_short"))
         await callback.answer()
         return
     profile_medications = await medication_use_cases.list_courses(db, profile_id)
     if not profile_medications:
-        await callback.message.answer(t("medication.no_courses"))
+        await message.answer(t("medication.no_courses"))
         await callback.answer()
         return
     text = t("medication.courses_list_header", count=len(profile_medications))
     text += display_medications(profile_medications, 0)
-    await callback.message.answer(
+    await message.answer(
         text,
         parse_mode="HTML",
         reply_markup=get_nav_btns_for_list(
@@ -340,22 +373,30 @@ async def process_medication_display(
 async def process_medication_list_pagination(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
     await state.clear()
-    _, page = callback.data.split(":", 1)
+    _, page = payload.split(":", 1)
     profile_key = current_profile
     profile_id = _profile_id_from_cached(profile_key)
     if profile_id is None:
-        await callback.message.answer(t("journal.select_profile_short"))
+        await message.answer(t("journal.select_profile_short"))
         await callback.answer()
         return
     profile_medications = await medication_use_cases.list_courses(db, profile_id)
     if not profile_medications:
-        await callback.message.answer(t("medication.no_courses"))
+        await message.answer(t("medication.no_courses"))
         await callback.answer()
         return
     text = t("medication.courses_list_header", count=len(profile_medications))
     text += display_medications(profile_medications, page)
-    await callback.message.edit_text(
+    await message.edit_text(
         text,
         parse_mode="HTML",
         reply_markup=get_nav_btns_for_list(
@@ -370,6 +411,8 @@ async def process_pagination_of_medicine_list(
     message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
     await state.clear()
+    if message.text is None:
+        return
     mdc_id = message.text.split("_", 1)[1]
     profile_key = current_profile
     if profile_key is None:
@@ -399,6 +442,8 @@ async def process_editing_medication_settings(
     message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
     await state.clear()
+    if message.text is None:
+        return
     _, action, mdc_id = message.text.split("_", 2)
     if await deny_read_only(message, current_profile):
         return
@@ -443,10 +488,18 @@ async def process_editing_medication_settings(
 async def process_confirm_deleting_medication(
     callback: CallbackQuery, db: AsyncSession, current_profile: ProfileRef | None
 ):
-    _, answer, mdc_id, prof_id = callback.data.split(":", 3)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    _, answer, mdc_id, prof_id = payload.split(":", 3)
     if answer == "yes":
         if current_profile is None or int(prof_id) != current_profile.id:
-            await callback.message.answer(t("journal.select_profile_short"))
+            await message.answer(t("journal.select_profile_short"))
             await callback.answer()
             return
         if await deny_read_only(callback, current_profile):
@@ -458,9 +511,9 @@ async def process_confirm_deleting_medication(
             medication_id=int(mdc_id),
         )
         if result.deleted:
-            await callback.message.answer(t("medication.delete_success"))
+            await message.answer(t("medication.delete_success"))
         else:
-            await callback.message.answer(t("medication.record_not_found"))
+            await message.answer(t("medication.record_not_found"))
     else:
-        await callback.message.answer(t("medication.delete_cancelled"))
+        await message.answer(t("medication.delete_cancelled"))
     await callback.answer()

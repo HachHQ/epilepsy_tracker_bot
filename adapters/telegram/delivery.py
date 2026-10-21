@@ -53,7 +53,7 @@ async def show_seizure_from_model(
         count=seizure.count,
         triggers=seizure.triggers,
         severity=seizure.severity,
-        duration=get_minutes_and_seconds(seizure.duration),
+        duration=get_minutes_and_seconds(seizure.duration or 0),
         comment=seizure.comment,
         symptoms=seizure.symptoms,
         video_tg_id=seizure.video_tg_id,

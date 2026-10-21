@@ -1,21 +1,20 @@
 import enum
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
-    Column,
     Date,
     DateTime,
     Enum,
     ForeignKey,
     Index,
     Integer,
-    PrimaryKeyConstraint,
     String,
     Time,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from sqlalchemy.sql import func, text
 
 from database.db_init import Base
@@ -31,21 +30,23 @@ class RequestStatus(enum.Enum):
 class User(Base):
     __tablename__ = 'users'
 
-    id = Column(Integer, primary_key=True)
-    telegram_id = Column(BigInteger, nullable=False)
-    telegram_username = Column(String(64))
-    telegram_fullname = Column(String(64))
-    name = Column(String(25))
-    login = Column(String(25), nullable=False, unique=True)
-    timezone = Column(String(3))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    keyword_hash = Column(String(60))
-    current_profile = Column(Integer, default=None, nullable=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-    data_retention_until = Column(DateTime(timezone=True), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    telegram_username: Mapped[str | None] = mapped_column(String(64))
+    telegram_fullname: Mapped[str | None] = mapped_column(String(64))
+    name: Mapped[str | None] = mapped_column(String(25))
+    login: Mapped[str] = mapped_column(String(25), nullable=False, unique=True)
+    timezone: Mapped[str | None] = mapped_column(String(3))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    keyword_hash: Mapped[str | None] = mapped_column(String(60))
+    current_profile: Mapped[int | None] = mapped_column(Integer, default=None, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    data_retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    profiles = relationship("Profile", back_populates="user")
+    profiles: Mapped[list["Profile"]] = relationship(back_populates="user")
 
     @property
     def is_deleted(self) -> bool:
@@ -68,22 +69,24 @@ class User(Base):
 class Profile(Base):
     __tablename__ = 'profiles'
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
-    profile_name = Column(String(40), nullable=False)
-    type_of_epilepsy = Column(String(100))
-    age = Column(Integer)
-    sex = Column(String(20))
-    biological_species = Column(String(30))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-    seizures_retention_until = Column(DateTime(timezone=True), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
+    profile_name: Mapped[str] = mapped_column(String(40), nullable=False)
+    type_of_epilepsy: Mapped[str | None] = mapped_column(String(100))
+    age: Mapped[int | None] = mapped_column(Integer)
+    sex: Mapped[str | None] = mapped_column(String(20))
+    biological_species: Mapped[str | None] = mapped_column(String(30))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, onupdate=func.now()
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    seizures_retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", back_populates="profiles")
-    seizures = relationship("Seizure", back_populates="profile")
-    symptoms = relationship("Symptom", back_populates="profile", cascade="all, delete-orphan")
-    triggers = relationship("Trigger", back_populates="profile", cascade="all, delete-orphan")
+    user: Mapped["User"] = relationship(back_populates="profiles")
+    seizures: Mapped[list["Seizure"]] = relationship(back_populates="profile")
+    symptoms: Mapped[list["Symptom"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
+    triggers: Mapped[list["Trigger"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
 
     @property
     def is_deleted(self) -> bool:
@@ -104,25 +107,25 @@ class Profile(Base):
 class Seizure(Base):
     __tablename__ = 'seizures'
 
-    id = Column(Integer, primary_key=True)
-    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete="RESTRICT"), nullable=False)
-    date = Column(Date)
-    time = Column(Time, nullable=True)
-    severity = Column(String(50), nullable=True)
-    duration = Column(Integer, nullable=True)
-    comment = Column(String(150), nullable=True)
-    count = Column(Integer, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(Integer, ForeignKey('profiles.id', ondelete="RESTRICT"), nullable=False)
+    date: Mapped[date | None] = mapped_column(Date)
+    time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    comment: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    video_tg_id = Column(String(255), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    creator_login = Column(String(25), nullable=False)
-    type_of_seizure = Column(String(50), nullable=True)
-    triggers = Column(String, nullable=True)
-    location = Column(String(30), nullable=True)
-    symptoms = Column(String, nullable=True)
-    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    retention_until = Column(DateTime(timezone=True), nullable=True)
+    video_tg_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    creator_login: Mapped[str] = mapped_column(String(25), nullable=False)
+    type_of_seizure: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    triggers: Mapped[str | None] = mapped_column(String, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    symptoms: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @validates("date")
     def _coerce_date(self, _key: str, value):
@@ -132,9 +135,13 @@ class Seizure(Base):
     def _coerce_time(self, _key: str, value):
         return parse_seizure_time(value)
 
-    profile = relationship("Profile", back_populates="seizures")
-    symptom_links = relationship("SeizureSymptom", back_populates="seizure", cascade="all, delete-orphan")
-    trigger_links = relationship("SeizureTrigger", back_populates="seizure", cascade="all, delete-orphan")
+    profile: Mapped["Profile"] = relationship(back_populates="seizures")
+    symptom_links: Mapped[list["SeizureSymptom"]] = relationship(
+        back_populates="seizure", cascade="all, delete-orphan"
+    )
+    trigger_links: Mapped[list["SeizureTrigger"]] = relationship(
+        back_populates="seizure", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_seizures_profile_id_date", "profile_id", "date"),
@@ -142,51 +149,53 @@ class Seizure(Base):
 
 class SeizureSymptom(Base):
     __tablename__ = 'seizure_symptoms'
-    seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
-    symptom_id = Column(Integer, ForeignKey("symptoms.id", ondelete="CASCADE"))
-    seizure = relationship("Seizure", back_populates="symptom_links")
-    symptom = relationship("Symptom", back_populates="seizure_links")
-    __table_args__ = (
-        PrimaryKeyConstraint('seizure_id', 'symptom_id'),
-    )
+    seizure_id: Mapped[int] = mapped_column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"), primary_key=True)
+    symptom_id: Mapped[int] = mapped_column(Integer, ForeignKey("symptoms.id", ondelete="CASCADE"), primary_key=True)
+    seizure: Mapped["Seizure"] = relationship(back_populates="symptom_links")
+    symptom: Mapped["Symptom"] = relationship(back_populates="seizure_links")
+
 class SeizureTrigger(Base):
     __tablename__ = 'seizure_triggers'
-    seizure_id = Column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"))
-    trigger_id = Column(Integer, ForeignKey("triggers.id", ondelete="CASCADE"))
-    seizure = relationship("Seizure", back_populates="trigger_links")
-    trigger = relationship("Trigger", back_populates="seizure_links")
-    __table_args__ = (
-        PrimaryKeyConstraint('seizure_id', 'trigger_id'),
-    )
+    seizure_id: Mapped[int] = mapped_column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"), primary_key=True)
+    trigger_id: Mapped[int] = mapped_column(Integer, ForeignKey("triggers.id", ondelete="CASCADE"), primary_key=True)
+    seizure: Mapped["Seizure"] = relationship(back_populates="trigger_links")
+    trigger: Mapped["Trigger"] = relationship(back_populates="seizure_links")
+
 class Symptom(Base):
     __tablename__ = 'symptoms'
-    id = Column(Integer, primary_key=True)
-    symptom_name = Column(String(100), nullable=False)
-    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
-    profile = relationship("Profile", back_populates="symptoms")
-    seizure_links = relationship("SeizureSymptom", back_populates="symptom", cascade="all, delete-orphan")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symptom_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    profile: Mapped["Profile | None"] = relationship(back_populates="symptoms")
+    seizure_links: Mapped[list["SeizureSymptom"]] = relationship(
+        back_populates="symptom", cascade="all, delete-orphan"
+    )
     __table_args__ = (UniqueConstraint('symptom_name', 'profile_id', name='uix_symptom_name_profile'),)
+
 class Trigger(Base):
     __tablename__ = 'triggers'
-    id = Column(Integer, primary_key=True)
-    trigger_name = Column(String(100), nullable=False)
-    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
-    profile = relationship("Profile", back_populates="triggers")
-    seizure_links = relationship("SeizureTrigger", back_populates="trigger", cascade="all, delete-orphan")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trigger_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    profile: Mapped["Profile | None"] = relationship(back_populates="triggers")
+    seizure_links: Mapped[list["SeizureTrigger"]] = relationship(
+        back_populates="trigger", cascade="all, delete-orphan"
+    )
     __table_args__ = (UniqueConstraint('trigger_name', 'profile_id', name='uix_trigger_name_profile'),)
 
 
 class TrustedPersonProfiles(Base):
     __tablename__ = "trusted_person_profiles"
 
-    id = Column(Integer, primary_key=True)
-    trusted_person_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    profile_owner_id = Column(Integer, ForeignKey("users.id"))
-    profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
-    can_read = Column(Boolean, nullable=False, default=True, server_default=text("true"))
-    can_edit = Column(Boolean, nullable=False, default=False, server_default=text("false"))
-    get_notification = Column(Boolean, nullable=False, default=True, server_default=text("true"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trusted_person_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    profile_owner_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
+    profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"))
+    can_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    can_edit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    get_notification: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -212,27 +221,31 @@ class TrustedPersonProfiles(Base):
 class TrustedPersonRequest(Base):
     __tablename__ = "trusted_person_requests"
 
-    id = Column(String, primary_key=True)
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    transmitted_profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
-    status: Column[RequestStatus] = Column(
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    sender_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    recepient_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    transmitted_profile_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[RequestStatus] = mapped_column(
         Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False
     )
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '24 hours'"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("NOW() + INTERVAL '24 hours'"), nullable=False
+    )
 
 class UserNotifications(Base):
     __tablename__ = 'user_notifications'
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    notify_time = Column(Time, nullable=False)
-    note = Column(String(100), nullable=False)
-    pattern = Column(String(20), nullable=False, default="daily")
-    is_enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
+    notify_time: Mapped[time] = mapped_column(Time, nullable=False)
+    note: Mapped[str] = mapped_column(String(100), nullable=False)
+    pattern: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
+    is_enabled: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     __table_args__ = (
         UniqueConstraint('user_id', 'notify_time', name='uix_user_notify_time'),
     )
@@ -240,16 +253,18 @@ class UserNotifications(Base):
 class MedicationCourse(Base):
     __tablename__ = 'medication_courses'
 
-    id = Column(Integer, primary_key=True)
-    profile_id = Column(Integer, ForeignKey('profiles.id', ondelete='CASCADE'), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(Integer, ForeignKey('profiles.id', ondelete='CASCADE'), nullable=False)
 
-    medication_name = Column(String(100))
-    dosage = Column(String(50))
-    frequency = Column(String(30))
-    notes = Column(String(200))
+    medication_name: Mapped[str | None] = mapped_column(String(100))
+    dosage: Mapped[str | None] = mapped_column(String(50))
+    frequency: Mapped[str | None] = mapped_column(String(30))
+    notes: Mapped[str | None] = mapped_column(String(200))
 
-    start_date = Column(Date)
-    end_date = Column(Date, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

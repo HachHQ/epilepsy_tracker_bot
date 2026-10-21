@@ -34,6 +34,7 @@ async def test_seizure_create_persists_triggers_and_symptoms(db_session, test_us
                 "symptoms": "aura, headache",
             },
         )
+    assert preview is not None
 
     assert preview.seizure_id > 0
     assert preview.triggers == "Stress"
@@ -61,6 +62,7 @@ async def test_seizure_update_and_delete(db_session, test_user) -> None:
             creator_login=test_user["user"].login,
             state_data={"date_short": "2026-06-01", "severity": "1"},
         )
+        assert preview is not None
 
         updated = await update_seizure_field(
             db_session,

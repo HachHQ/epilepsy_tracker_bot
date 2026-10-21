@@ -2,9 +2,10 @@ import logging
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from matplotlib.cbook import CallbackRegistry
+from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from adapters.telegram.notification_queue import NotificationQueue, SosMassNotification
 from i18n import t
 from keyboards.notification_kb import get_choose_sos_notify_mode_kb
@@ -14,8 +15,12 @@ sos_router = Router()
 logger = logging.getLogger(__name__)
 
 @sos_router.callback_query(F.data == 'sos_notification')
-async def process_ask_for_geoloc(callback: CallbackRegistry, state: FSMContext):
-    await callback.message.answer(
+async def process_ask_for_geoloc(callback: CallbackQuery, state: FSMContext):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(
         t("sos.ask_prompt"),
         reply_markup=get_choose_sos_notify_mode_kb(),
         parse_mode='HTML',
@@ -45,15 +50,19 @@ def get_tr_usernames_of_user(tr_users):
 
 @sos_router.callback_query(F.data.startswith('sos_notify_with_geo'))
 async def process_send_sos_notify_to_trusted_persons(
-    callback: CallbackRegistry,
+    callback: CallbackQuery,
     state: FSMContext,
     db: AsyncSession,
     notification_queue: NotificationQueue,
 ):
+    message = live_message(callback.message)
+    if message is None or callback.from_user is None:
+        await callback.answer()
+        return
     first_name = callback.from_user.full_name
     username = callback.from_user.username if callback.from_user.username else t("sos.no_username")
     text = get_sos_notify_message_with_args(first_name, username)
-    trusted_persons = await get_cached_trusted_persons_agrigated_data(db, callback.message.chat.id)
+    trusted_persons = await get_cached_trusted_persons_agrigated_data(db, message.chat.id)
     unique = {}
     for tr in trusted_persons:
         try:
@@ -63,7 +72,7 @@ async def process_send_sos_notify_to_trusted_persons(
             logger.exception("Failed to process trusted person entry: %s", tr)
     trusted_persons_tg_ids = list(unique.values())
     if len(trusted_persons_tg_ids) == 0:
-        await callback.message.answer(t("sos.no_trusted_persons"))
-    await callback.message.answer(get_tr_usernames_of_user(trusted_persons))
+        await message.answer(t("sos.no_trusted_persons"))
+    await message.answer(get_tr_usernames_of_user(trusted_persons))
     await notification_queue.enqueue(SosMassNotification(trusted_persons_tg_ids, text))
     await callback.answer()

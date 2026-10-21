@@ -11,6 +11,7 @@ from database.models import (
     TrustedPersonRequest,
     User,
 )
+from database.repositories.executil import affected_rows
 
 
 async def list_trusted_profiles_for_guest(
@@ -102,7 +103,7 @@ async def delete_trusted_link(session: AsyncSession, tpp_id: int) -> bool:
     result = await session.execute(
         delete(TrustedPersonProfiles).where(TrustedPersonProfiles.id == int(tpp_id))
     )
-    return result.rowcount > 0
+    return affected_rows(result) > 0
 
 
 async def toggle_trusted_edit_permission(
