@@ -5,6 +5,7 @@ from sqlalchemy import asc, delete, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Seizure, SeizureSymptom, SeizureTrigger, Symptom, Trigger
+from database.repositories.executil import affected_rows
 
 
 def normalize_feature_names(value: Iterable[str] | str | None) -> list[str]:
@@ -296,14 +297,14 @@ async def delete_seizure(
             Seizure.profile_id == int(profile_id),
         )
     )
-    return result.rowcount > 0
+    return affected_rows(result) > 0
 
 
 async def delete_all_seizures_for_profile(session: AsyncSession, profile_id: int) -> int:
     result = await session.execute(
         delete(Seizure).where(Seizure.profile_id == int(profile_id))
     )
-    return int(result.rowcount or 0)
+    return affected_rows(result)
 
 
 async def delete_expired_seizures(session: AsyncSession, *, before: datetime) -> int:
@@ -313,7 +314,7 @@ async def delete_expired_seizures(session: AsyncSession, *, before: datetime) ->
             Seizure.retention_until < before,
         )
     )
-    return int(result.rowcount or 0)
+    return affected_rows(result)
 
 
 async def update_seizure_attribute(

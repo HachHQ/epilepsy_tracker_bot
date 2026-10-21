@@ -71,11 +71,11 @@ async def get_cached_user_id_from_db(session: AsyncSession, user_id: int) -> int
     user = await get_user_by_chat_id(session, user_id)
     if not user:
         return None
-    user_db_id = user.id
-    await set_redis_cached_user_id_from_db(user_id, user_db_id)
+    stored_id = user.id
+    await set_redis_cached_user_id_from_db(user_id, stored_id)
     logger.debug("Get user_db_id from DB")
 
-    return user_db_id
+    return stored_id
 
 async def get_cached_current_profile(session: AsyncSession, user_id: int) -> ProfileRef | None:
     user = await get_user_by_chat_id(session, user_id)
@@ -139,7 +139,7 @@ async def get_cached_user_timezone(session: AsyncSession, user_id: int):
         logger.debug("Get user timezone from Redis")
         return user_timezone
     user = await get_user_by_chat_id(session, user_id)
-    if user is None:
+    if user is None or user.timezone is None:
         return None
     await set_redis_user_timezone(user_id, user.timezone)
     logger.debug("Get user timezone from DB")

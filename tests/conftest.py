@@ -1,5 +1,6 @@
 import os
 import uuid
+from collections.abc import AsyncGenerator
 
 import pytest
 from sqlalchemy import text
@@ -24,7 +25,7 @@ def _database_url() -> str:
 
 
 @pytest.fixture
-async def db_session() -> AsyncSession:
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
     engine = create_async_engine(_database_url(), pool_pre_ping=True)
     try:
         async with engine.connect() as connection:

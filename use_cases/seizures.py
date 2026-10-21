@@ -99,7 +99,7 @@ async def create_seizure_from_state(
         count=seizure.count,
         triggers=", ".join(trigger_names) if trigger_names else None,
         severity=seizure.severity,
-        duration=get_minutes_and_seconds(seizure.duration),
+        duration=get_minutes_and_seconds(seizure.duration or 0),
         comment=seizure.comment,
         symptoms=", ".join(symptom_names) if symptom_names else None,
         video_tg_id=seizure.video_tg_id,

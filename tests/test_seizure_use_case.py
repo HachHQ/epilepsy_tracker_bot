@@ -1,8 +1,10 @@
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from database.models import Seizure
 from database.repositories.seizures import (
     fold_symptom_counts,
     merge_symptom_choices,
@@ -38,7 +40,7 @@ async def test_replace_seizure_symptoms_keeps_unique_names_and_links() -> None:
         "database.repositories.seizures.get_or_create_symptom",
         new=AsyncMock(return_value=symptom),
     ) as create_symptom:
-        await replace_seizure_symptoms(session, seizure, 1, "Оцепенение, Оцепенение")
+        await replace_seizure_symptoms(session, cast(Seizure, seizure), 1, "Оцепенение, Оцепенение")
 
     assert seizure.symptoms == "Оцепенение"
     session.execute.assert_awaited()
@@ -54,7 +56,7 @@ async def test_replace_seizure_symptoms_clears_an_empty_list() -> None:
     seizure = SimpleNamespace(id=3, symptoms="Оцепенение")
     session = MagicMock()
     session.execute = AsyncMock()
-    await replace_seizure_symptoms(session, seizure, 1, "")
+    await replace_seizure_symptoms(session, cast(Seizure, seizure), 1, "")
     assert seizure.symptoms is None
     session.add.assert_not_called()
 
