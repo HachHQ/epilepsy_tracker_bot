@@ -39,12 +39,19 @@ def load_config(path: str | None = None, *, strict: bool = True) -> Config:
         return env(name) if strict else env(name, default)
 
     def get_admins() -> list[int]:
-        if strict:
-            return [int(admin_id) for admin_id in env.list('ADMINS', subcast=int)]
         try:
-            return [int(admin_id) for admin_id in env.list('ADMINS', subcast=int, default=[])]
+            raw_admins = (
+                env.list('ADMINS', subcast=int)
+                if strict
+                else env.list('ADMINS', subcast=int, default=[])
+            )
         except Exception:
+            if strict:
+                raise
             return []
+        if raw_admins is None:
+            return []
+        return [int(admin_id) for admin_id in raw_admins]
 
     return Config(
         tg_bot=TgBot(
