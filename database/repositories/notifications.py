@@ -4,6 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import UserNotifications
+from database.repositories.executil import affected_rows
 
 
 async def list_user_notifications(
@@ -76,4 +77,4 @@ async def delete_notification(
             UserNotifications.user_id == int(user_id),
         )
     )
-    return result.rowcount > 0
+    return affected_rows(result) > 0

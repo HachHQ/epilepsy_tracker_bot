@@ -20,7 +20,9 @@ async def get_top_seizure_features(session: AsyncSession, profile_id: int) -> di
     symptoms_result = await session.execute(symptom_query)
     top_symptoms = [
         {"name": name, "count": count}
-        for name, count in fold_symptom_counts(symptoms_result.all())[:5]
+        for name, count in fold_symptom_counts(
+            [(str(name), int(count)) for name, count in symptoms_result.all()]
+        )[:5]
     ]
 
     trigger_query = (

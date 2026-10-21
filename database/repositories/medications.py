@@ -4,6 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import MedicationCourse
+from database.repositories.executil import affected_rows
 
 
 def _parse_optional_date(value: str | date | datetime | None) -> date | None:
@@ -94,4 +95,4 @@ async def delete_medication(
             MedicationCourse.profile_id == int(profile_id),
         )
     )
-    return result.rowcount > 0
+    return affected_rows(result) > 0

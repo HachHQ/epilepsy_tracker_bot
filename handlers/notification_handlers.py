@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from config_data.pagination import NOTIFICATIONS_PER_PAGE as NOTES_PER_PAGE
 from handlers_logic.states_factories import NotificationForm
 from i18n import t
@@ -50,7 +51,11 @@ def display_notifications(user_notifications, current_page):
 
 @notification_router.callback_query(F.data == "notifications_control")
 async def process_choosing_profile(callback: CallbackQuery):
-    await callback.message.edit_text(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(
         t("menu.notifications"),
         reply_markup=get_notify_sumbenu(),
     )
@@ -59,8 +64,12 @@ async def process_choosing_profile(callback: CallbackQuery):
 
 @notification_router.callback_query(F.data == "add_notification")
 async def process_add_medication(callback: CallbackQuery, state: FSMContext):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     await state.set_state(NotificationForm.notify_time)
-    await callback.message.answer(
+    await message.answer(
         t("notification.time_prompt", hint=t("notification.time_invalid")),
         reply_markup=get_cancel_kb(),
     )
@@ -94,6 +103,8 @@ async def process_notification_time(message: Message, state: FSMContext, db: Asy
 
 @notification_router.message(StateFilter(NotificationForm.note))
 async def process_notification_note(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_100(message.text):
         await state.update_data(note=message.text)
         data = await state.get_data()
@@ -122,10 +133,18 @@ async def process_notification_note(message: Message, state: FSMContext, db: Asy
 async def process_notification_pattern_and_saving(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession
 ):
-    notification_pattern = callback.data.split(":")[1]
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    notification_pattern = payload.split(":")[1]
     data = await state.get_data()
     if len(data) == 0:
-        await callback.message.answer(t("notification.restart"))
+        await message.answer(t("notification.restart"))
         await callback.answer()
         return
     mode = data.get("ntmode", "create")
@@ -138,21 +157,23 @@ async def process_notification_pattern_and_saving(
             new_value=notification_pattern,
         )
         if notification_pattern == "daily":
-            await callback.message.answer(t("notification.pattern_updated_daily"))
+            await message.answer(t("notification.pattern_updated_daily"))
         else:
-            await callback.message.answer(t("notification.pattern_updated_once"))
+            await message.answer(t("notification.pattern_updated_once"))
         await state.clear()
         await callback.answer()
         return
     notify_time = data.get("notify_time", None)
     note = data.get("note", None)
+    if not isinstance(note, str):
+        note = ""
     if not isinstance(notify_time, str):
-        await callback.message.answer(t("notification.restart"))
+        await message.answer(t("notification.restart"))
         await callback.answer()
         return
-    user_id = await get_cached_user_id_from_db(db, callback.message.chat.id)
+    user_id = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id is None:
-        await callback.message.answer(t("notification.restart"))
+        await message.answer(t("notification.restart"))
         await callback.answer()
         return
     formatted_time = get_nearest_slot(datetime.strptime(notify_time, "%H:%M")).time()
@@ -170,25 +191,29 @@ async def process_notification_pattern_and_saving(
         pattern=_notification_pattern_label(notification_pattern),
     )
     await state.clear()
-    await callback.message.answer(text)
+    await message.answer(text)
     await callback.answer()
 
 
 @notification_router.callback_query(F.data == "notification_control_panel")
 async def process_notification_control_panel(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    user_id_db = await get_cached_user_id_from_db(db, callback.message.chat.id)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id_db is None:
-        await callback.message.answer(t("notification.record_not_found"))
+        await message.answer(t("notification.record_not_found"))
         await callback.answer()
         return
     user_notifications = await notification_use_cases.list_notifications(db, user_id_db)
     if not user_notifications:
-        await callback.message.answer(t("notification.no_notifications"))
+        await message.answer(t("notification.no_notifications"))
         await callback.answer()
         return
     text = t("notification.list_header", count=len(user_notifications))
     text += display_notifications(user_notifications, 0)
-    await callback.message.answer(
+    await message.answer(
         text,
         parse_mode="HTML",
         reply_markup=get_nav_btns_for_list(
@@ -200,21 +225,30 @@ async def process_notification_control_panel(callback: CallbackQuery, state: FSM
 
 @notification_router.callback_query(F.data.startswith("user_notifications_journal"))
 async def process_pagination_of_notifys_list(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
     await state.clear()
-    _, page = callback.data.split(":", 1)
-    user_id_db = await get_cached_user_id_from_db(db, callback.message.chat.id)
+    _, page_raw = payload.split(":", 1)
+    page = int(page_raw) if page_raw.isdigit() else 0
+    user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id_db is None:
-        await callback.message.answer(t("notification.record_not_found"))
+        await message.answer(t("notification.record_not_found"))
         await callback.answer()
         return
     user_notifications = await notification_use_cases.list_notifications(db, user_id_db)
     if not user_notifications:
-        await callback.message.answer(t("notification.no_notifications"))
+        await message.answer(t("notification.no_notifications"))
         await callback.answer()
         return
     text = t("notification.list_header", count=len(user_notifications))
     text += display_notifications(user_notifications, page)
-    await callback.message.edit_text(
+    await message.edit_text(
         text,
         parse_mode="HTML",
         reply_markup=get_nav_btns_for_list(
@@ -227,6 +261,8 @@ async def process_pagination_of_notifys_list(callback: CallbackQuery, state: FSM
 @notification_router.message(F.text.startswith("/ntfyedit"))
 async def process_notification_edit_view(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
+    if message.text is None:
+        return
     notify_id = message.text.split("_", 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id_db is None:
@@ -242,7 +278,7 @@ async def process_notification_edit_view(message: Message, state: FSMContext, db
         note=user_notification.note,
         pattern=_notification_pattern_label(user_notification.pattern),
         enabled="✅" if user_notification.is_enabled else "❌",
-        created_at=user_notification.created_at.date(),
+        created_at=user_notification.created_at.date() if user_notification.created_at is not None else "",
         id=user_notification.id,
     )
     await message.answer(text)
@@ -251,6 +287,8 @@ async def process_notification_edit_view(message: Message, state: FSMContext, db
 @notification_router.message(F.text.startswith("/ntupdate"))
 async def process_editing_notify_settings(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
+    if message.text is None:
+        return
     _, action, nt_id = message.text.split("_", 2)
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id_db is None:
@@ -287,8 +325,16 @@ async def process_editing_notify_settings(message: Message, state: FSMContext, d
 
 @notification_router.callback_query(F.data.startswith("nt_enabled_mode"))
 async def process_edit_pattern_of_notification(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    _, answer, notify_id, user_id_db, enabled_mode = callback.data.split(":", 4)
-    enabled_mode = enabled_mode.lower() == "true"
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    _, answer, notify_id, user_id_db, enabled_raw = payload.split(":", 4)
+    enabled_mode = enabled_raw.lower() == "true"
     if answer == "yes":
         await notification_use_cases.update_notification_field(
             db,
@@ -298,11 +344,11 @@ async def process_edit_pattern_of_notification(callback: CallbackQuery, state: F
             new_value=enabled_mode,
         )
         if enabled_mode:
-            await callback.message.edit_text(t("notification.enabled"))
+            await message.edit_text(t("notification.enabled"))
         else:
-            await callback.message.edit_text(t("notification.disabled"))
+            await message.edit_text(t("notification.disabled"))
     else:
-        await callback.message.edit_text(t("notification.toggle_cancelled"))
+        await message.edit_text(t("notification.toggle_cancelled"))
     await state.clear()
     await callback.answer()
 
@@ -310,6 +356,8 @@ async def process_edit_pattern_of_notification(callback: CallbackQuery, state: F
 @notification_router.message(F.text.startswith("/ntdelete"))
 async def process_deleting_of_notify(message: Message, state: FSMContext, db: AsyncSession):
     await state.clear()
+    if message.text is None:
+        return
     notify_id = message.text.split("_", 1)[1]
     user_id_db = await get_cached_user_id_from_db(db, message.chat.id)
     if user_id_db is None:
@@ -327,7 +375,15 @@ async def process_deleting_of_notify(message: Message, state: FSMContext, db: As
 
 @notification_router.callback_query(F.data.startswith("nt_delete"))
 async def process_confirm_deleting_notify(callback: CallbackQuery, db: AsyncSession):
-    _, answer, nt_id, user_id_db = callback.data.split(":", 3)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    _, answer, nt_id, user_id_db = payload.split(":", 3)
     if answer == "yes":
         result = await notification_use_cases.delete_user_notification(
             db,
@@ -335,14 +391,18 @@ async def process_confirm_deleting_notify(callback: CallbackQuery, db: AsyncSess
             notification_id=int(nt_id),
         )
         if result.deleted:
-            await callback.message.answer(t("notification.delete_success"))
+            await message.answer(t("notification.delete_success"))
         else:
-            await callback.message.answer(t("notification.record_not_found"))
+            await message.answer(t("notification.record_not_found"))
     else:
-        await callback.message.answer(t("notification.delete_cancelled"))
+        await message.answer(t("notification.delete_cancelled"))
     await callback.answer()
 
 
 @notification_router.callback_query(F.data == "confirm_getting_notification")
 async def process_confirm_gettring_notify(callback: CallbackQuery):
-    await callback.message.edit_text(t("notification.viewed"))
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(t("notification.viewed"))

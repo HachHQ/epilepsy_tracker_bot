@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from adapters.telegram.delivery import send_chart_photo
 from filters.correct_commands import ProfileIsSetCb, ProfileIsSetMsg
 from i18n import t
@@ -46,7 +47,11 @@ async def _deliver_chart(message: Message, result: ChartBuildResult) -> None:
 
 @analytics_router.callback_query(F.data == "graphs", ProfileIsSetCb())
 async def process_graphs_cmd(callback: CallbackQuery):
-    await callback.message.edit_text(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(
         t("analytics.choose_graph_type"),
         reply_markup=get_graphs_type(),
     )
@@ -55,7 +60,11 @@ async def process_graphs_cmd(callback: CallbackQuery):
 
 @analytics_router.callback_query(F.data == "duration_graphs", ProfileIsSetCb())
 async def process_duration_graphs(callback: CallbackQuery):
-    await callback.message.answer(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(
         t("analytics.duration_graphs_intro") + "\n\n" + _year_lines("get_duration", "analytics.duration_year_line"),
     )
     await callback.answer()
@@ -63,13 +72,21 @@ async def process_duration_graphs(callback: CallbackQuery):
 
 @analytics_router.callback_query(F.data == "frequency_graphs", ProfileIsSetCb())
 async def process_frequency_graphs(callback: CallbackQuery):
-    await callback.message.answer(t("analytics.frequency_graphs_intro"))
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(t("analytics.frequency_graphs_intro"))
     await callback.answer()
 
 
 @analytics_router.callback_query(F.data == "efficiency_graphs", ProfileIsSetCb())
 async def process_efficiency_graphs(callback: CallbackQuery, db: AsyncSession):
-    await callback.message.answer(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(
         t("analytics.efficiency_graphs_intro") + "\n"
         + _year_lines("get_drug_efficiency", "analytics.efficiency_year_line"),
     )
@@ -80,13 +97,17 @@ async def process_efficiency_graphs(callback: CallbackQuery, db: AsyncSession):
 async def switch_to_features(
     callback: CallbackQuery, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     profile = current_profile
     if not profile:
-        return await callback.message.edit_text(t("analytics.select_profile_first"))
+        return await message.edit_text(t("analytics.select_profile_first"))
 
     result = await analytics_use_cases.get_profile_feature_stats(db, profile.id)
     text = format_top_features(profile.name, result["top_symptoms"], result["top_triggers"], result["top_types"])
-    await callback.message.edit_text(
+    await message.edit_text(
         text,
         reply_markup=build_statistics_navigation_keyboard(current_page="features"),
         parse_mode="HTML",
@@ -122,6 +143,8 @@ async def handle_month_distribution(
 async def get_duration_graph(
     message: Message, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    if message.text is None:
+        return
     year = int(message.text.split("_")[-1])
     profile = current_profile
     if profile is None:
@@ -147,6 +170,8 @@ async def get_duration_graph(
 async def handle_drug_efficiency_command(
     message: Message, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    if message.text is None:
+        return
     await _deliver_chart(
         message,
         render_efficiency_gist(
@@ -177,22 +202,30 @@ async def process_month_gist(
 async def process_stats_cmd(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
     stat_data = await analytics_use_cases.build_seizure_statistics(
-        db, current_profile, callback.message.chat.id
+        db, current_profile, message.chat.id
     )
     if stat_data.get("error"):
-        await callback.message.answer(stat_data["error"])
+        await message.answer(stat_data["error"])
         await callback.answer()
         return
     text = format_seizure_statistics(stat_data)
-    if callback.data == 'stats_edit':
-        await callback.message.edit_text(
+    if payload == 'stats_edit':
+        await message.edit_text(
             text,
             parse_mode="HTML",
             reply_markup=build_statistics_navigation_keyboard(current_page="stats"),
         )
     else:
-        await callback.message.answer(
+        await message.answer(
             text,
             parse_mode="HTML",
             reply_markup=build_statistics_navigation_keyboard(current_page="stats"),

@@ -39,7 +39,12 @@ async def list_profile_symptoms(session: AsyncSession, profile_id: int) -> list[
         .group_by(Symptom.symptom_name)
         .order_by(desc(func.count(SeizureSymptom.seizure_id)), Symptom.symptom_name)
     )
-    names = [name for name, _count in fold_symptom_counts(result.all())]
+    names = [
+        name
+        for name, _count in fold_symptom_counts(
+            [(str(name), int(count)) for name, count in result.all()]
+        )
+    ]
     return names if names else None
 
 

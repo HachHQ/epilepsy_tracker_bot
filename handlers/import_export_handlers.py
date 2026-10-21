@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from adapters.telegram.delivery import send_document_file
 from handlers_logic.access_reply import deny_read_only
 from handlers_logic.states_factories import GetExcelTableForm
@@ -25,15 +26,19 @@ logger = logging.getLogger(__name__)
 async def process_export_excel_data_by_profile(
     callback: CallbackQuery, db: AsyncSession, bot: Bot, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     prof = current_profile
     if prof is None:
-        await callback.message.answer(t("journal.select_profile_short"))
+        await message.answer(t("journal.select_profile_short"))
         await callback.answer()
         return
     file_path = await import_export_use_cases.export_profile_seizures_excel(
         db, prof.id
     )
-    await send_document_file(bot, callback.message.chat.id, file_path)
+    await send_document_file(bot, message.chat.id, file_path)
     await callback.answer()
 
 
@@ -41,16 +46,20 @@ async def process_export_excel_data_by_profile(
 async def process_import_excel_data_by_profile(
     callback: CallbackQuery, state: FSMContext, bot: Bot, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     if await deny_read_only(callback, current_profile):
         return
     await send_document_file(
         bot,
-        callback.message.chat.id,
+        message.chat.id,
         get_excel_template_path(),
         caption=t("import.template_caption"),
         remove_after=False,
     )
-    await callback.message.answer(t("import.download_template"))
+    await message.answer(t("import.download_template"))
     await state.set_state(GetExcelTableForm.get_xlsx_file)
     await callback.answer()
 
@@ -63,7 +72,8 @@ async def handle_excel_upload(
     bot: Bot,
     current_profile: ProfileRef | None,
 ):
-    if not message.document.file_name.endswith(".xlsx"):
+    document = message.document
+    if document is None or not document.file_name or not document.file_name.endswith(".xlsx"):
         await message.answer(t("import.xlsx_required"))
         return
 
@@ -79,7 +89,10 @@ async def handle_excel_upload(
         file_id = str(uuid4())
         file_path = f"import_temp/{file_id}.xlsx"
         os.makedirs("import_temp", exist_ok=True)
-        file = await bot.get_file(message.document.file_id)
+        file = await bot.get_file(document.file_id)
+        if file.file_path is None:
+            await message.answer(t("import.xlsx_required"))
+            return
         await bot.download_file(file.file_path, destination=file_path)
         result = await import_export_use_cases.import_seizures_from_excel(
             db,

@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from config_data.retention import SEIZURE_RETENTION_DAYS
 from filters.correct_commands import ProfileIsSetCb
 from handlers_logic.access_reply import deny_unless_owner
@@ -60,19 +61,25 @@ def get_profile_info(data: dict[str, str]) -> str:
 
 @profile_form_router.callback_query(F.data == "to_filling_profile_form")
 async def start_filling_profile_form(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
-    await state.clear()
-    if await get_cached_login(db, callback.message.chat.id) is None:
-        await state.clear()
-        await callback.message.answer(t("profile.need_registration"))
+    message = live_message(callback.message)
+    if message is None:
         await callback.answer()
         return
-    await callback.message.answer(t("profile.info_about_profile"), parse_mode="HTML")
-    await callback.message.answer(t("profile.enter_profile_name"), reply_markup=get_cancel_kb())
+    await state.clear()
+    if await get_cached_login(db, message.chat.id) is None:
+        await state.clear()
+        await message.answer(t("profile.need_registration"))
+        await callback.answer()
+        return
+    await message.answer(t("profile.info_about_profile"), parse_mode="HTML")
+    await message.answer(t("profile.enter_profile_name"), reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.profile_name)
     await callback.answer()
 
 @profile_form_router.message(StateFilter(ProfileForm.profile_name))
 async def process_profile_name(message: Message, state: FSMContext):
+    if message.text is None:
+        return
     if validate_name_of_profile_form(message.text):
         await state.update_data(profile_name=message.text)
         await message.answer(t("profile.ask_human_profile"), reply_markup=get_qeustion_about_species())
@@ -82,17 +89,27 @@ async def process_profile_name(message: Message, state: FSMContext):
 
 @profile_form_router.callback_query(F.data == "profile_for_human", StateFilter(ProfileForm.biological_species))
 async def process_human_species(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(t("profile.ask_diagnosis"), reply_markup=get_ask_for_have_diagnosis_kb())
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(t("profile.ask_diagnosis"), reply_markup=get_ask_for_have_diagnosis_kb())
     await state.set_state(ProfileForm.type_of_epilepsy)
     await callback.answer()
 
 @profile_form_router.callback_query(F.data == "profile_for_animal", StateFilter(ProfileForm.biological_species))
 async def process_animal_species(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(t("profile.ask_animal_species"), reply_markup=get_cancel_kb())
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(t("profile.ask_animal_species"), reply_markup=get_cancel_kb())
     await callback.answer()
 
 @profile_form_router.message(StateFilter(ProfileForm.biological_species))
 async def process_profile_for_animal(message: Message, state: FSMContext):
+    if message.text is None:
+        return
     if validate_less_than_30(message.text):
         await state.update_data(animal_species=message.text)
         await message.answer(t("profile.ask_diagnosis"), reply_markup=get_ask_for_have_diagnosis_kb())
@@ -104,20 +121,30 @@ async def process_profile_for_animal(message: Message, state: FSMContext):
 @profile_form_router.callback_query(F.data == "have_epilepsy_diagnosis",
                                     StateFilter(ProfileForm.type_of_epilepsy))
 async def process_users_diagnosis(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(t("profile.enter_diagnosis"),
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(t("profile.enter_diagnosis"),
                                 reply_markup=get_cancel_kb())
     await callback.answer()
 
 @profile_form_router.callback_query(F.data == "dont_have_epilepsy_diagnosis",
                                     StateFilter(ProfileForm.type_of_epilepsy))
 async def process_skip_user_diagnosis(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(t("profile.enter_age"),
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(t("profile.enter_age"),
                                 reply_markup=get_cancel_kb())
     await state.set_state(ProfileForm.age)
     await callback.answer()
 
 @profile_form_router.message(StateFilter(ProfileForm.type_of_epilepsy))
 async def process_diagnosis(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_less_than_100(message.text):
         data = await state.get_data()
         mode = data.get("profmode", "create")
@@ -139,6 +166,8 @@ async def process_diagnosis(message: Message, state: FSMContext, db: AsyncSessio
 
 @profile_form_router.message(StateFilter(ProfileForm.age))
 async def process_age(message: Message, state: FSMContext, db: AsyncSession):
+    if message.text is None:
+        return
     if validate_age_of_profile_form(message.text):
         data = await state.get_data()
         mode = data.get("profmode", "create")
@@ -160,45 +189,57 @@ async def process_age(message: Message, state: FSMContext, db: AsyncSession):
 @profile_form_router.callback_query(F.data.in_({'sex_male', 'sex_female'}),
                                     StateFilter(ProfileForm.sex))
 async def process_sex(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
     data = await state.get_data()
     mode = data.get("profmode", "create")
     if mode == 'prof_edit_mode':
         profile_id=data['profile_id']
         await update_profile_field(
-            db, chat_id=callback.message.chat.id, profile_id=int(profile_id),
-            attribute='sex', new_value=callback.data,
+            db, chat_id=message.chat.id, profile_id=int(profile_id),
+            attribute='sex', new_value=payload,
         )
-        await callback.message.answer(
-            t("profile.sex_updated_male") if callback.data == 'sex_male' else t("profile.sex_updated_female")
+        await message.answer(
+            t("profile.sex_updated_male") if payload == 'sex_male' else t("profile.sex_updated_female")
         )
         await callback.answer()
         await state.clear()
         return
-    await state.update_data(sex=callback.data.split('_')[1])
+    await state.update_data(sex=payload.split('_')[1])
     data = await state.get_data()
     profile_info = get_profile_info(data)
-    await callback.message.answer(t("profile.form_completed"))
-    await callback.message.answer(f"{profile_info}", parse_mode='HTML')
-    await callback.message.answer(t("profile.form_confirm_prompt"),  reply_markup=get_submit_profile_settings_kb())
+    await message.answer(t("profile.form_completed"))
+    await message.answer(f"{profile_info}", parse_mode='HTML')
+    await message.answer(t("profile.form_confirm_prompt"),  reply_markup=get_submit_profile_settings_kb())
     await state.set_state(ProfileForm.check_form)
     await callback.answer()
 
 @profile_form_router.callback_query(F.data == "submit_profile_settings", StateFilter(ProfileForm.check_form))
 async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     data = await state.get_data()
     if not data:
-        await callback.message.answer(t("profile.restart_registration"))
+        await message.answer(t("profile.restart_registration"))
         await state.clear()
         await callback.answer()
         return
-    result = await create_profile_from_form(db, chat_id=callback.message.chat.id, form_data=data)
+    result = await create_profile_from_form(db, chat_id=message.chat.id, form_data=data)
     if not result.created:
-        await callback.message.answer(t("profile.user_not_found"))
+        await message.answer(t("profile.user_not_found"))
         await state.clear()
         await callback.answer()
         return
 
-    await callback.message.answer(t("profile.created", name=result.profile_name))
+    await message.answer(t("profile.created", name=result.profile_name))
     await state.clear()
     await callback.answer()
 
@@ -206,16 +247,20 @@ async def finish_filling_profile_data(callback: CallbackQuery, state: FSMContext
 async def process_editing_profile_data(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     curr_profile = current_profile
     if curr_profile is None:
-        await callback.message.answer(t("profile.choose_profile"))
+        await message.answer(t("profile.choose_profile"))
         await callback.answer()
         return
     if await deny_unless_owner(callback, curr_profile):
         return
     profile_info = await get_profile(db, curr_profile.id)
     if profile_info is None:
-        await callback.message.answer(t("profile.record_not_found"))
+        await message.answer(t("profile.record_not_found"))
         await callback.answer()
         return
     animal_line = ""
@@ -224,13 +269,13 @@ async def process_editing_profile_data(
     text = t(
         "profile.edit_view",
         name=curr_profile.name,
-        created_at=profile_info.created_at.date(),
+        created_at=profile_info.created_at.date() if profile_info.created_at is not None else "",
         epilepsy_type=profile_info.type_of_epilepsy if profile_info.type_of_epilepsy is not None else t("profile.not_entered"),
         age=profile_info.age,
-        sex=_profile_sex_label(profile_info.sex),
+        sex=_profile_sex_label(profile_info.sex or ""),
         animal_line=animal_line,
     )
-    await callback.message.answer(text)
+    await message.answer(text)
     await callback.answer()
 
 @profile_form_router.message(F.text.startswith('/prof'))
@@ -238,6 +283,8 @@ async def process_editing_notify_settings(
     message: Message, state: FSMContext, db: AsyncSession, current_profile: ProfileRef | None
 ):
     await state.clear()
+    if message.text is None:
+        return
     _, action = message.text.split('_', 1)
     curr_prof = current_profile
     if curr_prof is None:
@@ -273,23 +320,31 @@ async def process_editing_notify_settings(
 
 @profile_form_router.callback_query(F.data.startswith('delete_profile'))
 async def process_deleting_profile(callback: CallbackQuery, db: AsyncSession):
-    _, answer, prof_id = callback.data.split(":", 2)
-    user_own_profiles = await get_cached_profiles_list(db, callback.message.chat.id)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    _, answer, prof_id = payload.split(":", 2)
+    user_own_profiles = await get_cached_profiles_list(db, message.chat.id)
     if not user_own_profiles:
-        await callback.message.answer(t("profile.delete_forbidden"))
+        await message.answer(t("profile.delete_forbidden"))
         await callback.answer()
         return
     owned_profile_ids = [prof['id'] for prof in user_own_profiles]
     if int(prof_id) not in owned_profile_ids:
-        await callback.message.answer(t("profile.delete_forbidden"))
+        await message.answer(t("profile.delete_forbidden"))
         await callback.answer()
         return
     if answer == 'yes':
         result = await delete_profile_record(
-            db, chat_id=callback.message.chat.id, profile_id=int(prof_id),
+            db, chat_id=message.chat.id, profile_id=int(prof_id),
         )
         if result.deleted:
-            await callback.message.answer(
+            await message.answer(
                 t(
                     "profile.delete_success",
                     seizures_preserved=result.seizures_preserved,
@@ -297,6 +352,6 @@ async def process_deleting_profile(callback: CallbackQuery, db: AsyncSession):
                 )
             )
         else:
-            await callback.message.answer(t("profile.delete_not_found"))
+            await message.answer(t("profile.delete_not_found"))
     else:
-        await callback.message.answer(t("profile.delete_cancelled"))
+        await message.answer(t("profile.delete_cancelled"))

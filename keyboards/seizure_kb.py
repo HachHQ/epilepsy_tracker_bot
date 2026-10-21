@@ -57,13 +57,12 @@ def get_final_seizure_btns():
     builder.row(*_final_seizure_btns())
     return builder.as_markup()
 
-def get_temporary_cancel_submit_kb(action_btns: bool = True) -> InlineKeyboardMarkup:
+def get_temporary_cancel_submit_kb(action_btns: bool = True) -> InlineKeyboardMarkup | None:
     builder = InlineKeyboardBuilder()
-    if action_btns:
-        builder.row(*_main_btns())
-        return builder.as_markup()
-    else:
-        pass
+    if not action_btns:
+        return None
+    builder.row(*_main_btns())
+    return builder.as_markup()
 
 def get_year_date_kb(
     backward_offset: int = 3,
@@ -313,7 +312,7 @@ def get_stop_duration_kb():
     builder.adjust(1)
     return builder.as_markup()
 
-def build_statistics_navigation_keyboard(current_page: str = "stats") -> InlineKeyboardBuilder:
+def build_statistics_navigation_keyboard(current_page: str = "stats") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     if current_page != "stats":
         kb.button(text=t("buttons.stats_nav"), callback_data="stats_edit")

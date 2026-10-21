@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from config_data.retention import SEIZURE_RETENTION_DAYS, USER_DATA_RETENTION_DAYS
 from handlers_logic.states_factories import AccountForm
 from i18n import t
@@ -32,7 +33,11 @@ account_router = Router()
 
 @account_router.callback_query(F.data == "account_settings")
 async def show_account_settings(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(
         t("account.settings", user_retention_days=USER_DATA_RETENTION_DAYS),
         reply_markup=get_account_settings_kb(),
     )
@@ -41,7 +46,11 @@ async def show_account_settings(callback: CallbackQuery) -> None:
 
 @account_router.callback_query(F.data == "account_soft_delete")
 async def confirm_soft_delete(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.edit_text(
         t("account.soft_delete_confirm", days=USER_DATA_RETENTION_DAYS),
         reply_markup=get_confirm_soft_delete_kb(),
     )
@@ -50,20 +59,28 @@ async def confirm_soft_delete(callback: CallbackQuery) -> None:
 
 @account_router.callback_query(F.data == "account_soft_delete:yes")
 async def process_soft_delete(callback: CallbackQuery, db: AsyncSession) -> None:
-    result = await soft_delete_account(db, chat_id=callback.message.chat.id)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    result = await soft_delete_account(db, chat_id=message.chat.id)
     if result.deleted:
-        await callback.message.edit_text(
+        await message.edit_text(
             t("account.soft_delete_success", days=result.retention_days)
         )
     else:
-        await callback.message.edit_text(t("account.soft_delete_failed"))
+        await message.edit_text(t("account.soft_delete_failed"))
     await callback.answer()
 
 
 @account_router.callback_query(F.data == "account_purge_forever")
 async def confirm_purge_forever(callback: CallbackQuery, state: FSMContext) -> None:
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
     phrase = t("account.purge_phrase")
-    await callback.message.edit_text(
+    await message.edit_text(
         t("account.purge_confirm", phrase=phrase),
         reply_markup=get_confirm_purge_forever_kb(),
     )
@@ -73,7 +90,11 @@ async def confirm_purge_forever(callback: CallbackQuery, state: FSMContext) -> N
 
 @account_router.callback_query(F.data == "account_purge_forever:yes")
 async def process_purge_forever_button(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.answer(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(
         t("account.purge_prompt", phrase=t("account.purge_phrase")),
         reply_markup=get_cancel_kb(),
     )
@@ -98,16 +119,20 @@ async def process_purge_forever_text(message: Message, state: FSMContext, db: As
 
 @account_router.callback_query(F.data == "prof_restore_list")
 async def list_restorable_profiles_handler(callback: CallbackQuery, db: AsyncSession) -> None:
-    profiles = await list_restorable_profile_records(db, callback.message.chat.id)
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    profiles = await list_restorable_profile_records(db, message.chat.id)
     if not profiles:
-        await callback.message.edit_text(
+        await message.edit_text(
             t("account.restore_list_empty", days=SEIZURE_RETENTION_DAYS),
             reply_markup=get_account_settings_kb(),
         )
         await callback.answer()
         return
 
-    await callback.message.edit_text(
+    await message.edit_text(
         t("account.restore_list_prompt"),
         reply_markup=get_restorable_profiles_kb(profiles),
     )
@@ -116,35 +141,55 @@ async def list_restorable_profiles_handler(callback: CallbackQuery, db: AsyncSes
 
 @account_router.callback_query(F.data.startswith("restore_profile:"))
 async def restore_profile_handler(callback: CallbackQuery, db: AsyncSession) -> None:
-    profile_id = int(callback.data.split(":", 1)[1])
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    profile_id = int(payload.split(":", 1)[1])
     result = await restore_profile_record(
-        db, chat_id=callback.message.chat.id, profile_id=profile_id,
+        db, chat_id=message.chat.id, profile_id=profile_id,
     )
     if result.restored:
-        await callback.message.edit_text(
+        await message.edit_text(
             t("account.restore_profile_success", profile_name=result.profile_name)
         )
     else:
-        await callback.message.edit_text(t("account.restore_profile_failed"))
+        await message.edit_text(t("account.restore_profile_failed"))
     await callback.answer()
 
 
 @account_router.callback_query(F.data.startswith("purge_profile_forever:"))
 async def purge_profile_forever_handler(callback: CallbackQuery, db: AsyncSession) -> None:
-    profile_id = int(callback.data.split(":", 1)[1])
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    payload = callback.data
+    if payload is None:
+        await callback.answer()
+        return
+    profile_id = int(payload.split(":", 1)[1])
     result = await purge_profile_forever_record(
-        db, chat_id=callback.message.chat.id, profile_id=profile_id,
+        db, chat_id=message.chat.id, profile_id=profile_id,
     )
     if result.purged:
-        await callback.message.edit_text(t("account.purge_profile_success"))
+        await message.edit_text(t("account.purge_profile_success"))
     else:
-        await callback.message.edit_text(t("account.purge_profile_failed"))
+        await message.edit_text(t("account.purge_profile_failed"))
     await callback.answer()
 
 
 @account_router.callback_query(F.data == "account_restore_start")
 async def start_account_restore(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.answer(
+    message = live_message(callback.message)
+    if message is None:
+        await callback.answer()
+        return
+    await message.answer(
         t("account.restore_codeword_prompt"),
         reply_markup=get_cancel_kb(),
     )
@@ -158,7 +203,7 @@ async def process_restore_codeword(
     state: FSMContext,
     db: AsyncSession,
 ) -> None:
-    if not validate_codeword(message.text):
+    if message.text is None or message.from_user is None or not validate_codeword(message.text):
         await message.answer(
             t("account.restore_codeword_invalid"),
             reply_markup=get_cancel_kb(),
