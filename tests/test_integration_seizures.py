@@ -45,8 +45,8 @@ async def test_seizure_create_persists_triggers_and_symptoms(db_session, test_us
             select(Symptom.symptom_name).where(Symptom.profile_id == test_user["profile"].id)
         )
     ).all()
-    assert "aura" in symptom_names
-    assert "headache" in symptom_names
+    assert "Aura" in symptom_names
+    assert "Headache" in symptom_names
 
 
 @pytest.mark.asyncio
