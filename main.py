@@ -34,6 +34,7 @@ from handlers.user_form import user_form_router
 from i18n import set_locale, t
 from keyboards.set_menu import set_main_menu
 from middleware.delete_command import DeleteCommandMiddleware
+from middleware.delete_plain import DeletePlainMessageMiddleware
 from middleware.inner import DatabaseSessionMiddleware, NotificationMiddleware
 from middleware.locale import LocaleMiddleware
 from services.retention_purge import schedule_retention_purge
@@ -71,6 +72,8 @@ notification_queue = NotificationQueue(bot, redis, rate_limit=0.05)
 async def main():
     await init_db()
 
+    # Outermost update middleware: FSM has already filled raw_state when this returns.
+    dp.update.outer_middleware(DeletePlainMessageMiddleware())
     dp.message.middleware(DeleteCommandMiddleware())
     dp.update.middleware(NotificationMiddleware(notification_queue))
     dp.update.middleware(LocaleMiddleware())
