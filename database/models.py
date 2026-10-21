@@ -216,7 +216,9 @@ class TrustedPersonRequest(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     recepient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     transmitted_profile_id = Column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
-    status = Column(Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
+    status: Column[RequestStatus] = Column(
+        Enum(RequestStatus), default=RequestStatus.PENDING, nullable=False
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), server_default=text("NOW() + INTERVAL '24 hours'"), nullable=False)
 

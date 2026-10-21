@@ -40,9 +40,9 @@ def load_config(path: str | None = None, *, strict: bool = True) -> Config:
 
     def get_admins() -> list[int]:
         if strict:
-            return env.list('ADMINS', subcast=int)
+            return [int(admin_id) for admin_id in env.list('ADMINS', subcast=int)]
         try:
-            return env.list('ADMINS', subcast=int, default=[])
+            return [int(admin_id) for admin_id in env.list('ADMINS', subcast=int, default=[])]
         except Exception:
             return []
 
