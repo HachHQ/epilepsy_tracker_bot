@@ -2,6 +2,7 @@ from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters.telegram.anchor import live_message
 from config_data.config import get_config
 from i18n import t
 from services.profile_ref import ProfileRef
@@ -10,8 +11,7 @@ from services.redis_cache_data import get_cached_profiles_list
 
 class EditCommandFilter(BaseFilter):
     async def __call__(self, message: Message) -> bool:
-
-        if not message.text.startswith('/edit'):
+        if message.text is None or not message.text.startswith('/edit'):
             return False
         parts = message.text.split('_', 1)
         return len(parts) == 2 and parts[1].isdigit()
@@ -26,7 +26,9 @@ class ProfileIsSetCb(BaseFilter):
     async def __call__(self, callback: CallbackQuery, current_profile: ProfileRef | None) -> bool:
         if current_profile is not None:
             return True
-        await callback.message.answer(t("filters.select_profile"))
+        message = live_message(callback.message)
+        if message is not None:
+            await message.answer(t("filters.select_profile"))
         await callback.answer()
         return False
 
@@ -39,13 +41,16 @@ class ProfileIsSetMsg(BaseFilter):
 
 class UserOwnProfilesListExist(BaseFilter):
     async def __call__(self, callback: CallbackQuery, db: AsyncSession) -> bool:
-        profiles_redis = await get_cached_profiles_list(db, callback.message.chat.id)
-        if profiles_redis is not None:
-            return True
-        else:
-            await callback.message.answer(t("filters.no_own_profiles_to_share"))
+        message = live_message(callback.message)
+        if message is None:
             await callback.answer()
             return False
+        profiles_redis = await get_cached_profiles_list(db, message.chat.id)
+        if profiles_redis is not None:
+            return True
+        await message.answer(t("filters.no_own_profiles_to_share"))
+        await callback.answer()
+        return False
 
 # class CheckPermissionToEditCb(BaseFilter):
 #     async def __call__(self, callback: CallbackQuery, db: AsyncSession) -> bool:
