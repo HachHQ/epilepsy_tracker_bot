@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import enum
-from datetime import date, datetime, time
+from datetime import date as date_value
+from datetime import datetime
+from datetime import time as time_value
 
 from sqlalchemy import (
     BigInteger,
@@ -46,7 +50,7 @@ class User(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    profiles: Mapped[list["Profile"]] = relationship(back_populates="user")
+    profiles: Mapped[list[Profile]] = relationship(back_populates="user")
 
     @property
     def is_deleted(self) -> bool:
@@ -83,10 +87,10 @@ class Profile(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     seizures_retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user: Mapped["User"] = relationship(back_populates="profiles")
-    seizures: Mapped[list["Seizure"]] = relationship(back_populates="profile")
-    symptoms: Mapped[list["Symptom"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
-    triggers: Mapped[list["Trigger"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
+    user: Mapped[User] = relationship(back_populates="profiles")
+    seizures: Mapped[list[Seizure]] = relationship(back_populates="profile")
+    symptoms: Mapped[list[Symptom]] = relationship(back_populates="profile", cascade="all, delete-orphan")
+    triggers: Mapped[list[Trigger]] = relationship(back_populates="profile", cascade="all, delete-orphan")
 
     @property
     def is_deleted(self) -> bool:
@@ -109,8 +113,8 @@ class Seizure(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(Integer, ForeignKey('profiles.id', ondelete="RESTRICT"), nullable=False)
-    date: Mapped[date | None] = mapped_column(Date)
-    time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    date: Mapped[date_value | None] = mapped_column(Date)
+    time: Mapped[time_value | None] = mapped_column(Time, nullable=True)
     severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
     duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     comment: Mapped[str | None] = mapped_column(String(150), nullable=True)
@@ -135,11 +139,11 @@ class Seizure(Base):
     def _coerce_time(self, _key: str, value):
         return parse_seizure_time(value)
 
-    profile: Mapped["Profile"] = relationship(back_populates="seizures")
-    symptom_links: Mapped[list["SeizureSymptom"]] = relationship(
+    profile: Mapped[Profile] = relationship(back_populates="seizures")
+    symptom_links: Mapped[list[SeizureSymptom]] = relationship(
         back_populates="seizure", cascade="all, delete-orphan"
     )
-    trigger_links: Mapped[list["SeizureTrigger"]] = relationship(
+    trigger_links: Mapped[list[SeizureTrigger]] = relationship(
         back_populates="seizure", cascade="all, delete-orphan"
     )
 
@@ -151,23 +155,23 @@ class SeizureSymptom(Base):
     __tablename__ = 'seizure_symptoms'
     seizure_id: Mapped[int] = mapped_column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"), primary_key=True)
     symptom_id: Mapped[int] = mapped_column(Integer, ForeignKey("symptoms.id", ondelete="CASCADE"), primary_key=True)
-    seizure: Mapped["Seizure"] = relationship(back_populates="symptom_links")
-    symptom: Mapped["Symptom"] = relationship(back_populates="seizure_links")
+    seizure: Mapped[Seizure] = relationship(back_populates="symptom_links")
+    symptom: Mapped[Symptom] = relationship(back_populates="seizure_links")
 
 class SeizureTrigger(Base):
     __tablename__ = 'seizure_triggers'
     seizure_id: Mapped[int] = mapped_column(Integer, ForeignKey("seizures.id", ondelete="CASCADE"), primary_key=True)
     trigger_id: Mapped[int] = mapped_column(Integer, ForeignKey("triggers.id", ondelete="CASCADE"), primary_key=True)
-    seizure: Mapped["Seizure"] = relationship(back_populates="trigger_links")
-    trigger: Mapped["Trigger"] = relationship(back_populates="seizure_links")
+    seizure: Mapped[Seizure] = relationship(back_populates="trigger_links")
+    trigger: Mapped[Trigger] = relationship(back_populates="seizure_links")
 
 class Symptom(Base):
     __tablename__ = 'symptoms'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     symptom_name: Mapped[str] = mapped_column(String(100), nullable=False)
     profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
-    profile: Mapped["Profile | None"] = relationship(back_populates="symptoms")
-    seizure_links: Mapped[list["SeizureSymptom"]] = relationship(
+    profile: Mapped[Profile | None] = relationship(back_populates="symptoms")
+    seizure_links: Mapped[list[SeizureSymptom]] = relationship(
         back_populates="symptom", cascade="all, delete-orphan"
     )
     __table_args__ = (UniqueConstraint('symptom_name', 'profile_id', name='uix_symptom_name_profile'),)
@@ -177,8 +181,8 @@ class Trigger(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     trigger_name: Mapped[str] = mapped_column(String(100), nullable=False)
     profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
-    profile: Mapped["Profile | None"] = relationship(back_populates="triggers")
-    seizure_links: Mapped[list["SeizureTrigger"]] = relationship(
+    profile: Mapped[Profile | None] = relationship(back_populates="triggers")
+    seizure_links: Mapped[list[SeizureTrigger]] = relationship(
         back_populates="trigger", cascade="all, delete-orphan"
     )
     __table_args__ = (UniqueConstraint('trigger_name', 'profile_id', name='uix_trigger_name_profile'),)
@@ -240,7 +244,7 @@ class UserNotifications(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
-    notify_time: Mapped[time] = mapped_column(Time, nullable=False)
+    notify_time: Mapped[time_value] = mapped_column(Time, nullable=False)
     note: Mapped[str] = mapped_column(String(100), nullable=False)
     pattern: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
     is_enabled: Mapped[bool | None] = mapped_column(Boolean, default=True)
@@ -261,8 +265,8 @@ class MedicationCourse(Base):
     frequency: Mapped[str | None] = mapped_column(String(30))
     notes: Mapped[str | None] = mapped_column(String(200))
 
-    start_date: Mapped[date | None] = mapped_column(Date)
-    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    start_date: Mapped[date_value | None] = mapped_column(Date)
+    end_date: Mapped[date_value | None] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(
