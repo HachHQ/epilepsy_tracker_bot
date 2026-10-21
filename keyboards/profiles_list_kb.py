@@ -1,6 +1,6 @@
+from aiogram.enums import ButtonStyle
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
-from aiogram.types import InlineKeyboardButton
 
 from i18n import t
 
@@ -29,7 +29,11 @@ def get_paginated_profiles_kb(
     if total_profiles > page_size:
         nav_buttons = []
         if page > 0:
-            nav_buttons.append(InlineKeyboardButton(text=t("buttons.back"), callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}"))
+            nav_buttons.append(InlineKeyboardButton(
+                text=t("buttons.back"),
+                callback_data=f"prev:{page}:{profile_type}{"|share" if to_share else ""}",
+                style=ButtonStyle.PRIMARY,
+            ))
         if page < total_pages - 1:
             nav_buttons.append(InlineKeyboardButton(text=t("buttons.forward"), callback_data=f"next:{page}:{profile_type}{"|share" if to_share else ""}"))
         if nav_buttons:
@@ -52,6 +56,10 @@ def get_profile_submenu_kb() -> InlineKeyboardMarkup:
     builder.button(text=t("buttons.export_data"), callback_data="export_data")
     builder.button(text=t("buttons.restore_profile"), callback_data="prof_restore_list")
     builder.button(text=t("buttons.account"), callback_data="account_settings")
-    builder.button(text=t("common.back"), callback_data="to_menu_edit")
+    builder.button(
+        text=t("common.back"),
+        callback_data="to_menu_edit",
+        style=ButtonStyle.PRIMARY,
+    )
     builder.adjust(1)
     return builder.as_markup()

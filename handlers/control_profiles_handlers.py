@@ -1,9 +1,8 @@
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
 from i18n import t
 from keyboards.profiles_list_kb import get_profile_submenu_kb
-from keyboards.medication_kb import get_medication_sumbenu
 
 control_profiles_router = Router()
 

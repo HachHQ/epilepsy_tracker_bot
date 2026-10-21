@@ -1,6 +1,6 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
-from aiogram.types import InlineKeyboardButton, KeyboardButton
+from aiogram.enums import ButtonStyle
+from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
 
@@ -15,7 +15,11 @@ def get_notify_sumbenu():
     builder = InlineKeyboardBuilder()
     builder.button(text=t("buttons.add_notification"), callback_data="add_notification")
     builder.button(text=t("buttons.manage"), callback_data="notification_control_panel")
-    builder.button(text=t("common.back"), callback_data="to_menu_edit")
+    builder.button(
+        text=t("common.back"),
+        callback_data="to_menu_edit",
+        style=ButtonStyle.PRIMARY,
+    )
     builder.adjust(1)
     return builder.as_markup()
 
@@ -30,7 +34,11 @@ def get_notify_pattern():
 
 def get_notify_to_enable_kb(nt_id, user_id, enabled_mode: bool):
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("common.yes"), callback_data=f"nt_enabled_mode:yes:{nt_id}:{user_id}:{enabled_mode}")
+    builder.button(
+        text=t("common.yes"),
+        callback_data=f"nt_enabled_mode:yes:{nt_id}:{user_id}:{enabled_mode}",
+        style=ButtonStyle.SUCCESS,
+    )
     builder.button(text=t("common.no"), callback_data=f"nt_enabled_mode:no:{nt_id}:{user_id}:{enabled_mode}")
     builder.adjust(1)
     return builder.as_markup()
@@ -38,7 +46,11 @@ def get_notify_to_enable_kb(nt_id, user_id, enabled_mode: bool):
 
 def get_confirm_deleting_notify_kb(nt_id, user_id):
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("common.yes"), callback_data=f"nt_delete:yes:{nt_id}:{user_id}")
+    builder.button(
+        text=t("common.yes"),
+        callback_data=f"nt_delete:yes:{nt_id}:{user_id}",
+        style=ButtonStyle.SUCCESS,
+    )
     builder.button(text=t("common.no"), callback_data=f"nt_enabled_mode:no:{nt_id}:{user_id}")
     builder.adjust(1)
     return builder.as_markup()
@@ -46,13 +58,21 @@ def get_confirm_deleting_notify_kb(nt_id, user_id):
 
 def get_choose_sos_notify_mode_kb():
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("buttons.send_notifications"), callback_data="sos_notify_with_geo:yes")
+    builder.button(
+        text=t("buttons.send_notifications"),
+        callback_data="sos_notify_with_geo:yes",
+        style=ButtonStyle.DANGER,
+    )
     builder.adjust(1)
     return builder.as_markup()
 
 
 def get_confirm_of_notification_message():
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("common.yes"), callback_data="confirm_getting_notification")
+    builder.button(
+        text=t("common.yes"),
+        callback_data="confirm_getting_notification",
+        style=ButtonStyle.SUCCESS,
+    )
     builder.adjust(1)
     return builder.as_markup()

@@ -23,6 +23,13 @@ def test_t_returns_russian_string() -> None:
     assert t("excel.column_date") == "Дата"
 
 
+def test_timezone_prompt_is_plain_html() -> None:
+    set_locale("ru")
+    text = t("user.timezone_info")
+    assert "\\" not in text
+    assert '<a href="https://time-in.ru/time/russia">' in text
+
+
 def test_t_supports_format_params() -> None:
     set_locale("ru")
     text = t("account.soft_delete_success", days=180)

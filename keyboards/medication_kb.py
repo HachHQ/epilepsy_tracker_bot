@@ -1,6 +1,5 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
-from aiogram.types import InlineKeyboardButton, KeyboardButton
+from aiogram.enums import ButtonStyle
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
 
@@ -9,7 +8,11 @@ def get_medication_sumbenu():
     builder = InlineKeyboardBuilder()
     builder.button(text=t("buttons.add_medication"), callback_data="add_medication")
     builder.button(text=t("buttons.manage"), callback_data="medication_settings")
-    builder.button(text=t("common.back"), callback_data="to_menu_edit")
+    builder.button(
+        text=t("common.back"),
+        callback_data="to_menu_edit",
+        style=ButtonStyle.PRIMARY,
+    )
     builder.adjust(1)
     return builder.as_markup()
 
@@ -32,7 +35,11 @@ def get_actual_med_cancel_buttons():
 
 def get_deleting_medication_kb(mdc_id, prof_id):
     builder = InlineKeyboardBuilder()
-    builder.button(text=t("common.yes"), callback_data=f'delete_med_prof:yes:{mdc_id}:{prof_id}')
+    builder.button(
+        text=t("common.yes"),
+        callback_data=f"delete_med_prof:yes:{mdc_id}:{prof_id}",
+        style=ButtonStyle.SUCCESS,
+    )
     builder.button(text=t("common.no"), callback_data=f"delete_med_prof:no:{mdc_id}:{prof_id}")
     builder.adjust(1)
     return builder.as_markup()

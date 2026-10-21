@@ -1,5 +1,6 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.enums import ButtonStyle
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
 
@@ -13,10 +14,17 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     kb_builder = InlineKeyboardBuilder()
     kb_builder.row(
-        InlineKeyboardButton(text=t("menu.main_sos"), callback_data="sos_notification"),
+        InlineKeyboardButton(
+            text=t("menu.main_sos"),
+            callback_data="sos_notification",
+            style=ButtonStyle.DANGER,
+        ),
     )
     kb_builder.row(
-        InlineKeyboardButton(text=t("menu.main_fix_seizure"), callback_data="fix_seizure"),
+        InlineKeyboardButton(text=t("menu.main_seizure_now"), callback_data="seizure_right_now"),
+    )
+    kb_builder.row(
+        InlineKeyboardButton(text=t("menu.main_seizure_passed"), callback_data="seizure_passed"),
     )
     kb_builder.row(
         InlineKeyboardButton(text=t("menu.main_choose_profile"), callback_data="choose_profile"),

@@ -36,7 +36,7 @@ async def test_switch_current_profile_updates_db_and_redis() -> None:
         "use_cases.profiles.set_user_current_profile",
         new=AsyncMock(return_value=object()),
     ), patch(
-        "use_cases.profiles.set_redis_cached_current_profile",
+        "use_cases.profiles.remember_current_profile",
         new=AsyncMock(),
     ) as redis_mock:
         result = await profile_use_cases.switch_current_profile(
@@ -47,7 +47,7 @@ async def test_switch_current_profile_updates_db_and_redis() -> None:
         )
 
     assert result.switched is True
-    redis_mock.assert_awaited_once_with(10, profile_id=3, profile_name="Основной")
+    redis_mock.assert_awaited_once_with(10, 3, "Основной")
 
 
 @pytest.mark.asyncio

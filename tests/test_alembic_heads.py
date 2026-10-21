@@ -13,7 +13,7 @@ def test_alembic_has_single_head() -> None:
     heads = script.get_heads()
 
     assert len(heads) == 1, f"Expected one Alembic head, got: {heads}"
-    assert heads[0] == "20260706_0002"
+    assert heads[0] == "20261011_0002"
 
 
 def test_legacy_branch_follows_initial_schema() -> None:

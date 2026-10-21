@@ -1,8 +1,9 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
-from aiogram.types import InlineKeyboardButton
 import calendar
 from datetime import datetime
+
+from aiogram.enums import ButtonStyle
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from i18n import t
 
@@ -12,7 +13,11 @@ def get_journal_nav_kb():
     builder.button(text=t("buttons.journal_list"), callback_data="journal")
     builder.button(text=t("buttons.stats"), callback_data="stats")
     builder.button(text=t("buttons.graphs"), callback_data="graphs")
-    builder.button(text=t("common.back"), callback_data="to_menu_edit")
+    builder.button(
+        text=t("common.back"),
+        callback_data="to_menu_edit",
+        style=ButtonStyle.PRIMARY,
+    )
     builder.adjust(1)
     return builder.as_markup()
 
@@ -22,7 +27,11 @@ def get_graphs_type():
     builder.button(text=t("buttons.graph_duration"), callback_data="duration_graphs")
     builder.button(text=t("buttons.graph_frequency"), callback_data="frequency_graphs")
     builder.button(text=t("buttons.graph_efficiency"), callback_data="efficiency_graphs")
-    builder.button(text=t("common.back"), callback_data="seizure_data")
+    builder.button(
+        text=t("common.back"),
+        callback_data="seizure_data",
+        style=ButtonStyle.PRIMARY,
+    )
     builder.adjust(1)
     return builder.as_markup()
 
@@ -39,7 +48,8 @@ def get_nav_btns_for_list(seizures_count, notes_on_page: int, current_page: int,
             nav_buttons.append(
                 InlineKeyboardButton(
                     text=t("buttons.back"),
-                    callback_data=f"{prefix}:{current_page - 1}"
+                    callback_data=f"{prefix}:{current_page - 1}",
+                    style=ButtonStyle.PRIMARY,
                 )
             )
         if current_page < total_pages - 1:
@@ -67,14 +77,9 @@ def get_delete_edit_kb(seizure_id):
 
 
 def get_year_journal_kb(current_year: int, rows: int = 4) -> InlineKeyboardMarkup:
-    years_journal_bd = InlineKeyboardBuilder()
-    back_btn = InlineKeyboardButton(text=t("buttons.back_plain"), callback_data="years_journal_back")
-    forw_btn = InlineKeyboardButton(text=t("buttons.forward_plain"), callback_data="years_journal_forw")
-    years_journal_bd.adjust(rows)
-
-    pass
-
-
+    builder = InlineKeyboardBuilder()
+    builder.adjust(rows)
+    return builder.as_markup()
 
 def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -> InlineKeyboardMarkup:
     date_set = {(date.year, date.month, date.day) for date in dates}
@@ -86,13 +91,21 @@ def get_day_kb(year: int, month: int, dates: list[datetime], columns: int = 7) -
         else:
             kb_builder.button(text=str(day), callback_data=f"day:{year}.{month}.{day}")
     kb_builder.adjust(columns)
-    back_btn = InlineKeyboardButton(text=t("buttons.back_plain"), callback_data="back")
+    back_btn = InlineKeyboardButton(
+        text=t("buttons.back_plain"),
+        callback_data="back",
+        style=ButtonStyle.PRIMARY,
+    )
     kb_builder.row(back_btn)
     return kb_builder.as_markup()
 
 
 def get_delete_seizure_note_kb(seizure_id: int):
     kb_builder = InlineKeyboardBuilder()
-    kb_builder.button(text=t("common.yes"), callback_data=f"delete_seizure_note:yes:{seizure_id}")
-    kb_builder.button(text=t("common.no"), callback_data=f"delete_seizure_note:no")
+    kb_builder.button(
+        text=t("common.yes"),
+        callback_data=f"delete_seizure_note:yes:{seizure_id}",
+        style=ButtonStyle.SUCCESS,
+    )
+    kb_builder.button(text=t("common.no"), callback_data="delete_seizure_note:no")
     return kb_builder.as_markup()

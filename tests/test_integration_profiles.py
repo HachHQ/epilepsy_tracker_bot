@@ -46,12 +46,13 @@ async def test_update_profile_field_persists(db_session, test_user) -> None:
     assert updated.age == 31
 
     reloaded = await get_active_profile_by_id(db_session, test_user["profile"].id)
+    assert reloaded is not None
     assert reloaded.age == 31
 
 
 @pytest.mark.asyncio
 async def test_switch_current_profile_updates_user(db_session, test_user) -> None:
-    with patch("use_cases.profiles.set_redis_cached_current_profile", new=AsyncMock()):
+    with patch("use_cases.profiles.remember_current_profile", new=AsyncMock()):
         second = test_user["profile"].__class__(
             user_id=test_user["user"].id,
             profile_name="Other",

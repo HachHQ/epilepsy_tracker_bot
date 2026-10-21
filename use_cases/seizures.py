@@ -6,14 +6,18 @@ from database.models import Seizure
 from database.repositories.seizures import (
     create_seizure,
     delete_seizure,
+    get_seizure_by_id,
+    list_profile_seizures,
     normalize_feature_names,
     update_seizure_attribute,
 )
+from database.seizure_values import format_seizure_date, format_seizure_time
 from services.cache_invalidation import (
     invalidate_after_seizure_update,
     invalidate_seizure_caches,
 )
 from services.notes_formatters import get_minutes_and_seconds
+from services.profile_ref import ProfileRef
 
 
 @dataclass(frozen=True)
@@ -31,11 +35,6 @@ class SeizurePreview:
     video_tg_id: str | None
     location: str | None
     type_of_seizure: str | None
-
-
-def parse_current_profile(current_profile: str) -> tuple[int, str]:
-    profile_id, profile_name = current_profile.split("|", 1)
-    return int(profile_id), profile_name
 
 
 def build_seizure_date(data: dict) -> str:
@@ -59,11 +58,14 @@ async def create_seizure_from_state(
     session: AsyncSession,
     *,
     user_id: int,
-    current_profile: str,
+    profile: ProfileRef,
     creator_login: str,
     state_data: dict,
-) -> SeizurePreview:
-    profile_id, profile_name = parse_current_profile(current_profile)
+) -> SeizurePreview | None:
+    if not profile.can_edit:
+        return None
+    profile_id = profile.id
+    profile_name = profile.name
     manual_triggers = normalize_feature_names(state_data.get("triggers"))
     selected_triggers = normalize_feature_names(state_data.get("selected_triggers", []))
     trigger_names = selected_triggers + manual_triggers
@@ -92,8 +94,8 @@ async def create_seizure_from_state(
     return SeizurePreview(
         seizure_id=seizure.id,
         profile_name=profile_name,
-        date=date,
-        time=seizure.time,
+        date=format_seizure_date(seizure.date) or date,
+        time=format_seizure_time(seizure.time) or None,
         count=seizure.count,
         triggers=", ".join(trigger_names) if trigger_names else None,
         severity=seizure.severity,
@@ -104,6 +106,19 @@ async def create_seizure_from_state(
         location=seizure.location,
         type_of_seizure=seizure.type_of_seizure,
     )
+
+
+async def list_journal_seizures(session: AsyncSession, profile_id: int) -> list[Seizure]:
+    return await list_profile_seizures(session, profile_id, descending=True)
+
+
+async def get_journal_seizure(
+    session: AsyncSession,
+    *,
+    seizure_id: int,
+    profile_id: int,
+) -> Seizure | None:
+    return await get_seizure_by_id(session, seizure_id, profile_id)
 
 
 async def delete_seizure_record(

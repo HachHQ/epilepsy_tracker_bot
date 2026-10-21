@@ -24,9 +24,9 @@ i18n + locales/   — все пользовательские тексты
 |---------|--------|-----------------|
 | Retention (soft delete, purge) | ✅ | — |
 | i18n foundation (`locales/ru`) | ✅ | `locales/en`, user locale setting |
-| use_cases | users, profiles, seizures, retention, medications | notifications, trusted |
-| repositories | users, profiles, seizures, retention, medications | остальные домены |
-| `orm_query.py` (~560 строк) | частично заменён | вычистить |
+| use_cases | users, profiles, seizures, retention, medications, notifications, trusted, analytics, import_export | — |
+| repositories | users, profiles, seizures, retention, medications, notifications, trusted, analytics, symptoms_triggers, import_export | — |
+| `orm_query.py` | ✅ удалён | — |
 | CI (GitHub Actions) | ✅ | ruff на весь проект |
 | Толстые handlers | — | control_panel, medication, notification |
 
@@ -40,8 +40,8 @@ i18n + locales/   — все пользовательские тексты
 
 1. **Repositories** для `medication`, `notifications`, `trusted_persons`, `import_export`.
 2. **Use cases** с теми же границами; инвалидация кэша только из use cases.
-3. **Похудеть handlers:** `control_panel_handlers.py`, `medication_handlers.py`, `notification_handlers.py` — убрать прямые вызовы `orm_*`.
-4. **Удалить `orm_query.py`** когда все вызовы переедут в repositories.
+3. **Похудеть handlers:** `trusted_person_handlers`, `import_export_handlers`, `medication_handlers`, `notification_handlers` — убрать прямые вызовы `orm_*`.
+4. ✅ **Удалить `orm_query.py`** — все вызовы в repositories / use cases.
 
 ### Критерий готовности
 
@@ -62,14 +62,15 @@ i18n + locales/   — все пользовательские тексты
 
 ### Шаги
 
-1. Валидация — только `services/validators.py`.
-2. Каждый шаг FSM → тонкий handler + `use_cases/seizures`.
-3. Общий рендер превью приступа — `adapters/telegram/delivery.py`.
+1. ✅ Валидация — только `services/validators.py`.
+2. ✅ Каждый шаг FSM → тонкий handler + `use_cases/seizures`.
+3. ✅ Общий рендер превью приступа — `adapters/telegram/delivery.py` (`show_seizure_preview`).
+4. ✅ `handlers_logic/seizure_form/` — модули по шагам; `seizure_form_logic.py` — re-export.
 
 ### Критерий готовности
 
-- `seizure_form_logic.py` < 300 строк или разбит на модули по шагам.
-- Тесты use case без aiogram.
+- ✅ `seizure_form_logic.py` < 300 строк (разбит на модули).
+- ✅ Тесты use case без aiogram.
 
 ---
 
@@ -121,7 +122,7 @@ i18n + locales/   — все пользовательские тексты
 - [x] `print` → `logging` / удаление debug-print в handlers
 - [x] healthcheck для `bot` в `docker-compose.yml`
 - [x] badge CI в `README.md`
-- [ ] `ruff check .` на весь проект (сейчас только `tests/` и `scripts/`)
+- [x] `ruff check .` на весь проект
 
 ### Локальная проверка
 
@@ -162,17 +163,31 @@ docker build -t diplomathesis-bot:local .
 2. ✅ **Трек 6 — CI** (PR #3)
 3. ✅ Трек 3 — Excel + i18n guard
 4. ✅ Трек 1 — medication use cases
-5. Трек 1 — notifications use cases
+5. ✅ Трек 1 — notifications use cases
+6. ✅ Трек 1 — trusted persons use cases
 
 ### Итерация B
 
-6. Трек 1 — вычистка `control_panel_handlers`
-7. Трек 2 — FSM приступа (начало)
+7. ✅ Трек 2 — FSM приступа (начало)
+8. ✅ Трек 1 — вычистка `control_panel_handlers`
+9. ✅ Трек 2 — journal edit flow
 
 ### Итерация C
 
-7. Трек 1 — удаление `orm_query.py`
-8. Трек 5 — cache contract
+10. ✅ Трек 1 — удаление `orm_query.py`
+11. ✅ Трек 5 — cache contract (начало)
+
+### Итерация D
+
+12. ✅ Трек 5 — расширить invalidation tests
+13. ✅ Трек 4 — adapters vs services cleanup (импорты из `adapters/telegram`)
+
+### Итерация E
+
+14. ✅ Трек 1 — import/export repository и use case
+### Итерация F
+
+16. ✅ Трек 6 — `ruff check .` на весь проект
 
 ---
 

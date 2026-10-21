@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config_data.retention import USER_DATA_RETENTION_DAYS
-from database.redis_query import delete_redis_cached_login, set_redis_cached_login
 from database.repositories.profiles import list_restorable_profiles, restore_profile
 from database.repositories.retention import purge_user_forever
 from database.repositories.users import (
@@ -15,6 +14,7 @@ from database.repositories.users import (
     soft_delete_user,
 )
 from services.cache_invalidation import invalidate_user_debug_cache
+from services.redis_cache_data import forget_login, remember_login
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ async def register_user_from_form(
         timezone=form_data["timezone"],
         keyword_hash=form_data["codeword"],
     )
-    await set_redis_cached_login(user_id=telegram_id, login=form_data["login"])
+    await remember_login(telegram_id, form_data["login"])
     return RegisterUserResult(created=True)
 
 
@@ -107,7 +107,7 @@ async def soft_delete_account(
         return SoftDeleteAccountResult(deleted=False)
 
     await invalidate_user_debug_cache(chat_id)
-    await delete_redis_cached_login(chat_id)
+    await forget_login(chat_id)
     return SoftDeleteAccountResult(deleted=True)
 
 
@@ -135,7 +135,7 @@ async def restore_account(
         if await restore_profile(session, profile_data["id"]):
             profiles_restored += 1
 
-    await set_redis_cached_login(user_id=chat_id, login=user.login)
+    await remember_login(chat_id, user.login)
     return RestoreAccountResult(restored=True, profiles_restored=profiles_restored)
 
 
@@ -153,5 +153,5 @@ async def purge_account_forever(
         return PurgeAccountResult(purged=False, reason="purge_failed")
 
     await invalidate_user_debug_cache(chat_id)
-    await delete_redis_cached_login(chat_id)
+    await forget_login(chat_id)
     return PurgeAccountResult(purged=True)

@@ -1,14 +1,17 @@
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from database.repositories.seizures import normalize_feature_names
+from database.repositories.seizures import (
+    fold_symptom_counts,
+    merge_symptom_choices,
+    normalize_feature_names,
+    normalize_symptom_names,
+    replace_seizure_symptoms,
+)
 from use_cases import seizures as seizure_use_cases
-from use_cases.seizures import build_location, build_seizure_date, parse_current_profile
-
-
-def test_parse_current_profile() -> None:
-    assert parse_current_profile("12|Основной") == (12, "Основной")
+from use_cases.seizures import build_location, build_seizure_date
 
 
 def test_build_seizure_date_prefers_short_date() -> None:
@@ -25,10 +28,69 @@ def test_build_location_combines_geo_and_text() -> None:
     assert build_location({}) is None
 
 
+@pytest.mark.asyncio
+async def test_replace_seizure_symptoms_keeps_unique_names_and_links() -> None:
+    seizure = SimpleNamespace(id=3, symptoms="old")
+    session = MagicMock()
+    session.execute = AsyncMock()
+    symptom = SimpleNamespace(id=9)
+    with patch(
+        "database.repositories.seizures.get_or_create_symptom",
+        new=AsyncMock(return_value=symptom),
+    ) as create_symptom:
+        await replace_seizure_symptoms(session, seizure, 1, "Оцепенение, Оцепенение")
+
+    assert seizure.symptoms == "Оцепенение"
+    session.execute.assert_awaited()
+    create_symptom.assert_awaited_once()
+    session.add.assert_called_once()
+    link = session.add.call_args.args[0]
+    assert link.seizure_id == 3
+    assert link.symptom_id == 9
+
+
+@pytest.mark.asyncio
+async def test_replace_seizure_symptoms_clears_an_empty_list() -> None:
+    seizure = SimpleNamespace(id=3, symptoms="Оцепенение")
+    session = MagicMock()
+    session.execute = AsyncMock()
+    await replace_seizure_symptoms(session, seizure, 1, "")
+    assert seizure.symptoms is None
+    session.add.assert_not_called()
+
+
+def test_symptom_names_share_one_spelling_and_rank_by_use() -> None:
+    assert normalize_symptom_names("  АУРА , аура,  головная   БОЛЬ ") == ["Аура", "Головная боль"]
+    assert fold_symptom_counts([("аура", 1), ("Аура", 2), ("тик", 5)]) == [
+        ("Тик", 5),
+        ("Аура", 3),
+    ]
+    choices = merge_symptom_choices(
+        ["Оцепенение", "Потеря сознания"],
+        ["оцепенение", "тик"],
+        ["АУРА"],
+    )
+    assert choices == ["Оцепенение", "Потеря сознания", "Тик", "Аура"]
+
+
 def test_normalize_feature_names_accepts_string_or_list() -> None:
     assert normalize_feature_names("stress, sleep") == ["stress", "sleep"]
     assert normalize_feature_names(["stress", " ", "sleep"]) == ["stress", "sleep"]
     assert normalize_feature_names(None) == []
+
+
+@pytest.mark.asyncio
+async def test_list_journal_seizures_delegates_to_repository() -> None:
+    fake_seizures = [object(), object()]
+    session = AsyncMock()
+    with patch(
+        "use_cases.seizures.list_profile_seizures",
+        new=AsyncMock(return_value=fake_seizures),
+    ) as list_mock:
+        result = await seizure_use_cases.list_journal_seizures(session, profile_id=4)
+
+    assert result is fake_seizures
+    list_mock.assert_awaited_once_with(session, 4, descending=True)
 
 
 @pytest.mark.asyncio

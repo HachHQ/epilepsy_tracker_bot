@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   test:
@@ -73,8 +73,11 @@ jobs:
       - name: Run tests
         run: pytest tests/ -q
 
-      - name: Ruff (tests and scripts)
-        run: ruff check tests scripts
+      - name: Ruff
+        run: ruff check .
+
+      - name: Mypy
+        run: mypy .
 
   docker:
     runs-on: ubuntu-latest
@@ -83,3 +86,20 @@ jobs:
 
       - name: Build bot image
         run: docker build -t diplomathesis-bot:ci .
+
+  deploy:
+    name: Deploy
+    needs: [test, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' '193.23.202.160 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIc0k4m5UxhbCdrEHGL6Rj6GhqkZSyEMFbwF99DIRrLR' > ~/.ssh/known_hosts
+          ssh -T -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" root@193.23.202.160 deploy

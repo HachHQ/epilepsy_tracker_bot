@@ -1,4 +1,5 @@
-from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.state import State, StatesGroup
+
 
 class UserForm(StatesGroup):
     name = State()
@@ -40,16 +41,14 @@ class SeizureForm(StatesGroup):
     type_of_seizure = State()
     severity = State()
     comment = State()
-    #symptoms = State()
+    symptoms = State()
     video_tg_id = State()
     location = State()
-    #medication = State()
+    review = State()
     states_sequence = [
         date, year, month, day, hour, duration, count, type_of_seizure, triggers,
-        #type_of_seizure,
         severity, comment,
-        #symptoms,
-        video_tg_id, location#, medication
+        video_tg_id, location,
     ]
     @classmethod
     def next_state(cls, current_state: str | None) -> State | None:

@@ -4,6 +4,9 @@ seizure_form:
   select_count: "Если в рамках одного припадка было несколько приступов, выберите их количество:"
   select_type: "Выберите тип приступа:"
   select_triggers: "Выберите или введите возможные триггеры:"
+  select_symptoms: |
+    Выберите или введите симптомы приступа.
+    Свои названия остаются в списке, пока они есть хотя бы в одной записи.
   select_severity: "Оцените степень тяжести приступа от 1 до 10:"
   enter_comment: "Оставьте комментарий, если это нужно"
   enter_video: "Пришлите видео приступа. Это может быть кружок или mp4 файл в любом виде:"
@@ -32,6 +35,9 @@ seizure_form:
   triggers_updated: "Сохраненные триггеры обновлены: {value}"
   triggers_empty: "Список пуст"
   triggers_too_long: "<u>Список не должен быть длиннее 250 символов</u>"
+  symptoms_updated: "Симптомы обновлены: {value}"
+  symptoms_empty: "Список пуст"
+  symptoms_too_long: "<u>Список не должен быть длиннее 250 символов</u>"
   severity_updated: "Тяжесть обновлена: {severity}"
   duration_updated: "Продолжительность обновлена: около {duration}"
   invalid_duration: |
@@ -62,3 +68,39 @@ seizure_form:
   enter_duration_minutes: "Введите примерную продолжительность в минутах:"
   year_selected: "Выбран {year} год.\nВыберите месяц:"
   month_selected: "Выбран месяц {month_name}"
+  review: |
+    Проверьте запись перед сохранением.
+    Дата: {date}
+    Время: {time}
+    Длительность: {duration}
+    Количество: {count}
+    Тип: {seizure_type}
+    Тяжесть: {severity}
+    Триггеры: {triggers}
+    Принимаемый курс лекарств:
+    {medication}
+  copied_from_last: "Тип, тяжесть и триггеры подставлены из прошлой записи. Их можно сменить до сохранения."
+  saved_card: |
+    Запись сохранена. Подробности можно добавить сейчас или позже из журнала.
+    Дата: {date}
+    Время: {time}
+    Длительность: {duration}
+    Количество: {count}
+    Тип: {seizure_type}
+    Тяжесть: {severity}
+    Триггеры: {triggers}
+    Симптомы: {symptoms}
+    Комментарий: {comment}
+    Место: {location}
+    Видео: {video}
+    Принимаемый курс лекарств:
+    {medication}
+  video_yes: "приложено"
+  enrich_type: "Тип"
+  enrich_severity: "Тяжесть"
+  enrich_triggers: "Триггеры"
+  enrich_symptoms: "Симптомы"
+  enrich_comment: "Комментарий"
+  enrich_location: "Место"
+  enrich_video: "Видео"
+  enrich_count: "Количество"
