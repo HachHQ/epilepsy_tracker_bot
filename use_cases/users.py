@@ -11,6 +11,7 @@ from database.repositories.users import (
     get_user_by_chat_id,
     get_user_by_login,
     restore_user,
+    set_oferta_accepted,
     soft_delete_user,
 )
 from services.cache_invalidation import invalidate_user_debug_cache
@@ -48,6 +49,13 @@ class DeletedAccountInfo:
     retention_until: str | None = None
 
 
+@dataclass(frozen=True)
+class OfertaAccountState:
+    exists: bool
+    is_oferta_accepted: bool
+    is_deleted: bool
+
+
 async def register_user_from_form(
     session: AsyncSession,
     *,
@@ -75,6 +83,21 @@ async def register_user_from_form(
     )
     await remember_login(telegram_id, form_data["login"])
     return RegisterUserResult(created=True)
+
+
+async def get_oferta_account_state(session: AsyncSession, chat_id: int) -> OfertaAccountState:
+    user = await get_user_by_chat_id(session, chat_id, include_deleted=True)
+    if not user:
+        return OfertaAccountState(exists=False, is_oferta_accepted=False, is_deleted=False)
+    return OfertaAccountState(
+        exists=True,
+        is_oferta_accepted=bool(user.is_oferta_accepted),
+        is_deleted=user.is_deleted,
+    )
+
+
+async def accept_oferta(session: AsyncSession, *, chat_id: int) -> bool:
+    return await set_oferta_accepted(session, chat_id)
 
 
 async def get_deleted_account_info(session: AsyncSession, chat_id: int) -> DeletedAccountInfo | None:

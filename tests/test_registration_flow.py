@@ -264,7 +264,13 @@ async def test_registration_ends_on_one_message_with_menu_button(
     )
     message = FakeMessage(text="arthur_01")
     state = MemoryState()
-    state.storage.update(name="Артур", timezone="+7", codeword="hashed", **{ANCHOR_MESSAGE_ID: 7})
+    state.storage.update(
+        name="Артур",
+        timezone="+7",
+        codeword="hashed",
+        oferta_accepted=True,
+        **{ANCHOR_MESSAGE_ID: 7},
+    )
 
     await process_login(message, state, AsyncMock(), None)
     screen = message.sent[0]
@@ -283,7 +289,13 @@ async def test_taken_login_returns_to_the_same_step(monkeypatch: pytest.MonkeyPa
     )
     message = FakeMessage(text="arthur_01")
     state = MemoryState()
-    state.storage.update(name="Артур", timezone="+7", codeword="hashed", **{ANCHOR_MESSAGE_ID: 7})
+    state.storage.update(
+        name="Артур",
+        timezone="+7",
+        codeword="hashed",
+        oferta_accepted=True,
+        **{ANCHOR_MESSAGE_ID: 7},
+    )
 
     await process_login(message, state, AsyncMock(), None)
     assert message.sent[0].text == t("user.login_exist")
@@ -300,7 +312,13 @@ async def test_existing_telegram_account_opens_menu(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("handlers.main_menu.get_cached_login", AsyncMock(return_value="artur"))
     message = FakeMessage(text="arthur_01")
     state = MemoryState()
-    state.storage.update(name="Артур", timezone="+7", codeword="hashed", **{ANCHOR_MESSAGE_ID: 7})
+    state.storage.update(
+        name="Артур",
+        timezone="+7",
+        codeword="hashed",
+        oferta_accepted=True,
+        **{ANCHOR_MESSAGE_ID: 7},
+    )
 
     await process_login(message, state, AsyncMock(), None)
     assert message.sent[0].text == t("user.user_exist")
@@ -320,7 +338,13 @@ async def test_deleted_account_keeps_the_restore_hint(monkeypatch: pytest.Monkey
     )
     message = FakeMessage(text="arthur_01")
     state = MemoryState()
-    state.storage.update(name="Артур", timezone="+7", codeword="hashed", **{ANCHOR_MESSAGE_ID: 7})
+    state.storage.update(
+        name="Артур",
+        timezone="+7",
+        codeword="hashed",
+        oferta_accepted=True,
+        **{ANCHOR_MESSAGE_ID: 7},
+    )
 
     await process_login(message, state, AsyncMock(), None)
     assert message.sent[0].text == t("user.account_deleted_restore_hint")

@@ -204,6 +204,10 @@ async def process_login(
 
     await state.update_data(login=message.text)
     data = await state.get_data()
+    if not data.get("oferta_accepted"):
+        await state.clear()
+        await send_notice(message, t("start.oferta_required_alert"))
+        return
     result = await register_user_from_form(
         db,
         telegram_id=message.chat.id,
