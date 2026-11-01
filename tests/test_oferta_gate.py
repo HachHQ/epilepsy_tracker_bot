@@ -1,21 +1,38 @@
+from dataclasses import replace
+from typing import TypedDict, Unpack
+
 from middleware.oferta_gate import OfertaGateInput, command_name, decide_oferta_access
 
 
-def _gate(**overrides) -> OfertaGateInput:
-    base = dict(
-        has_user=False,
-        is_oferta_accepted=False,
-        is_deleted=False,
-        is_start=False,
-        is_accept=False,
-        is_cancel=False,
-        raw_state=None,
-        registration_unlocked=False,
-        registration_step=False,
-        is_restore_callback=False,
+class _GateOverrides(TypedDict, total=False):
+    has_user: bool
+    is_oferta_accepted: bool
+    is_deleted: bool
+    is_start: bool
+    is_accept: bool
+    is_cancel: bool
+    raw_state: str | None
+    registration_unlocked: bool
+    registration_step: bool
+    is_restore_callback: bool
+
+
+def _gate(**overrides: Unpack[_GateOverrides]) -> OfertaGateInput:
+    return replace(
+        OfertaGateInput(
+            has_user=False,
+            is_oferta_accepted=False,
+            is_deleted=False,
+            is_start=False,
+            is_accept=False,
+            is_cancel=False,
+            raw_state=None,
+            registration_unlocked=False,
+            registration_step=False,
+            is_restore_callback=False,
+        ),
+        **overrides,
     )
-    base.update(overrides)
-    return OfertaGateInput(**base)
 
 
 def test_command_name_strips_bot_mention() -> None:
@@ -60,16 +77,14 @@ def test_accepted_user_can_use_the_bot() -> None:
 
 
 def test_deleted_account_can_be_restored_only_after_acceptance() -> None:
-    hidden = dict(has_user=True, is_deleted=True)
-    assert decide_oferta_access(_gate(**hidden, is_oferta_accepted=False)) == "show_oferta"
-    assert decide_oferta_access(_gate(**hidden, is_oferta_accepted=False, is_start=True)) == "allow"
-    accepted = dict(**hidden, is_oferta_accepted=True)
-    assert decide_oferta_access(_gate(**accepted)) == "show_deleted"
-    assert decide_oferta_access(_gate(**accepted, is_start=True)) == "allow"
-    assert decide_oferta_access(_gate(**accepted, is_restore_callback=True)) == "allow"
+    hidden = _gate(has_user=True, is_deleted=True, is_oferta_accepted=False)
+    assert decide_oferta_access(hidden) == "show_oferta"
+    assert decide_oferta_access(replace(hidden, is_start=True)) == "allow"
+    accepted = replace(hidden, is_oferta_accepted=True)
+    assert decide_oferta_access(accepted) == "show_deleted"
+    assert decide_oferta_access(replace(accepted, is_start=True)) == "allow"
+    assert decide_oferta_access(replace(accepted, is_restore_callback=True)) == "allow"
     assert (
-        decide_oferta_access(
-            _gate(**accepted, raw_state="AccountForm:restore_codeword")
-        )
+        decide_oferta_access(replace(accepted, raw_state="AccountForm:restore_codeword"))
         == "allow"
     )
