@@ -49,6 +49,9 @@ class User(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_oferta_accepted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
 
     profiles: Mapped[list[Profile]] = relationship(back_populates="user")
 

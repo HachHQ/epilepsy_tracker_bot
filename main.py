@@ -35,7 +35,11 @@ from i18n import set_locale, t
 from keyboards.set_menu import set_main_menu
 from middleware.delete_command import DeleteCommandMiddleware
 from middleware.delete_plain import DeletePlainMessageMiddleware
-from middleware.inner import DatabaseSessionMiddleware, NotificationMiddleware
+from middleware.inner import (
+    DatabaseSessionMiddleware,
+    NotificationMiddleware,
+    OfertaGateMiddleware,
+)
 from middleware.locale import LocaleMiddleware
 from services.retention_purge import schedule_retention_purge
 from services.runtime_health import write_heartbeat
@@ -78,6 +82,7 @@ async def main():
     dp.update.middleware(NotificationMiddleware(notification_queue))
     dp.update.middleware(LocaleMiddleware())
     dp.update.middleware(DatabaseSessionMiddleware(SessionLocal))
+    dp.update.middleware(OfertaGateMiddleware())
 
     dp.include_router(cancel_router)
     dp.include_router(start_message_router)

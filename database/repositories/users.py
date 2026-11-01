@@ -40,6 +40,15 @@ async def get_deleted_user_by_chat_id(session: AsyncSession, chat_id: int) -> Us
     )
 
 
+async def set_oferta_accepted(session: AsyncSession, chat_id: int) -> bool:
+    user = await get_user_by_chat_id(session, chat_id, include_deleted=True)
+    if not user:
+        return False
+    user.is_oferta_accepted = True
+    await session.flush()
+    return True
+
+
 async def get_user_by_login(session: AsyncSession, login: str) -> User | None:
     result = await session.execute(
         select(User).where(User.login == login, User.deleted_at.is_(None))
@@ -66,6 +75,7 @@ async def create_user(
         login=login,
         timezone=timezone,
         keyword_hash=keyword_hash,
+        is_oferta_accepted=True,
     )
     session.add(user)
     await session.flush()

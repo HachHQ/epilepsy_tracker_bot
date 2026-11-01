@@ -7,7 +7,7 @@ class _LexiconMapping:
     _KEY_MAP = {
         "welcome": "start.welcome",
         "to_register": "start.to_register",
-        "policy": "start.policy",
+        "policy": "start.oferta_caption",
         "cancel_script": "common.cancel_script",
         "not_in_script": "common.not_in_script",
         "enter_username": "user.enter_username",
